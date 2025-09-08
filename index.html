@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GravitysEdge — Photoshop UXP Plugins by Īan McDaniel</title>
+  <title>GravitysEdge Asset Deck — Photoshop UXP Plugin</title>
 
   <!-- Basic SEO -->
-  <meta name="description" content="GravitysEdge builds fast, reliable Photoshop UXP plugins, including Gravity Edge Asset Deck — a sleek asset browser with notes, locks, favorites, and persistent indexing." />
+  <meta name="description" content="GravitysEdge Asset Deck is a fast, clean asset browser for Adobe Photoshop. Browse folders as collapsible sections, per-folder zoom, B/W transparency view, favorites & notes with JSON export, and production builds with logs." />
   <meta name="author" content="Īan McDaniel" />
 
-  <!-- Open Graph (social previews) -->
-  <meta property="og:title" content="GravitysEdge — Photoshop UXP Plugins" />
-  <meta property="og:description" content="Home of Gravity Edge Asset Deck and AI-driven creative tools by Īan McDaniel." />
+  <!-- Social preview -->
+  <meta property="og:title" content="GravitysEdge Asset Deck — Photoshop UXP Plugin" />
+  <meta property="og:description" content="A modern asset manager for Photoshop: per-folder zoom, transparency B/W toggle, favorites/notes with JSON export, and reliable production builds." />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://gravitysedgeai.github.io/gravitysedge-site/og-cover.jpg" />
+  <meta property="og:image" content="https://gravitysedgeai.github.io/gravitysedge-site/assets/og-cover.jpg" />
   <meta property="og:url" content="https://gravitysedgeai.github.io/gravitysedge-site/" />
 
   <style>
@@ -45,27 +45,28 @@
       padding:28px; box-shadow:var(--shadow); margin-bottom:24px;}
     .hero h2{margin:0 0 8px; font-size:2rem}
     .hero p{margin:0; color:var(--muted)}
-
     .actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:16px}
     .btn{display:inline-block; padding:12px 16px; border-radius:12px;
       background:var(--button); color:var(--text); border:1px solid rgba(255,255,255,.08);}
     .btn.primary{background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#0b0f14; font-weight:600}
 
-    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:16px; margin-top:26px}
-    .card{grid-column:span 12; background:var(--card); border-radius:var(--radius);
-      box-shadow:var(--shadow); padding:20px;}
-    @media (min-width:900px){.card.split{display:grid; grid-template-columns:1.2fr 1fr; align-items:center}}
-    .card h3{margin:0 0 8px}
+    .card{background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px; margin-top:18px}
     .muted{color:var(--muted)}
+    .split{display:grid; gap:16px}
+    @media (min-width:900px){ .split{grid-template-columns:1.2fr 1fr; align-items:center} }
 
     .shot{width:100%; aspect-ratio:16/10; border-radius:12px; background:#0a0f17;
       border:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center;
       color:#6b7280; font-size:.95rem; text-align:center; padding:8px;}
+    .shot img{width:100%; height:100%; object-fit:cover; border-radius:12px}
 
-    .features{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-top:12px}
+    .features{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px}
     .feat{background:#0e1624; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:14px}
     .tag{display:inline-flex; gap:6px; align-items:center; font-size:.92rem}
     .dot{width:8px;height:8px;border-radius:50%;background:var(--ok); box-shadow:0 0 10px rgba(34,197,94,.7)}
+
+    .tips{display:grid; gap:8px; margin-top:10px}
+    .tip{background:#0e1624; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:12px}
 
     footer{margin-top:40px; color:var(--muted); font-size:.95rem}
     .foot-grid{display:grid; grid-template-columns:1fr; gap:14px}
@@ -87,9 +88,9 @@
 
     <!-- Hero -->
     <section class="hero" role="region" aria-label="Overview">
-      <h2>Gravity Edge Asset Deck</h2>
+      <h2>GravitysEdge Asset Deck (Photoshop UXP)</h2>
       <p class="muted">
-        A fast, modern asset browser for Photoshop: persistent folder indexing, notes, favorites, locks, clean Polaroid-style grid, smart caching, and a glowing zoom slider — built for speed and big libraries.
+        Organize images into a fast grid with per-folder controls, notes/favorites metadata, and reliable production builds. PNG-friendly transparency view and simple JSON exports keep your workflow clean.
       </p>
       <div class="actions">
         <a class="btn primary" href="https://exchange.adobe.com/" target="_blank" rel="noopener">Get the Plugin</a>
@@ -98,35 +99,48 @@
       </div>
     </section>
 
-    <!-- Product card -->
-    <section class="card split" role="region" aria-label="Plugin details">
-      <div style="padding-right:16px">
-        <h3>Built for Real-World Workflows</h3>
-        <p class="muted">
-          Designed for speed and clarity inside Photoshop. No HTML panels. Pure UXP with clean React layout, persistent JSON indices, and careful memory use.
-        </p>
+    <!-- Details + Screenshot -->
+    <section class="card split" role="region" aria-label="Details">
+      <div>
+        <h3>Overview</h3>
+        <ul class="muted">
+          <li>Browse folders as <strong>collapsible sections</strong> with <strong>per-folder zoom</strong>.</li>
+          <li>Favorite images ⭐ and add notes ✎ — <strong>export both to JSON</strong>.</li>
+          <li><strong>PNG-friendly B/W background toggle</strong> to inspect transparencies.</li>
+          <li><strong>Stable production builds</strong> with logs & JSON build reports (via runner).</li>
+        </ul>
+
         <div class="features">
-          <div class="feat"><span class="tag"><span class="dot"></span> Folder tree with badges</span><div class="muted">Favorites, notes, last-opened state.</div></div>
-          <div class="feat"><span class="tag"><span class="dot"></span> Polaroid & frameless grids</span><div class="muted">Selectable overlays, hover & drag events.</div></div>
-          <div class="feat"><span class="tag"><span class="dot"></span> Persistent meta.json</span><div class="muted">Per-folder index up to 50 images; master index for lookup.</div></div>
-          <div class="feat"><span class="tag"><span class="dot"></span> Smart caching + skip logic</span><div class="muted">Skips >25 MB, lazy loads, and keeps memory low.</div></div>
-          <div class="feat"><span class="tag"><span class="dot"></span> Glowing zoom slider</span><div class="muted">Crisp scaling of originals (no canvas transforms).</div></div>
-          <div class="feat"><span class="tag"><span class="dot"></span> Lock & notes</span><div class="muted">Protect folders; add per-image notes that persist.</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Folder header controls</span>
+            <div class="muted">Chevron expand/collapse · B/W toggle · mini slider (per-folder zoom) · star & pen badges · image counter chip.</div>
+          </div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Image card overlay</span>
+            <div class="muted">Star to favorite · Pen to open notes.</div>
+          </div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Bottom toolbar</span>
+            <div class="muted">Expand / Collapse all · Gear menu: export favorites/notes & export logs.</div>
+          </div>
         </div>
       </div>
+
       <div>
+        <!-- Replace the src below after you upload the screenshot -->
         <div class="shot">
-          Drop <strong>assets/screenshot-1.png</strong> in your repo and set its URL here.
+          <img src="assets/screenshot-1.png" alt="GravitysEdge Asset Deck UI screenshot" />
         </div>
       </div>
     </section>
 
-    <!-- About -->
-    <section class="card" role="region" aria-label="About the developer">
-      <h3>About the Developer</h3>
-      <p class="muted">
-        Īan McDaniel is an AI media producer and developer building tools for creative professionals. GravitysEdge focuses on practical, production-ready Photoshop extensions with modern UX and strong performance.
-      </p>
+    <!-- Recommended usage -->
+    <section class="card" role="region" aria-label="Recommended usage">
+      <h3>Recommended usage / ideal conditions</h3>
+      <div class="tips">
+        <div class="tip muted">Keep folders to ~100 images or fewer for best responsiveness.</div>
+        <div class="tip muted">Very large source images may slow first-time indexing — that’s normal.</div>
+        <div class="tip muted">While loading many thumbnails, the grid may appear to pause; give it a moment.</div>
+        <div class="tip muted">Rapid zooming with many folders open can cause brief stalls; use smaller steps or close unused folders.</div>
+        <div class="tip muted">Prefer multiple subfolders over one very large folder.</div>
+      </div>
     </section>
 
     <!-- Footer -->
@@ -139,7 +153,7 @@
       <div>
         <strong>Privacy</strong>
         <p class="fine">
-          This site collects no personal data, sets no cookies, and has no analytics. The Gravity Edge Asset Deck plugin stores local metadata files (e.g., folder indices and notes) on your machine only.
+          This site sets no cookies and runs no analytics. The plugin stores local metadata (indices, favorites, notes) on your machine only.
         </p>
       </div>
     </footer>
