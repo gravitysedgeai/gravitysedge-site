@@ -1,19 +1,149 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Gravity’s Edge – Plugins & Creative Tools</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GravitysEdge — Photoshop UXP Plugins by Īan McDaniel</title>
+
+  <!-- Basic SEO -->
+  <meta name="description" content="GravitysEdge builds fast, reliable Photoshop UXP plugins, including Gravity Edge Asset Deck — a sleek asset browser with notes, locks, favorites, and persistent indexing." />
+  <meta name="author" content="Īan McDaniel" />
+
+  <!-- Open Graph (social previews) -->
+  <meta property="og:title" content="GravitysEdge — Photoshop UXP Plugins" />
+  <meta property="og:description" content="Home of Gravity Edge Asset Deck and AI-driven creative tools by Īan McDaniel." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://gravitysedgeai.github.io/gravitysedge-site/og-cover.jpg" />
+  <meta property="og:url" content="https://gravitysedgeai.github.io/gravitysedge-site/" />
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; background: #f9f9f9; color: #222; }
-    h1 { color: #333; }
-    p { line-height: 1.6; }
-    a { color: #0066cc; }
+    :root{
+      --bg:#0b0f14; --card:#111826; --muted:#a7b1c2; --text:#e9eef6;
+      --accent:#6ee7ff; --accent2:#8b5cf6; --button:#1f2a44; --ok:#22c55e;
+      --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial;
+      background: radial-gradient(1200px 600px at 10% -10%, rgba(139,92,246,.25), transparent 60%),
+                  radial-gradient(1000px 600px at 110% 10%, rgba(110,231,255,.20), transparent 60%),
+                  var(--bg);
+      color:var(--text);
+    }
+    a{color:var(--accent); text-decoration:none}
+    .wrap{max-width:1100px; margin:0 auto; padding:32px 20px 80px}
+
+    header{display:flex; align-items:center; gap:16px; margin-bottom:28px}
+    .logo{width:54px;height:54px;border-radius:14px;
+      background: linear-gradient(135deg,var(--accent),var(--accent2));
+      box-shadow:var(--shadow);}
+    .brand h1{margin:0; font-size:1.6rem; letter-spacing:.3px}
+    .brand small{color:var(--muted)}
+
+    .hero{border-radius:var(--radius);
+      background:linear-gradient(135deg,rgba(139,92,246,.18),rgba(110,231,255,.12));
+      padding:28px; box-shadow:var(--shadow); margin-bottom:24px;}
+    .hero h2{margin:0 0 8px; font-size:2rem}
+    .hero p{margin:0; color:var(--muted)}
+
+    .actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:16px}
+    .btn{display:inline-block; padding:12px 16px; border-radius:12px;
+      background:var(--button); color:var(--text); border:1px solid rgba(255,255,255,.08);}
+    .btn.primary{background:linear-gradient(135deg,var(--accent2),var(--accent)); color:#0b0f14; font-weight:600}
+
+    .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:16px; margin-top:26px}
+    .card{grid-column:span 12; background:var(--card); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:20px;}
+    @media (min-width:900px){.card.split{display:grid; grid-template-columns:1.2fr 1fr; align-items:center}}
+    .card h3{margin:0 0 8px}
+    .muted{color:var(--muted)}
+
+    .shot{width:100%; aspect-ratio:16/10; border-radius:12px; background:#0a0f17;
+      border:1px solid rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center;
+      color:#6b7280; font-size:.95rem; text-align:center; padding:8px;}
+
+    .features{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin-top:12px}
+    .feat{background:#0e1624; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:14px}
+    .tag{display:inline-flex; gap:6px; align-items:center; font-size:.92rem}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--ok); box-shadow:0 0 10px rgba(34,197,94,.7)}
+
+    footer{margin-top:40px; color:var(--muted); font-size:.95rem}
+    .foot-grid{display:grid; grid-template-columns:1fr; gap:14px}
+    @media (min-width:760px){.foot-grid{grid-template-columns:1fr 1fr}}
+    .fine{font-size:.85rem; opacity:.9}
   </style>
 </head>
 <body>
-  <h1>Īan McDaniel – Gravity’s Edge</h1>
-  <p>Developer of the <strong>Gravity Edge Asset Deck</strong> Photoshop plugin and other AI-driven creative tools.</p>
-  <p>Brand: <strong>4ME2BEFREE</strong> — cinematic music, immersive AI storytelling, and innovative media production.</p>
-  <p>Contact: <a href="mailto:gravitysedge@gmail.com">your-gravitysedge@gmail.com</a></p>
+  <div class="wrap">
+
+    <!-- Header -->
+    <header>
+      <div class="logo" aria-hidden="true"></div>
+      <div class="brand">
+        <h1>GravitysEdge</h1>
+        <small>Photoshop UXP Plugins by Īan McDaniel</small>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero" role="region" aria-label="Overview">
+      <h2>Gravity Edge Asset Deck</h2>
+      <p class="muted">
+        A fast, modern asset browser for Photoshop: persistent folder indexing, notes, favorites, locks, clean Polaroid-style grid, smart caching, and a glowing zoom slider — built for speed and big libraries.
+      </p>
+      <div class="actions">
+        <a class="btn primary" href="https://exchange.adobe.com/" target="_blank" rel="noopener">Get the Plugin</a>
+        <a class="btn" href="https://github.com/gravitysedgeai" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href="mailto:gravitysedge@gmail.com">Support</a>
+      </div>
+    </section>
+
+    <!-- Product card -->
+    <section class="card split" role="region" aria-label="Plugin details">
+      <div style="padding-right:16px">
+        <h3>Built for Real-World Workflows</h3>
+        <p class="muted">
+          Designed for speed and clarity inside Photoshop. No HTML panels. Pure UXP with clean React layout, persistent JSON indices, and careful memory use.
+        </p>
+        <div class="features">
+          <div class="feat"><span class="tag"><span class="dot"></span> Folder tree with badges</span><div class="muted">Favorites, notes, last-opened state.</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Polaroid & frameless grids</span><div class="muted">Selectable overlays, hover & drag events.</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Persistent meta.json</span><div class="muted">Per-folder index up to 50 images; master index for lookup.</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Smart caching + skip logic</span><div class="muted">Skips >25 MB, lazy loads, and keeps memory low.</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Glowing zoom slider</span><div class="muted">Crisp scaling of originals (no canvas transforms).</div></div>
+          <div class="feat"><span class="tag"><span class="dot"></span> Lock & notes</span><div class="muted">Protect folders; add per-image notes that persist.</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          Drop <strong>assets/screenshot-1.png</strong> in your repo and set its URL here.
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section class="card" role="region" aria-label="About the developer">
+      <h3>About the Developer</h3>
+      <p class="muted">
+        Īan McDaniel is an AI media producer and developer building tools for creative professionals. GravitysEdge focuses on practical, production-ready Photoshop extensions with modern UX and strong performance.
+      </p>
+    </section>
+
+    <!-- Footer -->
+    <footer class="foot-grid">
+      <div>
+        <strong>Contact</strong><br />
+        <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a><br />
+        GitHub: <a href="https://github.com/gravitysedgeai" target="_blank" rel="noopener">@gravitysedgeai</a>
+      </div>
+      <div>
+        <strong>Privacy</strong>
+        <p class="fine">
+          This site collects no personal data, sets no cookies, and has no analytics. The Gravity Edge Asset Deck plugin stores local metadata files (e.g., folder indices and notes) on your machine only.
+        </p>
+      </div>
+    </footer>
+
+  </div>
 </body>
 </html>
