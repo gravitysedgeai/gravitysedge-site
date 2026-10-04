@@ -4,13 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AssetDEK for Photoshop</title>
-<meta name="description" content="AssetDEK puts your image library in a Photoshop panel. Browse, search, tag and favorite, then Open or Place the original in one click. Offline, private, and it never changes your files.">
-<link rel="icon" href="logo.png">
+<meta name="description" content="AssetDEK puts your image library in a Photoshop panel. Browse, search, tag and favorite, then Open or Place the original in one click. One-time purchase, offline, and it never changes your files.">
+<link rel="icon" href="img/logo.png">
 <style>
   :root {
     --bg: #0b1424;
     --bg-2: #101e36;
     --card: #14233d;
+    --card-2: #182a48;
     --edge: #24395c;
     --text: #eef2f8;
     --muted: #a6b4c8;
@@ -26,6 +27,7 @@
     font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   }
   a { color: var(--blue); }
+  button { font: inherit; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
   header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
   .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
@@ -34,26 +36,36 @@
   .brand span { color: var(--muted); font-size: 13px; }
   nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 14px; }
   nav a:hover { color: var(--text); }
-  .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; padding: 40px 0 64px; }
+  .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; padding: 40px 0 56px; }
   .kicker { color: var(--orange); font-weight: 600; letter-spacing: 1px; font-size: 13px; text-transform: uppercase; }
   h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; margin: 10px 0 18px; }
   .lead { color: var(--muted); font-size: 18px; margin: 0 0 26px; }
-  .cta { display: inline-block; padding: 12px 22px; border-radius: 8px; background: var(--blue); color: #0b1424; font-weight: 700; text-decoration: none; }
+  .cta { display: inline-block; padding: 12px 22px; border-radius: 8px; background: var(--blue); color: #0b1424; font-weight: 700; text-decoration: none; border: 0; cursor: pointer; }
   .cta.secondary { background: transparent; color: var(--text); border: 1px solid var(--edge); margin-left: 10px; }
   .badges { margin-top: 20px; color: var(--muted); font-size: 14px; }
   .badges span { margin-right: 16px; white-space: nowrap; }
   .badges span::before { content: "✓ "; color: var(--blue); }
+  .zoomable { cursor: zoom-in; }
   .shot { width: 100%; border-radius: 10px; border: 1px solid var(--edge); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); display: block; }
   section { padding: 56px 0; }
   h2 { font-size: clamp(26px, 3.5vw, 36px); margin: 0 0 8px; }
-  .sub { color: var(--muted); margin: 0 0 32px; max-width: 680px; }
+  .sub { color: var(--muted); margin: 0 0 32px; max-width: 700px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .step { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 20px; }
+  .step .n { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center; background: var(--blue); color: #0b1424; font-weight: 800; margin-bottom: 10px; }
+  .step b { display: block; margin-bottom: 4px; }
+  .step span { color: var(--muted); font-size: 15px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 22px; }
   .feature { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-  .feature .media { background: #0d1626; display: flex; justify-content: center; align-items: center; height: 300px; overflow: hidden; }
+  .feature .media { position: relative; background: #0d1626; display: flex; justify-content: center; align-items: center; height: 300px; overflow: hidden; }
   .feature .media img { max-height: 100%; max-width: 100%; display: block; }
-  .feature .body { padding: 16px 18px 20px; }
+  .feature .media::after { content: "⤢ Click to enlarge"; position: absolute; right: 10px; bottom: 10px; font-size: 12px; color: var(--text); background: rgba(11, 20, 36, 0.8); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 8px; opacity: 0; transition: opacity 0.15s; }
+  .feature .media:hover::after { opacity: 1; }
+  .feature .body { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
   .feature h3 { margin: 0 0 6px; font-size: 18px; }
-  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
+  .feature p { margin: 0 0 12px; color: var(--muted); font-size: 15px; flex: 1; }
+  .more { align-self: flex-start; background: transparent; border: 1px solid var(--edge); color: var(--blue); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
+  .more:hover { background: var(--card-2); }
   .tag-new { display: inline-block; font-size: 11px; font-weight: 700; color: #0b1424; background: var(--orange); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
   .safe { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
   .safe div { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 18px; }
@@ -61,20 +73,47 @@
   .safe span { color: var(--muted); font-size: 15px; }
   .price { text-align: center; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; padding: 40px 18px; }
   .price .amount { font-size: 48px; font-weight: 800; margin: 6px 0; }
+  .price ul { list-style: none; padding: 0; margin: 0 auto 26px; max-width: 460px; color: var(--muted); }
+  .price li { padding: 4px 0; }
+  .price li::before { content: "✓ "; color: var(--blue); }
+  .faq details { background: var(--card); border: 1px solid var(--edge); border-radius: 10px; padding: 0 18px; margin-bottom: 10px; }
+  .faq summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::before { content: "+"; display: inline-block; width: 22px; color: var(--blue); font-weight: 800; }
+  .faq details[open] summary::before { content: "–"; }
+  .faq details p { margin: 0 0 16px 22px; color: var(--muted); }
   footer { color: var(--muted); font-size: 14px; padding: 40px 0 60px; border-top: 1px solid var(--edge); margin-top: 40px; }
+
+  /* Viewer: enlarged picture + the full explanation */
+  .viewer { position: fixed; inset: 0; z-index: 50; display: none; background: rgba(4, 8, 16, 0.88); padding: 24px 16px; overflow-y: auto; }
+  .viewer.open { display: block; }
+  .viewer-box { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); }
+  .viewer-media { background: #0a1220; display: flex; align-items: center; justify-content: center; min-height: 300px; }
+  .viewer-media img { max-width: 100%; max-height: 86vh; display: block; }
+  .viewer-text { padding: 26px 24px; }
+  .viewer-text h3 { margin: 4px 0 10px; font-size: 24px; }
+  .viewer-text p { color: var(--muted); }
+  .viewer-text ul { color: var(--muted); padding-left: 20px; }
+  .viewer-text li { margin-bottom: 6px; }
+  .viewer-bar { display: flex; justify-content: space-between; align-items: center; max-width: 1180px; margin: 0 auto 10px; }
+  .viewer-bar button { background: var(--card); color: var(--text); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  .viewer-bar .nav button { margin-left: 8px; }
+  .hint { color: var(--muted); font-size: 13px; }
   @media (max-width: 820px) {
     .hero { grid-template-columns: 1fr; }
     nav { display: none; }
     .cta.secondary { margin: 10px 0 0; }
     .feature .media { height: 240px; }
+    .viewer-box { grid-template-columns: 1fr; }
+    .hint { display: none; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <a class="brand" href="#"><img src="logo.png" alt=""><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
-    <nav><a href="#features">Features</a><a href="#safe">Safe by design</a><a href="#get">Get it</a><a href="privacy.html">Privacy</a></nav>
+    <a class="brand" href="#"><img src="img/logo.png" alt="GEAD logo"><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
+    <nav><a href="#how">How it works</a><a href="#features">Features</a><a href="#safe">Safe by design</a><a href="#faq">FAQ</a><a href="#get">Get it</a></nav>
   </header>
 
   <div class="hero">
@@ -83,30 +122,29 @@
       <h1>Your image library, inside Photoshop.</h1>
       <p class="lead">Browse every folder on every drive as a fast gallery beside your canvas. Search, tag and favorite — then Open or Place the original in one click.</p>
       <a class="cta" href="#get">Get AssetDEK</a><a class="cta secondary" href="#features">See features</a>
-      <div class="badges"><span>Offline</span><span>No account</span><span>Never changes your files</span></div>
+      <div class="badges"><span>One-time purchase</span><span>Offline</span><span>Never changes your files</span></div>
     </div>
-    <img class="shot" src="img/01-hero.png" alt="AssetDEK panel in Photoshop showing a gallery of artwork">
+    <img class="shot zoomable" src="img/01-hero.png" alt="AssetDEK panel in Photoshop showing a gallery of artwork" data-viewer="hero">
   </div>
 </div>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">No importing, no catalog to babysit. Your folders stay exactly where they are.</p>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><b>Add your folders</b><span>Click + next to FOLDERS and pick any folder, on any drive. AssetDEK lists every image in it and its subfolders, and keeps itself up to date.</span></div>
+      <div class="step"><span class="n">2</span><b>Find the right image</b><span>Scroll, search, filter, sort and group. Star favorites, add notes and tags, check the details in INFO and METADATA.</span></div>
+      <div class="step"><span class="n">3</span><b>Use it in Photoshop</b><span>Double-click to open the original, or click Place to drop it into your document as a smart object.</span></div>
+    </div>
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">
     <h2>Everything you need to find the right image</h2>
-    <p class="sub">Real screenshots from AssetDEK running in Photoshop.</p>
-    <div class="grid">
-      <div class="feature"><div class="media"><img src="img/01-transparency.gif" alt="Transparency preview cycling dark, light and checkerboard" loading="lazy"></div><div class="body"><h3>Transparency preview</h3><p>Dark, light or checkerboard behind your PNGs — spot cut-outs without opening a single file.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/03-card-frames.gif" alt="Card frames: none, slide, Polaroid" loading="lazy"></div><div class="body"><h3>Card frames <span class="tag-new">NEW</span></h3><p>Slide, Polaroid or none. Frames scale with your cards; your files never change.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/02-dark-gallery.gif" alt="Standard and dark gallery" loading="lazy"></div><div class="body"><h3>Dark gallery <span class="tag-new">NEW</span></h3><p>A darker canvas for viewing artwork. Only the gallery changes.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/07-duplicates.gif" alt="Finding duplicates and selecting extras" loading="lazy"></div><div class="body"><h3>Duplicates <span class="tag-new">NEW</span></h3><p>Find exact copies in seconds. Keep one, move the rest to Deleted — nothing is erased.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/04-zoom.gif" alt="Card sizes growing" loading="lazy"></div><div class="body"><h3>Big screen ready</h3><p>Cards up to 512 px with sharp previews — made for 4K displays.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/05-card-controls.gif" alt="Card controls hidden, active only, all" loading="lazy"></div><div class="body"><h3>Card controls <span class="tag-new">NEW</span></h3><p>Hidden, Active only or All. A clean gallery that still shows what matters.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/06-group-labels.gif" alt="Group labels as bars and as tiles" loading="lazy"></div><div class="body"><h3>Bars or tiles <span class="tag-new">NEW</span></h3><p>Group by folder, month or file type — with header bars or label tiles in one flow.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/09-info-metadata.gif" alt="INFO and METADATA tabs" loading="lazy"></div><div class="body"><h3>INFO &amp; METADATA</h3><p>Dimensions, color, camera data and embedded text — even the AI prompt behind a render.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/10-tags.gif" alt="Typing to filter tags" loading="lazy"></div><div class="body"><h3>Tags</h3><p>Type to filter, Enter to add. Your own vocabulary, with counts in the sidebar.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/08-archive-restore.gif" alt="Archive and restore" loading="lazy"></div><div class="body"><h3>Archive &amp; Restore</h3><p>Archive or Delete from any card. Restore puts it back exactly where it was.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/11-search.png" alt="Search results" loading="lazy"></div><div class="body"><h3>Search</h3><p>Names, notes and tags — every word must match, results as you type.</p></div></div>
-      <div class="feature"><div class="media"><img src="img/13-library-dropdowns.png" alt="Favorite folders under Favorites" loading="lazy"></div><div class="body"><h3>Favorite folders</h3><p>Favorites, Locked, Archive and Deleted drop down to their folders.</p></div></div>
-    </div>
+    <p class="sub">Real screenshots from AssetDEK running in Photoshop. Click any picture to see it large, or “Learn more” for the full story.</p>
+    <div class="grid" id="feature-grid"></div>
   </div>
 </section>
 
@@ -115,20 +153,41 @@
     <h2>Safe by design</h2>
     <p class="sub">AssetDEK reads your images; it never rewrites them.</p>
     <div class="safe">
-      <div><b>Your files stay untouched</b><span>Favorites, notes and tags are AssetDEK's own records.</span></div>
-      <div><b>Nothing is erased</b><span>Archive and Delete move files beside the original. Restore brings them back.</span></div>
-      <div><b>Portable libraries</b><span>Records travel with your folders to other drives and computers.</span></div>
-      <div><b>Private</b><span>No internet access, no account, no tracking.</span></div>
+      <div><b>Your files stay untouched</b><span>Favorites, notes and tags are AssetDEK's own records, never written into your images.</span></div>
+      <div><b>Nothing is erased</b><span>Archive and Delete move files into folders beside the original. Restore puts them back exactly.</span></div>
+      <div><b>Portable libraries</b><span>Your records travel with your folders to other drives and computers — even if the drive letter changes.</span></div>
+      <div><b>Private</b><span>No internet access, no account, no tracking. It only reads the folders you choose.</span></div>
     </div>
+  </div>
+</section>
+
+<section id="faq" class="faq">
+  <div class="wrap">
+    <h2>Questions</h2>
+    <p class="sub">The things people usually ask before buying.</p>
+    <details><summary>Is it a subscription?</summary><p>No. AssetDEK is a one-time purchase — no subscription, no yearly fee. It includes free updates for AssetDEK 3.</p></details>
+    <details><summary>Which Photoshop versions does it work with?</summary><p>Photoshop 2023 (version 24) and later. It is tested with Photoshop 2025 and 2026.</p></details>
+    <details><summary>Windows or Mac?</summary><p>Both. AssetDEK is a standard Photoshop (UXP) plugin for Windows and macOS, and every version is reviewed by Adobe before it appears on the Marketplace.</p></details>
+    <details><summary>Does it change or move my images?</summary><p>Only when you ask it to. Browsing, previews, favorites, notes and tags never touch your files. Move, Rename, Archive, Delete and Restore do exactly what they say — and Archive and Delete only move files into folders beside the originals; nothing is ever erased.</p></details>
+    <details><summary>Where are my favorites, notes and tags kept?</summary><p>In AssetDEK's own data file on your computer, with a copy in a small hidden .assetdeck folder inside each library so they travel with your folders. Settings › Backup saves everything to one file.</p></details>
+    <details><summary>Does it work with external drives?</summary><p>Yes. Each library remembers itself on its own drive. Plug the drive into another computer — or get a new drive letter — and AssetDEK recognizes it with all its records. A drive that is not connected simply shows “Not connected”.</p></details>
+    <details><summary>Which file types does it show?</summary><p>JPEG, PNG, GIF, PSD and PSB, TIFF, WebP, BMP and camera RAW (CR2, CR3, NEF, ARW, DNG, RAF and many more). AVIF and HEIC are listed with a placeholder.</p></details>
+    <details><summary>Does it go online or collect data?</summary><p>Never. AssetDEK has no internet access, no account and no analytics. See the <a href="privacy.html">privacy policy</a>.</p></details>
+    <details><summary>What are “locks”?</summary><p>A privacy convenience: locked folders and images show as placeholders inside AssetDEK until you enter your password. They don't encrypt or hide the real files from other programs.</p></details>
+    <details><summary>How do I get help?</summary><p>Settings › Help explains every feature. For support, email <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a> and attach the file from Settings › About › Export support report (it contains no images, passwords, notes or file names).</p></details>
   </div>
 </section>
 
 <section id="get">
   <div class="wrap">
     <div class="price">
-      <div class="kicker">One-time purchase</div>
+      <div class="kicker">One-time purchase · No subscription</div>
       <div class="amount">$9.99</div>
-      <p class="sub" style="margin: 0 auto 22px;">For Photoshop 2023 (24.0) and later.</p>
+      <ul>
+        <li>Yours to keep — no yearly fee</li>
+        <li>Free updates for AssetDEK 3</li>
+        <li>For Photoshop 2023 (24.0) and later</li>
+      </ul>
       <a class="cta" href="#">Get it on the Adobe Marketplace</a>
     </div>
   </div>
@@ -140,5 +199,157 @@
     Adobe and Photoshop are trademarks of Adobe. AssetDEK is an independent plugin.
   </footer>
 </div>
+
+<div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <span class="hint">Esc to close · ← → for more features</span>
+    <span class="nav"><button type="button" id="v-prev">← Previous</button><button type="button" id="v-next">Next →</button><button type="button" id="v-close">Close ✕</button></span>
+  </div>
+  <div class="viewer-box">
+    <div class="viewer-media"><img id="v-img" alt=""></div>
+    <div class="viewer-text"><div class="kicker" id="v-kicker"></div><h3 id="viewer-title"></h3><div id="v-body"></div></div>
+  </div>
+</div>
+
+<script>
+  // Every feature: its picture (animated where available), a short line for
+  // the card, and the full explanation shown in the viewer.
+  var FEATURES = [
+    { title: 'Transparency preview', isNew: false, img: 'img/01-transparency.gif',
+      short: 'Dark, light or checkerboard behind your PNGs — spot cut-outs without opening a single file.',
+      body: ['Photoshop shows transparent images on whatever is behind them, so finding your cut-outs usually means opening file after file. AssetDEK lets you see transparency at a glance.',
+        ['The checkerboard button in the toolbar sets the background behind every transparent image: dark, light or checkerboard.', 'The small checkerboard on a card changes it for that one image.', 'Display only: your files are never changed.']] },
+    { title: 'Card frames', isNew: true, img: 'img/03-card-frames.gif',
+      short: 'Slide, Polaroid or none. Frames scale with your cards; your files never change.',
+      body: ['Give the gallery some character. The frame button in the toolbar cycles None › Slide › Polaroid.',
+        ['The picture is cropped to the frame’s window; very wide or tall images are cropped more.', 'Frames scale with the card size, with sharp artwork at every size.', 'Looks best with the dark gallery.']] },
+    { title: 'Dark gallery', isNew: true, img: 'img/02-dark-gallery.gif',
+      short: 'A darker canvas for viewing artwork. Only the gallery changes.',
+      body: ['One click gives the gallery a deep, near-black viewing canvas with crisp 2 px frames. The rest of the panel stays the same.',
+        ['Easy on the eyes for dark artwork and night work.', 'The setting is remembered.']] },
+    { title: 'Duplicates', isNew: true, img: 'img/07-duplicates.gif',
+      short: 'Find exact copies in seconds. Keep one, move the rest to Deleted — nothing is erased.',
+      body: ['LIBRARY › Duplicates finds files with identical content across all your libraries. It compares only files of the same size, then their content, so it is fast — hundreds of images in seconds.',
+        ['Each set of copies is one group, side by side.', 'Select extras keeps the oldest, the newest or the shortest path and selects the rest.', 'Move to Deleted moves the extras into a Deleted folder beside each file. Restore brings any of them back.', 'Resized or re-saved versions are different files and are not listed.']] },
+    { title: 'Search filters', isNew: true, img: 'img/16-search-filters.png',
+      short: 'All words or any word, where to look, favorites only, file types — results update as you click.',
+      body: ['The funnel button in the search box opens the filters.',
+        ['Match all words (photos with both people) or any word (photos with either).', 'Look in names, notes and tags — or only some of them.', 'Only favorites, only images with notes or with tags.', 'File types: JPG, PNG, PSD, TIFF, WebP, GIF, RAW.', 'The funnel stays lit while a filter is on; filters reset when you clear the search.']] },
+    { title: 'Saved searches', isNew: true, img: 'img/17-saved-searches.png',
+      short: 'Favorite, archive or delete a whole search result — and keep the search to come back to.',
+      body: ['Search for “cats”, favorite the whole result, and AssetDEK keeps “cats” under LIBRARY › Favorites. Archive a result and it is listed under Archive, ready to restore together.',
+        ['Point at a saved search to see the full search, its filters, when it was saved and refreshed, and how many images it holds.', 'Refresh searches again and shows new matches — nothing is added until you choose.', 'Archive and Deleted entries have Restore all.', 'The × removes only the saved search; your images stay exactly where they are, and Undo brings it back.']] },
+    { title: 'Whole groups at once', isNew: true, img: 'img/06-group-labels.gif',
+      short: 'Favorite, protect, archive or delete everything in a group or a search result.',
+      body: ['Group bars (by month, file type or favorites) and the search results bar carry four buttons that act on every image shown.',
+        ['★ favorite them all.', 'Protect them all behind your password.', 'Archive or move them all to Deleted — always with a confirmation that says how many.', 'Locked images are never moved this way.']] },
+    { title: 'Big screen ready', isNew: true, img: 'img/04-zoom.gif',
+      short: 'Cards up to 512 px with sharp previews — made for 4K displays.',
+      body: ['Drag the size slider at the bottom left of the panel — from tiny contact-sheet thumbnails up to 512 px cards.',
+        ['Optimized previews are made once in the background and reused, so big cards stay fast and sharp.', 'Quick View packs cards tightly for scanning hundreds of images.']] },
+    { title: 'Card controls', isNew: true, img: 'img/05-card-controls.gif',
+      short: 'Hidden, Active only or All — a clean gallery that still shows what matters.',
+      body: ['Every card has a slim strip of controls: select, transparency, tags, note, archive, delete, lock and favorite. You choose how much of it you see (View › Card controls).',
+        ['Hidden: nothing until you point at a card.', 'Active only: just what is on — a lit star, a closed lock, a note.', 'All: every control, always.', 'Folder headers follow the same choice.']] },
+    { title: 'Bars or tiles', isNew: true, img: 'img/06-group-labels.gif',
+      short: 'Group by folder, month or file type — with header bars or label tiles in one flow.',
+      body: ['Grouping keeps big folders organized. View › Group labels chooses how the groups are shown.',
+        ['Bars: a header above each group; click it to collapse the group.', 'Tiles: images flow together, and each group starts with a softly tinted label tile — no wasted space beside small groups.']] },
+    { title: 'INFO & METADATA', isNew: false, img: 'img/09-info-metadata.gif',
+      short: 'Dimensions, color, camera data and embedded text — even the AI prompt behind a render.',
+      body: ['Select one image to see everything about it, without opening it.',
+        ['INFO: file details, dimensions, color mode, bit depth, resolution, color profile, layers and camera data.', 'METADATA: your tags, plus text stored in the file — titles, descriptions, keywords, creator, copyright and AI generation parameters.', 'Long values fold to three lines with a remembered “Show more”.']] },
+    { title: 'Tags', isNew: false, img: 'img/10-tags.gif',
+      short: 'Type to filter, Enter to add. Your own vocabulary, with counts in the sidebar.',
+      body: ['Tags are AssetDEK records — they never touch the file.',
+        ['Type in “Add or filter tags”: the list narrows as you type; Enter adds the tag.', 'Tags already on the image are listed first and lit.', 'TAGS in the sidebar shows every tag with how many images carry it; click one to see them.']] },
+    { title: 'Archive & Restore', isNew: false, img: 'img/08-archive-restore.gif',
+      short: 'Archive or Delete from any card. Restore puts it back exactly where it was.',
+      body: ['Tidy up without fear.',
+        ['Archive (box) or Delete (bin) from a card, the footer, the folder strip, or by dragging onto LIBRARY › Archive or Deleted.', 'Files move into an Archive or Deleted folder beside them — the Recycle Bin is never used.', 'LIBRARY › Archive and Deleted show everything from all libraries, grouped by where it came from.', 'Restore puts it back exactly; if the place is gone or the name is taken, you choose.']] },
+    { title: 'Search', isNew: false, img: 'img/11-search.png',
+      short: 'Names, notes and tags — results as you type.',
+      body: ['The search box matches file names, display names, notes and tags. Every word must match by default; use the filters for “any word”. Locked images never appear in results.', []] },
+    { title: 'Favorite folders', isNew: true, img: 'img/13-library-dropdowns.png',
+      short: 'Favorites, Locked, Archive and Deleted drop down to their folders.',
+      body: ['Keep the folders you use most one click away.',
+        ['Star a folder in the folder strip; it appears under the arrow beside LIBRARY › Favorites.', 'Locked, Archive and Deleted list their folders the same way.', 'Saved searches appear there too.']] },
+    { title: 'Notes', isNew: false, img: 'img/12-notes.png',
+      short: 'Remember why an image matters — on images and folders.',
+      body: ['Click the pencil on a card or in the folder strip.', ['Notes are searchable.', 'Stored by AssetDEK, never written into the file.']] },
+    { title: 'Settings, backup & help', isNew: false, img: 'img/15-settings.gif',
+      short: 'Libraries, backup and restore, and help for every feature.',
+      body: ['Everything is explained inside the app.',
+        ['Settings › Library: your libraries with a Portable switch, maintenance and previews.', 'Settings › Backup: save all your records to one file, and restore them (restoring only adds).', 'Settings › Help: every feature in plain language.']] },
+  ];
+  var HERO = { title: 'Your image library, inside Photoshop', img: 'img/01-hero.png', body: ['AssetDEK in a Photoshop panel: a fast gallery of your folders, with search, favorites, tags and one-click Open or Place.', []] };
+
+  var grid = document.getElementById('feature-grid');
+  FEATURES.forEach(function (f, i) {
+    var card = document.createElement('div');
+    card.className = 'feature';
+    card.innerHTML = '<div class="media zoomable" data-i="' + i + '"><img loading="lazy" alt=""></div>' +
+      '<div class="body"><h3></h3><p></p><button type="button" class="more" data-i="' + i + '">Learn more ›</button></div>';
+    var img = card.querySelector('img');
+    img.src = f.img;
+    img.alt = f.title;
+    var h = card.querySelector('h3');
+    h.textContent = f.title;
+    if (f.isNew) { var t = document.createElement('span'); t.className = 'tag-new'; t.textContent = 'NEW'; h.appendChild(t); }
+    card.querySelector('p').textContent = f.short;
+    grid.appendChild(card);
+  });
+
+  var viewer = document.getElementById('viewer');
+  var current = -1;
+  var lastFocus = null;
+  function fill(f, kicker) {
+    var img = document.getElementById('v-img');
+    img.src = f.img;
+    img.alt = f.title;
+    document.getElementById('v-kicker').textContent = kicker || '';
+    document.getElementById('viewer-title').textContent = f.title;
+    var body = document.getElementById('v-body');
+    body.innerHTML = '';
+    var p = document.createElement('p');
+    p.textContent = f.body[0];
+    body.appendChild(p);
+    if (f.body[1] && f.body[1].length) {
+      var ul = document.createElement('ul');
+      f.body[1].forEach(function (line) { var li = document.createElement('li'); li.textContent = line; ul.appendChild(li); });
+      body.appendChild(ul);
+    }
+  }
+  function open(i) {
+    if (!viewer.classList.contains('open')) lastFocus = document.activeElement;
+    current = i;
+    if (i < 0) fill(HERO, 'AssetDEK 3.1');
+    else fill(FEATURES[i], 'Feature ' + (i + 1) + ' of ' + FEATURES.length);
+    viewer.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('v-close').focus();
+  }
+  function close() {
+    viewer.classList.remove('open');
+    document.body.style.overflow = '';
+    if (lastFocus) lastFocus.focus();
+  }
+  function step(d) { open((Math.max(current, 0) + d + FEATURES.length) % FEATURES.length); }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-i]');
+    if (t) { open(parseInt(t.getAttribute('data-i'), 10)); return; }
+    if (e.target.closest('[data-viewer="hero"]')) { open(-1); return; }
+    if (e.target === viewer) close();
+  });
+  document.getElementById('v-close').addEventListener('click', close);
+  document.getElementById('v-prev').addEventListener('click', function () { step(-1); });
+  document.getElementById('v-next').addEventListener('click', function () { step(1); });
+  document.addEventListener('keydown', function (e) {
+    if (!viewer.classList.contains('open')) return;
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowRight') step(1);
+    else if (e.key === 'ArrowLeft') step(-1);
+  });
+</script>
 </body>
 </html>
