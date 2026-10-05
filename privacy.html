@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AssetDEK Privacy</title>
+<link rel="icon" href="img/logo.png">
+<style>
+  :root { --bg: #0b1424; --card: #14233d; --edge: #24395c; --text: #eef2f8; --muted: #a6b4c8; --blue: #8fd0ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  a { color: var(--blue); }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); margin-bottom: 28px; }
+  .brand img { width: 40px; height: 40px; border-radius: 9px; }
+  h1 { font-size: 32px; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 28px 0 6px; }
+  p, li { color: var(--muted); }
+  .summary { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 16px 18px; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="brand" href="index.html"><img src="img/logo.png" alt=""><b>AssetDEK</b></a>
+  <h1>Privacy Policy</h1>
+  <p>Publisher: GravitysEdge Productions · Contact: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a></p>
+
+  <p class="summary">AssetDEK works entirely on your computer. It does not connect to the internet, does not collect or send any data, needs no account and contains no analytics or tracking.</p>
+
+  <h2>What AssetDEK accesses</h2>
+  <ul>
+    <li><b>Folders you choose.</b> AssetDEK reads the image files in the folders you add, to show thumbnails and details. It reads nothing else.</li>
+    <li><b>Your image files are never modified</b> by browsing, previewing, searching, favoriting, notes or reading metadata. Tagging stays in AssetDEK's records unless you explicitly enable saving tags into PNG/JPEG files. Files also change only when you choose Move, Rename, Archive, Delete, Restore, or enable editing of Title, Description, Creator and Copyright in PNG/JPEG files.</li>
+    <li><b>Metadata stays on your computer.</b> Prompts, keywords, camera details, GPS locations and other metadata read from your images are kept in each library's hidden <code>.assetdeck</code> folder and are never sent anywhere. That folder travels when you copy or share the library, so review it when the source files contain private metadata. Archive and Delete move files into folders beside them; nothing is erased.</li>
+  </ul>
+
+  <h2>What AssetDEK stores</h2>
+  <ul>
+    <li>Its own records (favorites, notes, tags, display names, locks, settings) in its data folder on your computer.</li>
+    <li>If you allow it, a small hidden <code>.assetdeck</code> folder inside your libraries with a copy of those records, indexed and raw metadata, and optimized previews, so they travel with your folders.</li>
+    <li>The preview-lock password only as a salted hash in Photoshop's secure storage.</li>
+  </ul>
+
+  <h2>What AssetDEK sends</h2>
+  <p>Nothing. AssetDEK has no network access.</p>
+
+  <h2>Support reports</h2>
+  <p>Settings › About › Export support report writes a small file on your computer (versions, settings, counts and recent errors; no images, passwords, notes or file names). It is shared only if you attach it to an email.</p>
+
+  <h2>Removing your data</h2>
+  <p>AssetDEK's records live in its plugin data folder; deleting it removes them. <code>.assetdeck</code> folders can be deleted at any time. Your images are not affected either way.</p>
+</div>
+</body>
+</html>
