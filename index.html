@@ -449,7 +449,7 @@
 </div>
 
 <!-- Illustrative mocks for features without a capture. Cloned into cards and the viewer. -->
-<template id="mock-rename">
+<div hidden id="mock-rename">
   <div class="mock" aria-hidden="true">
     <div class="bar"><b>RENAME</b><div class="seg"><span>Display names</span><span class="on">Actual files</span></div></div>
     <div class="bar"><b>PATTERN</b><span class="field">Landscape_{number}</span></div>
@@ -459,8 +459,8 @@
     <div class="rn-row" style="--i:3"><img src="img/demo/a5.jpg" alt=""><span class="rn-old">untitled-7.png</span><span class="rn-arrow">→</span><span class="rn-new">Landscape_004.png</span></div>
     <div class="done">Renamed 4 files <span>Undo</span></div>
   </div>
-</template>
-<template id="mock-archive">
+</div>
+<div hidden id="mock-archive">
   <div class="mock ar" aria-hidden="true">
     <div class="ar-side">
       <div class="hdr">LIBRARY</div>
@@ -476,7 +476,7 @@
     <div class="ar-toast t1">Moved into an Archive folder beside it — nothing erased</div>
     <div class="ar-toast t2">Restore — back in its original folder</div>
   </div>
-</template>
+</div>
 
 <script>
 (function () {
@@ -538,7 +538,7 @@
     if (lazy) i.loading = 'lazy';
     return i;
   }
-  function mockNode(id) { return document.getElementById(id).content.firstElementChild.cloneNode(true); }
+  function mockNode(id) { return document.getElementById(id).firstElementChild.cloneNode(true); }
 
   // ---------- Feature cards with crossfading flipbooks ----------
   var grids = { organize: document.getElementById('organize-grid'), find: document.getElementById('find-grid') };
