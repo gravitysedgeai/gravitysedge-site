@@ -5,7 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AssetDEK for Photoshop</title>
 <meta name="description" content="AssetDEK 3.2 helps you find, organize and use image assets directly inside Photoshop. Browse folders and drives, Open originals, Place embedded Smart Objects and search locally.">
+<link rel="canonical" href="https://gravitysedgeai.github.io/gravitysedge-site/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AssetDEK">
+<meta property="og:title" content="AssetDEK for Photoshop">
+<meta property="og:description" content="Your image library, inside Photoshop. Browse, search and Place originals. Local only, no account, one-time purchase.">
+<meta property="og:url" content="https://gravitysedgeai.github.io/gravitysedge-site/">
+<meta property="og:image" content="https://gravitysedgeai.github.io/gravitysedge-site/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0b1424">
 <link rel="icon" href="img/logo.png">
+<link rel="apple-touch-icon" href="img/logo.png">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"AssetDEK","applicationCategory":"DesignApplication","operatingSystem":"Windows, macOS","description":"An image asset browser panel for Adobe Photoshop.","offers":{"@type":"Offer","price":"9.99","priceCurrency":"USD"},"publisher":{"@type":"Organization","name":"GravitysEdge Productions"}}
+</script>
+<script>document.documentElement.className += ' js';</script>
 <style>
   :root {
     --bg: #0b1424;
@@ -17,6 +33,7 @@
     --muted: #a6b4c8;
     --blue: #8fd0ff;
     --orange: #ff9f43;
+    --ease: cubic-bezier(.2, .8, .2, 1);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -25,58 +42,180 @@
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%) fixed;
     color: var(--text);
     font: 16px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    overflow-x: hidden;
   }
   a { color: var(--blue); }
-  button { font: inherit; }
+  button { font: inherit; color: inherit; }
+  img { max-width: 100%; }
   .wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
-  header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; }
-  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
+
+  /* Header */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 0; }
+  .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); flex: none; }
   .brand img { width: 44px; height: 44px; border-radius: 10px; }
   .brand b { font-size: 20px; display: block; line-height: 1.1; }
   .brand span { color: var(--muted); font-size: 13px; }
-  nav a { color: var(--muted); text-decoration: none; margin-left: 18px; font-size: 14px; }
+  nav { display: flex; gap: 18px; }
+  nav a { color: var(--muted); text-decoration: none; font-size: 14px; white-space: nowrap; }
   nav a:hover { color: var(--text); }
-  .hero { display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; padding: 40px 0 56px; }
+  nav .live { color: var(--text); }
+  nav .live::after { content: "LIVE"; font-size: 9.5px; font-weight: 800; color: #0b1424; background: var(--orange); border-radius: 3px; padding: 0 4px; margin-left: 5px; vertical-align: 2px; }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: 1fr 1.1fr; gap: 40px; align-items: center; padding: 30px 0 64px; }
   .hero > * { min-width: 0; }
   .kicker { color: var(--orange); font-weight: 600; letter-spacing: 1px; font-size: 13px; text-transform: uppercase; }
   h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; margin: 10px 0 18px; }
   .lead { color: var(--muted); font-size: 18px; margin: 0 0 26px; }
-  .cta { display: inline-block; padding: 12px 22px; border-radius: 8px; background: var(--blue); color: #0b1424; font-weight: 700; text-decoration: none; border: 0; cursor: pointer; }
-  .cta.secondary { background: transparent; color: var(--text); border: 1px solid var(--edge); margin-left: 10px; }
+  .cta { display: inline-block; padding: 12px 22px; border-radius: 8px; background: var(--blue); color: #0b1424; font-weight: 700; text-decoration: none; border: 1px solid var(--blue); cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .cta:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(143, 208, 255, 0.25); }
+  .cta.secondary { background: transparent; color: var(--text); border-color: var(--edge); margin-left: 10px; }
+  .cta.secondary:hover { border-color: var(--blue); box-shadow: none; }
   .badges { margin-top: 20px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .badges span { white-space: nowrap; }
   .badges span::before { content: "✓ "; color: var(--blue); }
-  .zoomable { cursor: zoom-in; }
-  .shot { width: 100%; border-radius: 10px; border: 1px solid var(--edge); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); display: block; }
-  section { padding: 56px 0; }
-  h2 { font-size: clamp(26px, 3.5vw, 36px); margin: 0 0 8px; }
+
+  /* Hero: a fanned stack of real panel captures */
+  .stack { position: relative; aspect-ratio: 10 / 8.6; --mx: 0; --my: 0; }
+  .p { position: absolute; width: 41%; transform: translate3d(calc(var(--mx) * var(--depth)), calc(var(--my) * var(--depth)), 0); transition: transform .4s ease-out; }
+  .p img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid #3a4c6a; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55); rotate: var(--r); animation: deal 1s var(--ease) both, float 7s ease-in-out infinite; animation-delay: var(--d), calc(var(--d) + 1s); }
+  .p1 { left: 29.5%; top: 0; z-index: 3; --r: 0deg; --d: .35s; --fx: 0; --depth: 14px; }
+  .p2 { left: 58%; top: 7%; z-index: 2; --r: 7deg; --d: .2s; --fx: -70%; --depth: 8px; }
+  .p3 { left: 1%; top: 7%; z-index: 1; --r: -7deg; --d: .05s; --fx: 70%; --depth: 6px; }
+  .p2 img { animation-duration: 1s, 8s; }
+  .p3 img { animation-duration: 1s, 9s; }
+  @keyframes deal { from { opacity: 0; translate: var(--fx) 40px; rotate: 0deg; } }
+  @keyframes float { 50% { transform: translateY(-9px); } }
+  .chip { position: absolute; z-index: 4; display: inline-flex; align-items: center; gap: 7px; background: rgba(20, 35, 61, 0.92); border: 1px solid var(--edge); border-radius: 999px; padding: 7px 13px; font-size: 13.5px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); backdrop-filter: blur(6px); animation: pop .6s var(--ease) both, float 6s ease-in-out infinite; white-space: nowrap; }
+  .chip b { color: var(--blue); font-weight: 600; }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 4px rgba(255, 159, 67, 0.2); }
+  .chip.c1 { left: -2%; bottom: 13%; animation-delay: 1.2s, 2.2s; }
+  .chip.c2 { right: 0; top: 4%; animation-delay: 1.45s, 2.6s; }
+  @keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.9); } }
+
+  /* Sections */
+  section { padding: 64px 0; }
+  h2 { font-size: clamp(26px, 3.5vw, 36px); margin: 0 0 8px; line-height: 1.15; }
   .sub { color: var(--muted); margin: 0 0 32px; max-width: 700px; }
   .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
   .step { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 20px; }
   .step .n { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; align-items: center; justify-content: center; background: var(--blue); color: #0b1424; font-weight: 800; margin-bottom: 10px; }
   .step b { display: block; margin-bottom: 4px; }
   .step span { color: var(--muted); font-size: 15px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 22px; }
-  .feature { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-  .feature .media { position: relative; background: #0d1626; display: flex; justify-content: center; align-items: center; height: 300px; overflow: hidden; }
-  .feature .media img { max-height: 100%; max-width: 100%; display: block; }
-  .feature .media::after { content: "⤢ Click to enlarge"; position: absolute; right: 10px; bottom: 10px; font-size: 12px; color: var(--text); background: rgba(11, 20, 36, 0.8); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 8px; opacity: 0; transition: opacity 0.15s; }
-  .feature .media:hover::after { opacity: 1; }
+
+  /* Try it: the interactive preview in an iframe */
+  #try { background: radial-gradient(1200px 400px at 50% 0%, rgba(143, 208, 255, 0.08), transparent 70%); }
+  .try-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .try-head a { font-size: 14px; color: var(--muted); }
+  .demo-frame { display: block; width: 100%; height: 860px; border: 0; background: transparent; transition: height .2s; }
+
+  /* Feature cards */
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 22px; }
+  .feature { grid-column: span 2; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: border-color .2s, transform .2s, box-shadow .2s; }
+  .feature:hover { border-color: #35527f; transform: translateY(-3px); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); }
+  .grid.five .feature:nth-child(n+4) { grid-column: span 3; }
+  .media { position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; background: #0d1626; overflow: hidden; border: 0; padding: 0; cursor: zoom-in; }
+  .grid.five .feature:nth-child(n+4) .media { aspect-ratio: 16 / 10; }
+  .media .frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; opacity: 0; transition: opacity .9s ease, transform 6s ease-out; transform: scale(1.04); }
+  .media .frame.on { opacity: 1; transform: scale(1); }
+  .media .cap { position: absolute; left: 10px; bottom: 10px; z-index: 2; font-size: 12.5px; background: rgba(11, 20, 36, 0.86); border: 1px solid var(--edge); border-radius: 6px; padding: 3px 9px; color: var(--text); transition: opacity .3s; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .media .dots { position: absolute; right: 10px; bottom: 14px; z-index: 2; display: flex; gap: 5px; }
+  .media .dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.3); transition: background .3s, width .3s; }
+  .media .dots i.on { background: var(--blue); width: 16px; border-radius: 3px; }
+  .media::after { content: "⤢ Enlarge"; position: absolute; right: 10px; top: 10px; z-index: 2; font-size: 12px; color: var(--text); background: rgba(11, 20, 36, 0.85); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 8px; opacity: 0; transition: opacity .15s; }
+  .media:hover::after, .media:focus-visible::after { opacity: 1; }
+  .media:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   .feature .body { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
   .feature h3 { margin: 0 0 6px; font-size: 18px; }
   .feature p { margin: 0 0 12px; color: var(--muted); font-size: 15px; flex: 1; }
   .more { align-self: flex-start; background: transparent; border: 1px solid var(--edge); color: var(--blue); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
   .more:hover { background: var(--card-2); }
   .tag-new { display: inline-block; font-size: 11px; font-weight: 700; color: #0b1424; background: var(--orange); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+
+  /* Animated mocks for features without a capture (illustrative, built in HTML) */
+  .mock { position: absolute; inset: 0; background: #262626; color: #d6d6d6; font: 12px/1.35 "Segoe UI", system-ui, sans-serif; padding: 14px; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .mock .bar { display: flex; align-items: center; gap: 8px; background: #2f2f2f; border: 1px solid #3c3c3c; border-radius: 6px; padding: 7px 10px; }
+  .mock .bar b { color: #9a9a9a; font-weight: 600; font-size: 11px; letter-spacing: .4px; }
+  .mock .field { flex: 1; background: #1e1e1e; border: 1px solid #4f86c2; border-radius: 4px; padding: 3px 8px; color: #eef2f8; font-family: Consolas, ui-monospace, monospace; font-size: 12px; }
+  .mock .seg { display: flex; gap: 4px; }
+  .mock .seg span { border: 1px solid #4a4a4a; border-radius: 4px; padding: 2px 7px; font-size: 11px; color: #9a9a9a; }
+  .mock .seg span.on { background: #4a4a4a; color: #fff; }
+  .rn-row { display: grid; grid-template-columns: 34px 1fr 16px 1fr; align-items: center; gap: 8px; background: #2c2c2c; border-radius: 5px; padding: 5px 8px; --i: 0; }
+  .rn-row img { width: 34px; height: 26px; object-fit: cover; border-radius: 3px; }
+  .rn-old { color: #9a9a9a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+  .rn-old::after { content: ""; position: absolute; left: 0; top: 50%; height: 1px; background: #ff9f43; width: 100%; transform: scaleX(0); transform-origin: left; animation: strike 8s infinite; animation-delay: calc(var(--i) * .4s); }
+  .rn-arrow { color: #6fb6ff; opacity: .7; }
+  .rn-new { color: #8fd0ff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: rnIn 8s infinite; animation-delay: calc(var(--i) * .4s); }
+  @keyframes rnIn { 0%, 14% { opacity: 0; } 22%, 88% { opacity: 1; } 96%, 100% { opacity: 0; } }
+  @keyframes strike { 0%, 14% { transform: scaleX(0); } 22%, 88% { transform: scaleX(1); } 96%, 100% { transform: scaleX(0); } }
+  .mock .done { margin-top: auto; display: flex; justify-content: space-between; align-items: center; background: #1b2b44; border: 1px solid #3a5a86; border-radius: 6px; padding: 7px 10px; color: #eef2f8; animation: doneIn 8s infinite; }
+  .mock .done span { border: 1px solid #4f86c2; border-radius: 4px; padding: 1px 9px; color: #8fd0ff; }
+  @keyframes doneIn { 0%, 48% { opacity: 0; transform: translateY(6px); } 55%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+
+  .ar { flex-direction: row; gap: 10px; }
+  .ar-side { width: 36%; display: flex; flex-direction: column; gap: 2px; background: #2b2b2b; border-radius: 6px; padding: 6px 0; }
+  .ar-side div { display: flex; justify-content: space-between; padding: 3px 10px; color: #cfcfcf; }
+  .ar-side div.hdr { color: #9a9a9a; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; }
+  .ar-side .arch { position: relative; }
+  .ar-side .arch b { font-weight: 400; color: #9a9a9a; position: relative; width: 14px; text-align: right; }
+  .ar-side .arch b span { position: absolute; right: 0; }
+  .ar-side .arch b span:last-child { opacity: 0; animation: cntIn 8s infinite; color: #ff9f43; }
+  .ar-side .arch b span:first-child { animation: cntOut 8s infinite; }
+  @keyframes cntIn { 0%, 36% { opacity: 0; } 40%, 70% { opacity: 1; } 74%, 100% { opacity: 0; } }
+  @keyframes cntOut { 0%, 36% { opacity: 1; } 40%, 70% { opacity: 0; } 74%, 100% { opacity: 1; } }
+  .ar-side .arch::before { content: ""; position: absolute; inset: 0; background: rgba(255, 159, 67, 0.22); opacity: 0; animation: rowHit 8s infinite; border-radius: 3px; }
+  @keyframes rowHit { 0%, 34% { opacity: 0; } 38% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .ar-grid { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; align-content: start; }
+  .ar-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; border: 2px solid #444; display: block; }
+  .ar-grid img.go { animation: archive 8s infinite; }
+  @keyframes archive {
+    0%, 12% { transform: none; opacity: 1; border-color: #444; }
+    16%, 22% { transform: none; opacity: 1; border-color: #6fb6ff; }
+    36% { transform: translate(-150%, -40%) scale(.2); opacity: 0; border-color: #6fb6ff; }
+    37%, 62% { transform: translate(-150%, -40%) scale(.2); opacity: 0; }
+    76%, 100% { transform: none; opacity: 1; border-color: #444; }
+  }
+  .ar-toast { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: #1b2b44; border: 1px solid #3a5a86; border-radius: 6px; padding: 6px 12px; color: #eef2f8; white-space: nowrap; font-size: 12px; opacity: 0; }
+  .ar-toast.t1 { animation: toast1 8s infinite; }
+  .ar-toast.t2 { animation: toast2 8s infinite; }
+  @keyframes toast1 { 0%, 36% { opacity: 0; } 40%, 58% { opacity: 1; } 62%, 100% { opacity: 0; } }
+  @keyframes toast2 { 0%, 64% { opacity: 0; } 70%, 90% { opacity: 1; } 95%, 100% { opacity: 0; } }
+
+  /* Looks: before/after wipe and card-size scrubber */
+  .looks { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .panel-card { background: var(--card); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .panel-card .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--edge); flex-wrap: wrap; }
+  .panel-card .head b { font-size: 17px; }
+  .tabs { display: inline-flex; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+  .tabs button { background: transparent; border: 0; padding: 5px 12px; font-size: 13.5px; color: var(--muted); cursor: pointer; }
+  .tabs button[aria-pressed="true"] { background: var(--blue); color: #0b1424; font-weight: 600; }
+  .wipe { position: relative; aspect-ratio: 791 / 770; background: #0d1626; overflow: hidden; touch-action: pan-y; cursor: ew-resize; --x: 50%; }
+  .wipe img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; user-select: none; -webkit-user-drag: none; }
+  .wipe .after { clip-path: inset(0 0 0 var(--x)); }
+  .wipe .line { position: absolute; top: 0; bottom: 0; left: var(--x); width: 2px; margin-left: -1px; background: var(--blue); box-shadow: 0 0 12px rgba(143, 208, 255, 0.7); pointer-events: none; }
+  .wipe .knob { position: absolute; top: 50%; left: var(--x); width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: var(--blue); color: #0b1424; display: flex; align-items: center; justify-content: center; font-weight: 800; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); pointer-events: none; }
+  .wipe .lbl { position: absolute; top: 12px; font-size: 12.5px; background: rgba(11, 20, 36, 0.86); border: 1px solid var(--edge); border-radius: 6px; padding: 2px 9px; pointer-events: none; }
+  .wipe .lbl.l { left: 12px; }
+  .wipe .lbl.r { right: 12px; }
+  .wipe input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; margin: 0; cursor: ew-resize; }
+  .scrub { position: relative; aspect-ratio: 791 / 770; background: #0d1626; overflow: hidden; }
+  .scrub img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .45s ease; }
+  .scrub img.on { opacity: 1; }
+  .scrub-ctl { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+  .scrub-ctl input { flex: 1; accent-color: var(--blue); }
+  .scrub-ctl output { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--blue); min-width: 64px; text-align: right; }
+  .panel-card .foot { padding: 0 18px 16px; color: var(--muted); font-size: 14px; }
+
   .safe { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
   .safe div { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 18px; }
   .safe b { display: block; margin-bottom: 4px; }
   .safe span { color: var(--muted); font-size: 15px; }
-  .price { text-align: center; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; padding: 40px 18px; }
+  .price { text-align: center; background: radial-gradient(600px 200px at 50% 0%, rgba(143, 208, 255, 0.12), transparent 70%), var(--card); border: 1px solid var(--edge); border-radius: 14px; padding: 40px 18px; }
   .price .amount { font-size: 48px; font-weight: 800; margin: 6px 0; }
   .price ul { list-style: none; padding: 0; margin: 0 auto 26px; max-width: 460px; color: var(--muted); }
   .price li { padding: 4px 0; }
   .price li::before { content: "✓ "; color: var(--blue); }
+  .price .notify { display: block; margin-top: 14px; font-size: 14px; }
   .faq details { background: var(--card); border: 1px solid var(--edge); border-radius: 10px; padding: 0 18px; margin-bottom: 10px; }
   .faq summary { cursor: pointer; padding: 14px 0; font-weight: 600; list-style: none; }
   .faq summary::-webkit-details-marker { display: none; }
@@ -85,12 +224,19 @@
   .faq details p { margin: 0 0 16px 22px; color: var(--muted); }
   footer { color: var(--muted); font-size: 14px; padding: 40px 0 60px; border-top: 1px solid var(--edge); margin-top: 40px; }
 
+  /* Scroll reveal (only when JS runs) */
+  .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s var(--ease), transform .7s var(--ease); transition-delay: calc(var(--i, 0) * 80ms); }
+  .js .reveal.in { opacity: 1; transform: none; }
+
   /* Viewer: enlarged picture + the full explanation */
   .viewer { position: fixed; inset: 0; z-index: 50; display: none; background: rgba(4, 8, 16, 0.88); padding: 24px 16px; overflow-y: auto; }
-  .viewer.open { display: block; }
-  .viewer-box { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); }
-  .viewer-media { background: #0a1220; display: flex; align-items: center; justify-content: center; min-height: 300px; }
-  .viewer-media img { max-width: 100%; max-height: 86vh; display: block; }
+  .viewer.open { display: block; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } }
+  .viewer-box { max-width: 1180px; margin: 0 auto; background: var(--card); border: 1px solid var(--edge); border-radius: 14px; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); }
+  .viewer-media { background: #0a1220; display: flex; align-items: center; justify-content: center; min-height: 300px; position: relative; }
+  .viewer-media img { max-width: 100%; max-height: 86vh; display: block; cursor: pointer; }
+  .viewer-media .mock-big { position: relative; width: 100%; aspect-ratio: 4 / 3; }
+  .viewer-media .vdots { position: absolute; bottom: 12px; left: 0; right: 0; text-align: center; color: var(--muted); font-size: 13px; }
   .viewer-text { padding: 26px 24px; }
   .viewer-text h3 { margin: 4px 0 10px; font-size: 24px; }
   .viewer-text p { color: var(--muted); }
@@ -100,22 +246,51 @@
   .viewer-bar button { background: var(--card); color: var(--text); border: 1px solid var(--edge); border-radius: 8px; padding: 6px 14px; cursor: pointer; }
   .viewer-bar .nav button { margin-left: 8px; }
   .hint { color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    .feature, .grid.five .feature:nth-child(n+4) { grid-column: span 1; }
+    .grid.five .feature:nth-child(n+4) .media { aspect-ratio: 4 / 3; }
+    .grid.five .feature:first-child { grid-column: span 2; }
+    .grid.five .feature:first-child .media { aspect-ratio: 16 / 10; }
+    .grid.three .feature:last-child { grid-column: span 2; }
+    .grid.three .feature:last-child .media { aspect-ratio: 16 / 10; }
+    .looks { grid-template-columns: 1fr; }
+  }
   @media (max-width: 820px) {
-    .hero { grid-template-columns: 1fr; }
-    nav { display: none; }
-    .cta.secondary { margin: 10px 0 0; }
-    .grid { grid-template-columns: 1fr; }
-    .feature .media { height: 240px; }
+    header { flex-wrap: wrap; padding-bottom: 8px; }
+    nav { width: 100%; overflow-x: auto; gap: 8px; padding-bottom: 6px; scrollbar-width: none; }
+    nav::-webkit-scrollbar { display: none; }
+    nav a { border: 1px solid var(--edge); border-radius: 999px; padding: 5px 12px; font-size: 13.5px; }
+    .hero { grid-template-columns: 1fr; padding-top: 10px; }
+    .cta.secondary { margin: 10px 0 0 0; }
     .viewer-box { grid-template-columns: 1fr; }
     .hint { display: none; }
+  }
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+    .feature, .grid.five .feature:first-child, .grid.three .feature:last-child { grid-column: span 1; }
+    .grid .feature .media { aspect-ratio: 4 / 3 !important; }
+    .chip { font-size: 12px; padding: 5px 10px; }
+  }
+  /* Reduced motion: keep gentle fades, drop movement. */
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .p img, .chip { animation: none; }
+    .p { transition: none; }
+    .media .frame { transform: none; transition: opacity .6s ease; }
+    .js .reveal { transform: none; transition: opacity .4s ease; }
+    .ar-grid img.go { animation-name: archiveFade; }
+    @keyframes archiveFade { 0%, 22% { opacity: 1; } 36%, 62% { opacity: .15; } 76%, 100% { opacity: 1; } }
+    .feature:hover, .cta:hover { transform: none; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <a class="brand" href="#"><img src="img/logo.png" alt="GEAD logo"><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
-    <nav><a href="#how">How it works</a><a href="#features">Organize</a><a href="#find">Find fast</a><a href="#safe">Portable &amp; safe</a><a href="#faq">FAQ</a><a href="#get">Get it</a></nav>
+    <a class="brand" href="#"><img src="img/logo.png" alt="GEAD logo" width="44" height="44"><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
+    <nav aria-label="Sections"><a href="#how">How it works</a><a class="live" href="#try">Try it</a><a href="#features">Organize</a><a href="#find">Find fast</a><a href="#looks">Looks</a><a href="#safe">Portable &amp; safe</a><a href="#faq">FAQ</a><a href="#get">Get it</a></nav>
   </header>
 
   <div class="hero">
@@ -123,58 +298,107 @@
       <div class="kicker">Photoshop plugin · v3.2</div>
       <h1>Find, organize and use image assets inside Photoshop.</h1>
       <p class="lead">Browse folders and drives as a visual gallery. Double-click or choose Open for the original, or Place it into the active document as an embedded Smart Object.</p>
-      <a class="cta" href="#get">Get AssetDEK</a><a class="cta secondary" href="#features">See features</a>
+      <a class="cta" href="#get">Get AssetDEK</a><a class="cta secondary" href="#try">▶ Try it live</a>
       <div class="badges"><span>No importing or catalog</span><span>Originals, not previews</span><span>External drives welcome</span></div>
     </div>
-    <img class="shot zoomable" src="img/01-hero.png" alt="AssetDEK browsing image folders inside Photoshop" data-viewer="hero">
+    <div class="stack" id="stack">
+      <div class="p p3"><img src="img/hero-3.webp" width="600" height="932" alt="" data-viewer="hero"></div>
+      <div class="p p2"><img src="img/hero-2.webp" width="600" height="932" alt="" data-viewer="hero"></div>
+      <div class="p p1"><img src="img/hero-1.webp" width="600" height="932" alt="The AssetDEK panel showing large Polaroid-framed image cards" data-viewer="hero"></div>
+      <span class="chip c1"><i></i>Search <b>prompts &amp; seeds</b></span>
+      <span class="chip c2"><i></i>Place as <b>Smart Object</b></span>
+    </div>
   </div>
 </div>
 
 <section id="how">
   <div class="wrap">
-    <h2>How it works</h2>
-    <p class="sub">Add the folders you already use. AssetDEK stays beside your Photoshop canvas and keeps the view up to date.</p>
+    <h2 class="reveal">How it works</h2>
+    <p class="sub reveal">Add the folders you already use. AssetDEK stays beside your Photoshop canvas and keeps the view up to date.</p>
     <div class="steps">
-      <div class="step"><span class="n">1</span><b>Add folders and drives</b><span>Choose any folder on an internal or external drive. Its images and subfolders appear as a visual gallery—no importing or catalog.</span></div>
-      <div class="step"><span class="n">2</span><b>Browse and find</b><span>Use Quick View, search, sort, groups and filters to narrow a large library without leaving Photoshop.</span></div>
-      <div class="step"><span class="n">3</span><b>Open or Place the original</b><span>Double-click or choose Open, or use Place to add the original to the active document as an embedded Smart Object. AssetDEK never substitutes a preview.</span></div>
+      <div class="step reveal" style="--i:0"><span class="n">1</span><b>Add folders and drives</b><span>Choose any folder on an internal or external drive. Its images and subfolders appear as a visual gallery—no importing or catalog.</span></div>
+      <div class="step reveal" style="--i:1"><span class="n">2</span><b>Browse and find</b><span>Use Quick View, search, sort, groups and filters to narrow a large library without leaving Photoshop.</span></div>
+      <div class="step reveal" style="--i:2"><span class="n">3</span><b>Open or Place the original</b><span>Double-click or choose Open, or use Place to add the original to the active document as an embedded Smart Object. AssetDEK never substitutes a preview.</span></div>
     </div>
+  </div>
+</section>
+
+<section id="try">
+  <div class="wrap">
+    <div class="try-head reveal">
+      <div><div class="kicker">Interactive preview</div><h2>Try it in your browser</h2></div>
+      <a href="demo.html">Open full screen ↗</a>
+    </div>
+    <p class="sub reveal">Watch the tour, or click in and drive: folders, card size, frames, metadata search, duplicates and Place. A visual mockup with sample data — not the plugin and not Photoshop.</p>
+    <iframe class="demo-frame reveal" id="demoFrame" src="demo.html?embed=1" title="AssetDEK interactive preview" loading="lazy"></iframe>
   </div>
 </section>
 
 <section id="features">
   <div class="wrap">
-    <h2>Organize the files you already have</h2>
-    <p class="sub">Work with real folders and files from the panel: create, move, rename, label and clean up. Click any picture to see it large, or “Learn more” for details.</p>
-    <div class="grid" id="organize-grid"></div>
+    <h2 class="reveal">Organize the files you already have</h2>
+    <p class="sub reveal">Work with real folders and files from the panel: create, move, rename, label and clean up. Click any picture to see it large, or “Learn more” for details.</p>
+    <div class="grid five" id="organize-grid"></div>
   </div>
 </section>
 
 <section id="find">
   <div class="wrap">
-    <h2>Find anything fast</h2>
-    <p class="sub">Search the information you already have, change how the gallery is arranged, and use embedded metadata as one more powerful way to find the right asset.</p>
-    <div class="grid" id="find-grid"></div>
+    <h2 class="reveal">Find anything fast</h2>
+    <p class="sub reveal">Search the information you already have, change how the gallery is arranged, and use embedded metadata as one more powerful way to find the right asset.</p>
+    <div class="grid three" id="find-grid"></div>
+  </div>
+</section>
+
+<section id="looks">
+  <div class="wrap">
+    <h2 class="reveal">Make the gallery yours</h2>
+    <p class="sub reveal">Real panel captures. Drag across to compare looks, or slide to change the card size. Frames and the dark gallery are display only — your image files are untouched.</p>
+    <div class="looks">
+      <div class="panel-card reveal" style="--i:0">
+        <div class="head"><b>Compare looks</b>
+          <div class="tabs" role="group" aria-label="Comparison"><button type="button" data-cmp="dark" aria-pressed="true">Dark gallery</button><button type="button" data-cmp="frames" aria-pressed="false">Frames</button></div>
+        </div>
+        <div class="wipe" id="wipe">
+          <img id="wipeA" src="img/cmp-standard.webp" width="791" height="770" alt="Standard gallery">
+          <img id="wipeB" class="after" src="img/cmp-dark.webp" width="791" height="770" alt="Dark gallery">
+          <span class="lbl l" id="wipeLA">Standard</span><span class="lbl r" id="wipeLB">Dark gallery</span>
+          <span class="line"></span><span class="knob" aria-hidden="true">⇆</span>
+          <input type="range" id="wipeIn" min="0" max="100" value="50" aria-label="Drag to compare">
+        </div>
+        <div class="foot" style="padding-top:14px">Dark gallery darkens only the viewing canvas, with crisp 2 px frames. Slide and Polaroid frames scale with the card.</div>
+      </div>
+      <div class="panel-card reveal" style="--i:1">
+        <div class="head"><b>Card size</b><span class="hint" style="display:inline">48 to 512 px</span></div>
+        <div class="scrub" id="scrub">
+          <img class="on" src="img/zoom-104.webp" width="791" height="770" alt="Cards at 104 px">
+          <img src="img/zoom-160.webp" width="791" height="770" alt="Cards at 160 px" loading="lazy">
+          <img src="img/zoom-248.webp" width="791" height="770" alt="Cards at 248 px" loading="lazy">
+          <img src="img/zoom-512.webp" width="791" height="770" alt="Cards at 512 px" loading="lazy">
+        </div>
+        <div class="scrub-ctl"><span class="hint" style="display:inline">Size</span><input type="range" id="scrubIn" min="0" max="3" step="1" value="0" aria-label="Card size"><output id="scrubOut">104 px</output></div>
+      </div>
+    </div>
   </div>
 </section>
 
 <section id="safe">
   <div class="wrap">
-    <h2>Portable, local and safe</h2>
-    <p class="sub">AssetDEK never modifies your image files unless you explicitly enable metadata writing.</p>
+    <h2 class="reveal">Portable, local and safe</h2>
+    <p class="sub reveal">AssetDEK never modifies your image files unless you explicitly enable metadata writing.</p>
     <div class="safe">
-      <div><b>Portable .assetdeck records</b><span>Favorites, notes, tags, display names and the search index can travel with each library in its hidden .assetdeck folder.</span></div>
-      <div><b>External drives and Relink</b><span>Libraries survive new drive letters and other computers. If something moves outside AssetDEK, Relink reconnects only a proven match.</span></div>
-      <div><b>Local only</b><span>No internet access, account or tracking. Images and embedded metadata—including prompts or GPS data—are processed locally.</span></div>
-      <div><b>Writing is opt-in</b><span>Browsing and metadata reading do not modify image files. PNG/JPEG tag and descriptive-field writing are separate controls, both off by default.</span></div>
+      <div class="reveal" style="--i:0"><b>Portable .assetdeck records</b><span>Favorites, notes, tags, display names and the search index can travel with each library in its hidden .assetdeck folder.</span></div>
+      <div class="reveal" style="--i:1"><b>External drives and Relink</b><span>Libraries survive new drive letters and other computers. If something moves outside AssetDEK, Relink reconnects only a proven match.</span></div>
+      <div class="reveal" style="--i:2"><b>Local only</b><span>No internet access, account or tracking. Images and embedded metadata—including prompts or GPS data—are processed locally.</span></div>
+      <div class="reveal" style="--i:3"><b>Writing is opt-in</b><span>Browsing and metadata reading do not modify image files. PNG/JPEG tag and descriptive-field writing are separate controls, both off by default.</span></div>
     </div>
   </div>
 </section>
 
 <section id="faq" class="faq">
   <div class="wrap">
-    <h2>Questions</h2>
-    <p class="sub">The things people usually ask before buying.</p>
+    <h2 class="reveal">Questions</h2>
+    <p class="sub reveal">The things people usually ask before buying.</p>
     <details><summary>Is it a subscription?</summary><p>No. AssetDEK is a one-time purchase — no subscription, no yearly fee. It includes free updates for AssetDEK 3.</p></details>
     <details><summary>Which Photoshop versions does it work with?</summary><p>Photoshop 2023 (version 24) and later. It is tested with Photoshop 2025 and 2026.</p></details>
     <details><summary>Windows or Mac?</summary><p>Both. AssetDEK is a standard Photoshop (UXP) plugin for Windows and macOS, and every version is reviewed by Adobe before it appears on the Marketplace.</p></details>
@@ -192,7 +416,7 @@
 
 <section id="get">
   <div class="wrap">
-    <div class="price">
+    <div class="price reveal">
       <div class="kicker">One-time purchase · No subscription</div>
       <div class="amount">$9.99</div>
       <ul>
@@ -200,14 +424,15 @@
         <li>Free updates for AssetDEK 3</li>
         <li>For Photoshop 2023 (24.0) and later</li>
       </ul>
-      <a class="cta" href="#">Get it on the Adobe Marketplace</a>
+      <a class="cta" id="getBtn" href="mailto:gravitysedge@gmail.com?subject=Tell%20me%20when%20AssetDEK%20is%20available">Coming soon to the Adobe Marketplace</a>
+      <a class="notify" id="notify" href="mailto:gravitysedge@gmail.com?subject=Tell%20me%20when%20AssetDEK%20is%20available">Email me when it's out</a>
     </div>
   </div>
 </section>
 
 <div class="wrap">
   <footer>
-    © GravitysEdge Productions · Support: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a> · <a href="privacy.html">Privacy</a><br>
+    © GravitysEdge Productions · Support: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a> · <a href="privacy.html">Privacy</a> · <a href="demo.html">Interactive preview</a><br>
     Adobe and Photoshop are trademarks of Adobe. AssetDEK is an independent plugin.
   </footer>
 </div>
@@ -218,90 +443,271 @@
     <span class="nav"><button type="button" id="v-prev">← Previous</button><button type="button" id="v-next">Next →</button><button type="button" id="v-close">Close ✕</button></span>
   </div>
   <div class="viewer-box">
-    <div class="viewer-media"><img id="v-img" alt=""></div>
+    <div class="viewer-media" id="v-media"></div>
     <div class="viewer-text"><div class="kicker" id="v-kicker"></div><h3 id="viewer-title"></h3><div id="v-body"></div></div>
   </div>
 </div>
 
+<!-- Illustrative mocks for features without a capture. Cloned into cards and the viewer. -->
+<template id="mock-rename">
+  <div class="mock" aria-hidden="true">
+    <div class="bar"><b>RENAME</b><div class="seg"><span>Display names</span><span class="on">Actual files</span></div></div>
+    <div class="bar"><b>PATTERN</b><span class="field">Landscape_{number}</span></div>
+    <div class="rn-row" style="--i:0"><img src="img/demo/a2.jpg" alt=""><span class="rn-old">IMG_0412.png</span><span class="rn-arrow">→</span><span class="rn-new">Landscape_001.png</span></div>
+    <div class="rn-row" style="--i:1"><img src="img/demo/a3.jpg" alt=""><span class="rn-old">download (3).png</span><span class="rn-arrow">→</span><span class="rn-new">Landscape_002.png</span></div>
+    <div class="rn-row" style="--i:2"><img src="img/demo/a4.jpg" alt=""><span class="rn-old">final_FINAL_v2.jpg</span><span class="rn-arrow">→</span><span class="rn-new">Landscape_003.jpg</span></div>
+    <div class="rn-row" style="--i:3"><img src="img/demo/a5.jpg" alt=""><span class="rn-old">untitled-7.png</span><span class="rn-arrow">→</span><span class="rn-new">Landscape_004.png</span></div>
+    <div class="done">Renamed 4 files <span>Undo</span></div>
+  </div>
+</template>
+<template id="mock-archive">
+  <div class="mock ar" aria-hidden="true">
+    <div class="ar-side">
+      <div class="hdr">LIBRARY</div>
+      <div>All images <b>6</b></div>
+      <div>Favorites <b>1</b></div>
+      <div class="arch">Archive <b><span>0</span><span>1</span></b></div>
+      <div>Deleted <b>0</b></div>
+    </div>
+    <div class="ar-grid">
+      <img src="img/demo/a1.jpg" alt=""><img class="go" src="img/demo/a6.jpg" alt=""><img src="img/demo/a9.jpg" alt="">
+      <img src="img/demo/a8.jpg" alt=""><img src="img/demo/a10.jpg" alt=""><img src="img/demo/a3.jpg" alt="">
+    </div>
+    <div class="ar-toast t1">Moved into an Archive folder beside it — nothing erased</div>
+    <div class="ar-toast t2">Restore — back in its original folder</div>
+  </div>
+</template>
+
 <script>
+(function () {
+  'use strict';
+  // Set this to the Marketplace listing URL on launch day; until then the button asks to be notified.
+  var MARKETPLACE_URL = '';
+  if (MARKETPLACE_URL) {
+    var gb = document.getElementById('getBtn');
+    gb.href = MARKETPLACE_URL;
+    gb.textContent = 'Get it on the Adobe Marketplace';
+    document.getElementById('notify').remove();
+  }
+
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   // A curated homepage set. FEATURES.md and the in-app Help hold the full list.
   var FEATURES = [
-    { group: 'organize', title: 'Real folders and drag-and-drop', isNew: false, img: 'img/13-library-dropdowns.png',
+    { group: 'organize', title: 'Real folders and drag-and-drop', frames: [['f-folders-1', 'Your folders and drives, one tree'], ['f-folders-2', 'Large Polaroid cards']],
       short: 'Create and rename real folders or nested folders, then drag images and folders where they belong.',
       body: ['AssetDEK works with the folders and files already on your drives.',
         ['Create a folder at the library root or a nested folder inside the selected folder.', 'Rename real folders with safe-name and collision checks.', 'Drag images or folders in the sidebar, or select images and choose Move….', 'Cross-drive moves verify the copy before removing the original; records and previews move with it.']] },
-    { group: 'organize', title: 'Batch rename', isNew: false, img: 'img/01-hero.png',
+    { group: 'organize', title: 'Batch rename', mock: 'mock-rename',
       short: 'Rename display names or actual files with a full preview and Undo—even after restarting Photoshop.',
       body: ['Rename selected images, one folder or a folder with all its subfolders.',
         ['Choose an AssetDEK display name without changing the file, or rename the actual file.', 'Build names from folder, original name, number, dates, dimensions and other fields.', 'Review every result and conflict before anything changes.', 'Undo the last real-file rename even after Photoshop restarts.']] },
-    { group: 'organize', title: 'Archive, Delete & Restore', isNew: false, img: 'img/08-archive-restore.gif',
+    { group: 'organize', title: 'Archive, Delete & Restore', mock: 'mock-archive',
       short: 'Move clutter aside without erasing it. Restore returns files to their original folders.',
       body: ['Archive or Delete from a card, the footer, the folder bar or by dragging onto LIBRARY › Archive or Deleted.',
         ['Files move into an Archive or Deleted folder beside them; the Recycle Bin is not used.', 'Archive and Deleted views collect items from every library.', 'Restore puts files back where they came from; if the folder is gone or the name is taken, you choose what happens.']] },
-    { group: 'organize', title: 'Favorites, notes, tags & display names', isNew: false, img: 'img/10-tags.gif',
+    { group: 'organize', title: 'Favorites, notes, tags & display names', frames: [['f-tags-1', 'Filter the gallery by tag'], ['f-tags-2', 'Tags and details in METADATA'], ['f-tags-3', 'Favorites and card controls']],
       short: 'Add useful context without forcing it into the filename.',
       body: ['Mark images and folders as favorites, add searchable notes and tags, or give an image a friendly display name.',
         ['Favorites and favorite folders stay one click away.', 'Notes work on images and folders and are included in search.', 'The TAGS sidebar shows your vocabulary and image counts.', 'Display names change what AssetDEK shows without renaming the file.']] },
-    { group: 'organize', title: 'Duplicates', isNew: false, img: 'img/07-duplicates.gif',
+    { group: 'organize', title: 'Duplicates', frames: [['f-dup-1', 'Exact copies, one group per set'], ['f-dup-2', 'Keep oldest — extras selected']],
       short: 'Find exact copies in seconds. Keep one, move the rest to Deleted — nothing is erased.',
       body: ['LIBRARY › Duplicates finds files with identical content across all your libraries. It compares only files of the same size, then their content, so it is fast — hundreds of images in seconds.',
         ['Each set of copies is one group, side by side.', 'Select extras keeps the oldest, the newest or the shortest path and selects the rest.', 'Move to Deleted moves the extras into a Deleted folder beside each file. Restore brings any of them back.', 'Resized or re-saved versions are different files and are not listed.']] },
-    { group: 'find', title: 'Search names, notes, tags and metadata', isNew: false, img: 'img/11-search.png',
+    { group: 'find', title: 'Search names, notes, tags and metadata', frames: [['f-search-1', 'Results as you type'], ['f-search-2', 'Choose exactly where to look']],
       short: 'Search everything together as you type, or choose exactly where AssetDEK should look.',
       body: ['Search matches file names, display names, notes, AssetDEK tags and indexed embedded metadata.',
         ['Match every word or any word.', 'Look only in names, notes, tags or metadata.', 'Filter to favorites, images with notes or tags, and selected file types.', 'Negative prompts stay available for inspection but are excluded from ordinary search.', 'Locked images never appear in results.']] },
-    { group: 'find', title: 'Sort, group, filter & Quick View', isNew: false, img: 'img/16-search-filters.png',
+    { group: 'find', title: 'Sort, group, filter & Quick View', frames: [['f-view-1', 'Group labels as bars'], ['f-view-2', '…or as compact tiles'], ['f-view-3', 'Sort, group and show options']],
       short: 'Change the view for the job: scan a contact sheet, narrow results or group a large library.',
       body: ['AssetDEK gives you several ways to bring the useful images forward without changing the files.',
         ['Quick View packs cards tightly for scanning many images.', 'Sort by name, dates, size, favorites or notes.', 'Group by folder, month, file type or favorites, with bars or compact label tiles.', 'Search filters update the results as you click.']] },
-    { group: 'find', title: 'Metadata when you need it', isNew: true, img: 'img/18-generation-provenance.gif',
+    { group: 'find', title: 'Metadata when you need it', isNew: true, frames: [['f-meta-1', 'Search inside embedded metadata'], ['f-meta-2', 'Generation: prompt, model, seed'], ['f-meta-3', 'Provenance and Content Credentials'], ['f-meta-4', 'Optional PNG/JPEG editing']],
       short: 'Use embedded details as another search source, inspect Generation and Provenance, or opt in to PNG/JPEG editing.',
       body: ['After the normal folder scan, AssetDEK indexes embedded metadata locally so it can support search and inspection.',
-        ['Generation can show prompts, negative prompts, models, generators, seeds and settings.', 'Provenance can show IPTC AI fields and C2PA Content Credentials.', 'Search can match keywords, captions, camera details and generation data without reopening files.', 'Under Settings › Metadata, optional PNG/JPEG controls can write tags or edit Title, Description, Creator and Copyright; both are off by default.']] },
+        ['Generation can show prompts, negative prompts, models, generators, seeds and settings.', 'Provenance can show IPTC AI fields and C2PA Content Credentials.', 'Search can match keywords, captions, camera details and generation data without reopening files.', 'Under Settings › Metadata, optional PNG/JPEG controls can write tags or edit Title, Description, Creator and Copyright; both are off by default.']] }
   ];
-  var HERO = { title: 'Find, organize and use image assets inside Photoshop', img: 'img/01-hero.png', body: ['Browse the folders and drives you already use as a visual gallery. Open the original image, or Place it into the active Photoshop document as an embedded Smart Object—AssetDEK always uses the original, never a preview.', []] };
+  var HERO = { title: 'Find, organize and use image assets inside Photoshop', frames: [['hero-1', ''], ['hero-2', ''], ['hero-3', '']], body: ['Browse the folders and drives you already use as a visual gallery. Open the original image, or Place it into the active Photoshop document as an embedded Smart Object—AssetDEK always uses the original, never a preview.', []] };
 
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  function frameImg(name, alt, lazy) {
+    var i = new Image();
+    i.src = 'img/' + name + '.webp';
+    i.alt = alt;
+    if (name.indexOf('hero') === 0) { i.width = 600; i.height = 932; } else { i.width = 791; i.height = 593; }
+    if (lazy) i.loading = 'lazy';
+    return i;
+  }
+  function mockNode(id) { return document.getElementById(id).content.firstElementChild.cloneNode(true); }
+
+  // ---------- Feature cards with crossfading flipbooks ----------
   var grids = { organize: document.getElementById('organize-grid'), find: document.getElementById('find-grid') };
+  var books = [];
   FEATURES.forEach(function (f, i) {
-    var card = document.createElement('div');
-    card.className = 'feature';
-    card.innerHTML = '<div class="media zoomable" data-i="' + i + '"><img loading="lazy" alt=""></div>' +
-      '<div class="body"><h3></h3><p></p><button type="button" class="more" data-i="' + i + '">Learn more ›</button></div>';
-    var img = card.querySelector('img');
-    img.src = f.img;
-    img.alt = f.title;
-    var h = card.querySelector('h3');
-    h.textContent = f.title;
-    if (f.isNew) { var t = document.createElement('span'); t.className = 'tag-new'; t.textContent = 'NEW'; h.appendChild(t); }
-    card.querySelector('p').textContent = f.short;
+    var card = el('article', 'feature reveal');
+    card.style.setProperty('--i', grids[f.group].children.length % 3);
+    var media = el('button', 'media');
+    media.type = 'button';
+    media.setAttribute('data-i', i);
+    media.setAttribute('aria-label', 'Enlarge: ' + f.title);
+    if (f.mock) {
+      media.appendChild(mockNode(f.mock));
+    } else {
+      var cap = el('span', 'cap', f.frames[0][1]);
+      var dots = el('span', 'dots');
+      f.frames.forEach(function (fr, k) {
+        var im = frameImg(fr[0], f.title + ' — ' + fr[1], true);
+        im.className = 'frame' + (k ? '' : ' on');
+        media.appendChild(im);
+        dots.appendChild(el('i', k ? '' : 'on'));
+      });
+      media.appendChild(cap);
+      if (f.frames.length > 1) media.appendChild(dots);
+      books.push({ f: f, media: media, cap: cap, dots: dots, k: 0, visible: false });
+    }
+    var body = el('div', 'body');
+    var h = el('h3', '', f.title);
+    if (f.isNew) h.appendChild(el('span', 'tag-new', 'NEW'));
+    body.appendChild(h);
+    body.appendChild(el('p', '', f.short));
+    var more = el('button', 'more', 'Learn more ›');
+    more.type = 'button';
+    more.setAttribute('data-i', i);
+    body.appendChild(more);
+    card.appendChild(media);
+    card.appendChild(body);
+    f.book = books[books.length - 1];
     grids[f.group].appendChild(card);
   });
+  function showFrame(b, k) {
+    b.k = k;
+    b.media.querySelectorAll('.frame').forEach(function (im, j) { im.classList.toggle('on', j === k); });
+    b.dots.querySelectorAll('i').forEach(function (d, j) { d.classList.toggle('on', j === k); });
+    b.cap.textContent = b.f.frames[k][1];
+  }
+  // Advance visible flipbooks, staggered so cards don't all change at once.
+  var tick = 0;
+  setInterval(function () {
+    tick++;
+    if (document.hidden) return;
+    books.forEach(function (b, n) {
+      if (!b.visible || b.f.frames.length < 2 || b.hover) return;
+      if ((tick + n) % 3 === 0) showFrame(b, (b.k + 1) % b.f.frames.length);
+    });
+  }, 1100);
+  books.forEach(function (b) {
+    b.media.addEventListener('mouseenter', function () { b.hover = true; });
+    b.media.addEventListener('mouseleave', function () { b.hover = false; });
+  });
 
-  var viewer = document.getElementById('viewer');
-  var current = -1;
-  var lastFocus = null;
+  // ---------- Reveal on scroll + flipbook visibility ----------
+  if ('IntersectionObserver' in window) {
+    var ro = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); ro.unobserve(e.target); } });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(function (n) { ro.observe(n); });
+    var vo = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { books.forEach(function (b) { if (b.media === e.target) b.visible = e.isIntersecting; }); });
+    }, { threshold: 0.4 });
+    books.forEach(function (b) { vo.observe(b.media); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function (n) { n.classList.add('in'); });
+    books.forEach(function (b) { b.visible = true; });
+  }
+
+  // ---------- Hero parallax ----------
+  var stack = document.getElementById('stack');
+  if (!reduce && matchMedia('(pointer: fine)').matches) {
+    window.addEventListener('pointermove', function (e) {
+      stack.style.setProperty('--mx', ((e.clientX / innerWidth) - 0.5).toFixed(3));
+      stack.style.setProperty('--my', ((e.clientY / innerHeight) - 0.5).toFixed(3));
+    }, { passive: true });
+  }
+
+  // ---------- Demo iframe: grow to fit its content ----------
+  var frame = document.getElementById('demoFrame');
+  window.addEventListener('message', function (e) {
+    if (e.source !== frame.contentWindow || !e.data || typeof e.data.assetdekDemoHeight !== 'number') return;
+    frame.style.height = Math.ceil(e.data.assetdekDemoHeight) + 'px';
+  });
+
+  // ---------- Compare wipe ----------
+  var wipe = document.getElementById('wipe'), wipeIn = document.getElementById('wipeIn'), wiped = false;
+  var CMP = { dark: ['cmp-standard', 'Standard', 'cmp-dark', 'Dark gallery'], frames: ['cmp-slide', 'Slide frame', 'cmp-polaroid', 'Polaroid frame'] };
+  function setWipe(v) { wipe.style.setProperty('--x', v + '%'); wipeIn.value = v; }
+  wipeIn.addEventListener('input', function () { wiped = true; setWipe(+wipeIn.value); });
+  document.querySelectorAll('[data-cmp]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var c = CMP[b.getAttribute('data-cmp')];
+      document.querySelectorAll('[data-cmp]').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      var a = document.getElementById('wipeA'), z = document.getElementById('wipeB');
+      a.src = 'img/' + c[0] + '.webp'; a.alt = c[1];
+      z.src = 'img/' + c[2] + '.webp'; z.alt = c[3];
+      document.getElementById('wipeLA').textContent = c[1];
+      document.getElementById('wipeLB').textContent = c[3];
+      if (!reduce) sweep();
+    });
+  });
+  // A short sweep when it first scrolls into view shows that it can be dragged.
+  function sweep() {
+    var t0 = performance.now();
+    (function step(now) {
+      if (wiped && now - t0 > 50) return;
+      var k = Math.min(1, (now - t0) / 1800);
+      setWipe(Math.round(50 + Math.sin(k * Math.PI * 2) * 30));
+      if (k < 1) requestAnimationFrame(step); else setWipe(50);
+    })(t0);
+  }
+  if (!reduce && 'IntersectionObserver' in window) {
+    var wo = new IntersectionObserver(function (es) { if (es[0].isIntersecting) { wo.disconnect(); setTimeout(sweep, 500); } }, { threshold: 0.5 });
+    wo.observe(wipe);
+  }
+
+  // ---------- Card size scrubber (real captures at four sizes) ----------
+  var scrubIn = document.getElementById('scrubIn'), scrubImgs = document.querySelectorAll('#scrub img'), SIZES = [104, 160, 248, 512], scrubbed = false;
+  function setScrub(k) {
+    scrubIn.value = k;
+    scrubImgs.forEach(function (im, j) { im.classList.toggle('on', j === k); });
+    document.getElementById('scrubOut').textContent = SIZES[k] + ' px';
+  }
+  scrubIn.addEventListener('input', function () { scrubbed = true; setScrub(+scrubIn.value); });
+  var scrubVisible = false;
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (es) { scrubVisible = es[0].isIntersecting; }, { threshold: 0.4 }).observe(document.getElementById('scrub'));
+  setInterval(function () { if (scrubVisible && !scrubbed && !document.hidden) setScrub((+scrubIn.value + 1) % SIZES.length); }, 1800);
+
+  // ---------- Viewer ----------
+  var viewer = document.getElementById('viewer'), current = -1, vframe = 0, lastFocus = null;
   function fill(f, kicker) {
-    var img = document.getElementById('v-img');
-    img.src = f.img;
-    img.alt = f.title;
+    var m = document.getElementById('v-media');
+    m.innerHTML = '';
+    if (f.mock) {
+      var box = el('div', 'mock-big');
+      box.appendChild(mockNode(f.mock));
+      m.appendChild(box);
+    } else {
+      var fr = f.frames[vframe % f.frames.length];
+      var im = frameImg(fr[0], f.title + (fr[1] ? ' — ' + fr[1] : ''), false);
+      im.title = f.frames.length > 1 ? 'Click for the next picture' : '';
+      m.appendChild(im);
+      if (f.frames.length > 1) m.appendChild(el('div', 'vdots', (vframe % f.frames.length + 1) + ' / ' + f.frames.length + (fr[1] ? ' · ' + fr[1] : '')));
+    }
     document.getElementById('v-kicker').textContent = kicker || '';
     document.getElementById('viewer-title').textContent = f.title;
     var body = document.getElementById('v-body');
     body.innerHTML = '';
-    var p = document.createElement('p');
-    p.textContent = f.body[0];
-    body.appendChild(p);
+    body.appendChild(el('p', '', f.body[0]));
     if (f.body[1] && f.body[1].length) {
-      var ul = document.createElement('ul');
-      f.body[1].forEach(function (line) { var li = document.createElement('li'); li.textContent = line; ul.appendChild(li); });
+      var ul = el('ul');
+      f.body[1].forEach(function (line) { ul.appendChild(el('li', '', line)); });
       body.appendChild(ul);
     }
   }
-  function open(i) {
+  function item(i) { return i < 0 ? HERO : FEATURES[i]; }
+  function open(i, startFrame) {
     if (!viewer.classList.contains('open')) lastFocus = document.activeElement;
     current = i;
-    if (i < 0) fill(HERO, 'AssetDEK 3.2');
-    else fill(FEATURES[i], 'Feature ' + (i + 1) + ' of ' + FEATURES.length);
+    vframe = startFrame || 0;
+    fill(item(i), i < 0 ? 'AssetDEK 3.2' : 'Feature ' + (i + 1) + ' of ' + FEATURES.length);
     viewer.classList.add('open');
     document.body.style.overflow = 'hidden';
     document.getElementById('v-close').focus();
@@ -314,8 +720,9 @@
   function step(d) { open((Math.max(current, 0) + d + FEATURES.length) % FEATURES.length); }
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-i]');
-    if (t) { open(parseInt(t.getAttribute('data-i'), 10)); return; }
+    if (t && !viewer.contains(t)) { var i = +t.getAttribute('data-i'); open(i, FEATURES[i].book ? FEATURES[i].book.k : 0); return; }
     if (e.target.closest('[data-viewer="hero"]')) { open(-1); return; }
+    if (e.target.closest('#v-media img')) { vframe++; fill(item(current), document.getElementById('v-kicker').textContent); return; }
     if (e.target === viewer) close();
   });
   document.getElementById('v-close').addEventListener('click', close);
@@ -326,7 +733,14 @@
     if (e.key === 'Escape') close();
     else if (e.key === 'ArrowRight') step(1);
     else if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'Tab') {
+      // Keep focus inside the dialog.
+      var f = viewer.querySelectorAll('button'), first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
+})();
 </script>
 </body>
 </html>
