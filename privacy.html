@@ -24,31 +24,22 @@
   <a class="brand" href="index.html"><img src="img/logo.png" alt=""><b>AssetDEK</b></a>
   <h1>Privacy Policy</h1>
   <p>Publisher: GravitysEdge Productions · Contact: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a></p>
+  <p><i>Operational privacy summary. Draft requires legal review before publication.</i></p>
+  <p class="summary">AssetDEK works locally in Adobe Photoshop. It has no network access, account, analytics or tracking, and reads folders the user adds as libraries.</p>
 
-  <p class="summary">AssetDEK works entirely on your computer. It does not connect to the internet, does not collect or send any data, needs no account and contains no analytics or tracking.</p>
+  <h2>Files and metadata</h2>
+  <p>Browsing, searching, previewing and reading embedded metadata do not change image files. <b>Save AssetDEK tags into image files</b> is opt-in and writes future tag changes to supported PNG/JPEG files only. Existing AssetDEK tags are not written retroactively; use <b>Write existing tags into files…</b> to deliberately write previously assigned tags. Metadata editing is separate.</p>
+  <p>The original image is authoritative for embedded metadata. AssetDEK processes it locally; cached values are refreshed when source evidence changes and are not presented as current when stale.</p>
 
-  <h2>What AssetDEK accesses</h2>
-  <ul>
-    <li><b>Folders you choose.</b> AssetDEK reads the image files in the folders you add, to show thumbnails and details. It reads nothing else.</li>
-    <li><b>Your image files are never modified</b> by browsing, previewing, searching, favoriting, notes or reading metadata. Tagging stays in AssetDEK's records unless you explicitly enable saving tags into PNG/JPEG files. Files also change only when you choose Move, Rename, Archive, Delete, Restore, or enable editing of Title, Description, Creator and Copyright in PNG/JPEG files.</li>
-    <li><b>Metadata stays on your computer.</b> Prompts, keywords, camera details, GPS locations and other metadata read from your images are kept in each library's hidden <code>.assetdeck</code> folder and are never sent anywhere. That folder travels when you copy or share the library, so review it when the source files contain private metadata. Archive and Delete move files into folders beside them; nothing is erased.</li>
-  </ul>
+  <h2>Data stored by AssetDEK</h2>
+  <p>For each writable library, required lightweight organizational state is committed to both local AppData and that library's portable <code>.assetdeck</code> state. The Portable setting controls optional rebuildable indexes, previews and caches only. Read-only libraries are browseable, but organizational changes requiring both copies are unavailable.</p>
+  <p><code>.assetdeck</code> is visible on Windows and normally hidden on macOS because its name starts with a dot. It can contain organizational records, identity/relink evidence, optional indexes and previews. Review it before sharing a library. AppData supports recovery and matching; it is not a backup of image files. Presentation settings, passwords and Photoshop permission tokens remain machine-local.</p>
+  <p>Disconnected libraries remain listed as sources for reconnection, but cached previews and metadata do not make their assets browseable. Assets return only after reconnection and validation.</p>
 
-  <h2>What AssetDEK stores</h2>
-  <ul>
-    <li>Its own records (favorites, notes, tags, display names, locks, settings) in its data folder on your computer.</li>
-    <li>If you allow it, a small hidden <code>.assetdeck</code> folder inside your libraries with a copy of those records, indexed and raw metadata, and optimized previews, so they travel with your folders.</li>
-    <li>The preview-lock password only as a salted hash in Photoshop's secure storage.</li>
-  </ul>
-
-  <h2>What AssetDEK sends</h2>
-  <p>Nothing. AssetDEK has no network access.</p>
-
-  <h2>Support reports</h2>
-  <p>Settings › About › Export support report writes a small file on your computer (versions, settings, counts and recent errors; no images, passwords, notes or file names). It is shared only if you attach it to an email.</p>
-
-  <h2>Removing your data</h2>
-  <p>AssetDEK's records live in its plugin data folder; deleting it removes them. <code>.assetdeck</code> folders can be deleted at any time. Your images are not affected either way.</p>
+  <h2>Sharing, support reports and removal</h2>
+  <p>AssetDEK sends no data. A support report is saved locally and contains versions, settings, counts and recent errors, not images, passwords, notes or file names. It is shared only if the user chooses to attach it.</p>
+  <p>Deleting portable <code>.assetdeck</code> data can remove AssetDEK organizational information without deleting images. Deleting AppData removes the local recovery copy. Recovery requires a surviving copy that proves the last committed state. Users are responsible for separate backups of important original images.</p>
+  <p><a href="terms.html">Operational Terms draft</a></p>
 </div>
 </body>
 </html>

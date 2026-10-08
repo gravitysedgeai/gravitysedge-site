@@ -263,7 +263,7 @@
 <div class="wrap">
   <header>
     <a class="brand" href="index.html"><img src="img/logo.png" alt="GEAD logo"><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
-    <a class="back" href="index.html">← Back to AssetDEK</a>
+    <span><a class="back" href="guide.html">User Guide</a> &nbsp; <a class="back" href="index.html">← Back to AssetDEK</a></span>
   </header>
 
   <div class="kicker">Interactive preview</div>
@@ -337,7 +337,7 @@
         <div class="pop" id="popSettings" role="dialog" aria-label="Metadata settings">
           <h4>Settings › Metadata</h4>
           <div class="tg on" data-set="read"><span class="sw"></span><span>Read embedded metadata<small>Indexed locally, in the background</small></span><span class="st">On</span></div>
-          <div class="tg" data-set="tags" id="tgTags"><span class="sw"></span><span>Write tags into PNG/JPEG<small>As standard keywords</small></span><span class="st">Off</span></div>
+          <div class="tg" data-set="tags" id="tgTags"><span class="sw"></span><span>Save AssetDEK tags into image files<small>Future tag changes only; existing tags use the bulk action</small></span><span class="st">Off</span></div>
           <div class="tg" data-set="fields" id="tgFields"><span class="sw"></span><span>Edit title, description, creator &amp; copyright<small>PNG/JPEG only</small></span><span class="st">Off</span></div>
           <div class="pnote">Both writing options are off by default. Every write keeps picture data byte-identical and is verified before the file is replaced.</div>
           <div class="acts"><span></span><button type="button" class="btn" id="sDone">Done</button></div>
@@ -982,7 +982,7 @@
   }
 
   var SCENES = [
-    { chip: 'Browse', title: 'Every folder. One gallery.', sub: 'Add the folders you already use — on any drive. AssetDEK shows them as a fast gallery right beside your canvas. No importing, no catalog.',
+    { chip: 'Browse', title: 'Every folder. One gallery.', sub: 'Add the folders you already use — on any drive. AssetDEK shows them as a fast gallery right beside your canvas. No import process.',
       run: function (id) {
         S.size = 120; S.frame = 'none'; S.dark = false; clearDoc();
         renderGallery(true);
