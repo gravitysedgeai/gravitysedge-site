@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AssetDEK Privacy</title>
+<title>AssetDEK Privacy Policy</title>
 <link rel="icon" href="img/logo.png">
 <style>
   :root { --bg: #0b1424; --card: #14233d; --edge: #24395c; --text: #eef2f8; --muted: #a6b4c8; --blue: #8fd0ff; }
@@ -15,31 +15,46 @@
   .brand img { width: 40px; height: 40px; border-radius: 9px; }
   h1 { font-size: 32px; margin: 0 0 6px; }
   h2 { font-size: 20px; margin: 28px 0 6px; }
-  p, li { color: var(--muted); }
-  .summary { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 16px 18px; color: var(--text); }
+  p { color: var(--muted); }
+  .notice { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 16px 18px; color: var(--text); }
+  ul { color: var(--muted); padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { color: var(--text); }
+  .date { color: var(--muted); margin-top: 0; }
+  .foot { margin-top: 36px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="brand" href="index.html"><img src="img/logo.png" alt=""><b>AssetDEK</b></a>
   <h1>Privacy Policy</h1>
-  <p>Publisher: GravitysEdge Productions · Contact: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a></p>
-  <p><i>Operational privacy summary. Draft requires legal review before publication.</i></p>
-  <p class="summary">AssetDEK works locally in Adobe Photoshop. It has no network access, account, analytics or tracking, and reads folders the user adds as libraries.</p>
-
-  <h2>Files and metadata</h2>
-  <p>Browsing, searching, previewing and reading embedded metadata do not change image files. <b>Save AssetDEK tags into image files</b> is opt-in and writes future tag changes to supported PNG/JPEG files only. Existing AssetDEK tags are not written retroactively; use <b>Write existing tags into files…</b> to deliberately write previously assigned tags. Metadata editing is separate.</p>
-  <p>The original image is authoritative for embedded metadata. AssetDEK processes it locally; cached values are refreshed when source evidence changes and are not presented as current when stale.</p>
-
-  <h2>Data stored by AssetDEK</h2>
-  <p>For each writable library, required lightweight organizational state is committed to both local AppData and that library's portable <code>.assetdeck</code> state. The Portable setting controls optional rebuildable indexes, previews and caches only. Read-only libraries are browseable, but organizational changes requiring both copies are unavailable.</p>
-  <p><code>.assetdeck</code> is visible on Windows and normally hidden on macOS because its name starts with a dot. It can contain organizational records, identity/relink evidence, optional indexes and previews. Review it before sharing a library. AppData supports recovery and matching; it is not a backup of image files. Presentation settings, passwords and Photoshop permission tokens remain machine-local.</p>
-  <p>Disconnected libraries remain listed as sources for reconnection, but cached previews and metadata do not make their assets browseable. Assets return only after reconnection and validation.</p>
-
-  <h2>Sharing, support reports and removal</h2>
-  <p>AssetDEK sends no data. A support report is saved locally and contains versions, settings, counts and recent errors, not images, passwords, notes or file names. It is shared only if the user chooses to attach it.</p>
-  <p>Deleting portable <code>.assetdeck</code> data can remove AssetDEK organizational information without deleting images. Deleting AppData removes the local recovery copy. Recovery requires a surviving copy that proves the last committed state. Users are responsible for separate backups of important original images.</p>
-  <p><a href="terms.html">Operational Terms draft</a></p>
+  <p class="date">Last updated and effective: October 8, 2026</p>
+  <p>This Privacy Policy explains how AssetDEK, a plugin for Adobe Photoshop published by GravitysEdge Productions ("Gravity's Edge", "we"), handles information. In short: AssetDEK works on your computer, does not require an account, does not include analytics or tracking, and does not send your images or library information to us or anyone else.</p>
+  <h2>What AssetDEK processes on your computer</h2>
+  <p>To show and organize your libraries, AssetDEK reads, on your computer only:</p>
+  <ul><li>the folders and drives you add as libraries, including file and folder names, locations, sizes and dates;</li><li>your images, to show previews and image details;</li><li>metadata embedded in your images, such as titles, keywords, camera details, location (GPS) data, AI-generation details and Content Credentials, when present;</li><li>the organizational information you create in AssetDEK, such as favorites, notes, tags, display names, locks and saved searches.</li></ul>
+  <p>All of this processing happens locally during normal operation.</p>
+  <h2>What AssetDEK stores, and where</h2>
+  <p>AssetDEK stores its own information on your computer and in your libraries:</p>
+  <ul><li><b>Application data (AppData)</b> on your computer: settings, organizational records and a local recovery copy of them.</li><li><b><code>.assetdeck</code> folders</b> inside each writable library: organizational records, information used to recognize files that were moved or renamed, and optional previews and indexes. On Windows these folders are visible; on macOS they are normally hidden because their names start with a dot.</li><li><b>Lock password:</b> stored only as a salted hash in Adobe's secure plugin storage on your computer.</li></ul>
+  <p>An <code>.assetdeck</code> folder can reveal how a library is organized (for example notes, tags and file names). Review it before sharing a library or drive with others.</p>
+  <h2>What AssetDEK sends</h2>
+  <p>AssetDEK itself sends no information over the internet. It does not request network access, does not contact our servers, and has no analytics, advertising or tracking.</p>
+  <p>AssetDEK changes your image files only when you choose an operation that does so, such as moving, renaming or archiving files, or the optional, off-by-default metadata writing. Details are in the <a href="terms.html">Terms of Service</a>.</p>
+  <h2>Support</h2>
+  <p>We receive information only if you contact us. When you email support, we receive your email address and whatever you choose to include, and we use it only to respond to you and to improve AssetDEK.</p>
+  <p>Settings › About › <b>Export support report</b> saves a small file on your computer with version numbers, settings, counts and recent errors. It is designed to leave out images, passwords, notes and file names. The file stays on your computer and under your control; it reaches us only if you choose to attach it to a message. You can open and review it before sending.</p>
+  <h2>Adobe</h2>
+  <p>AssetDEK runs inside Adobe Photoshop and is distributed through the Adobe Marketplace. Purchases, payments, licensing and downloads through the Adobe Marketplace are handled by Adobe; we do not receive or store your payment card details. Information you share with Adobe, and any information Adobe Photoshop or Creative Cloud collects, is governed by Adobe's own privacy policy.</p>
+  <h2>Removing your information</h2>
+  <p>You can remove AssetDEK's information at any time: delete a library's <code>.assetdeck</code> folders, remove libraries in Settings, or uninstall AssetDEK and delete its application data folder if it remains. Deleting this information does not delete your images, but it does remove your AssetDEK organization (such as favorites, notes and tags). To have us delete a support email, contact us.</p>
+  <h2>Children</h2>
+  <p>AssetDEK is a general-purpose tool and is not directed at children. We do not knowingly collect information from children.</p>
+  <h2>Changes to this policy</h2>
+  <p>We may update this policy. Updates will be posted on this page with a new "Last updated" date.</p>
+  <h2>Contact</h2>
+  <p>GravitysEdge Productions · <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a></p>
+  <p class="foot"><a href="index.html">AssetDEK home</a> · <a href="terms.html">Terms of Service</a> · <a href="guide.html">User Guide</a></p>
 </div>
 </body>
 </html>

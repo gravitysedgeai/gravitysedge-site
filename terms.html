@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AssetDEK Operational Terms Draft</title>
+<title>AssetDEK Terms of Service</title>
 <link rel="icon" href="img/logo.png">
 <style>
   :root { --bg: #0b1424; --card: #14233d; --edge: #24395c; --text: #eef2f8; --muted: #a6b4c8; --blue: #8fd0ff; }
@@ -17,23 +17,72 @@
   h2 { font-size: 20px; margin: 28px 0 6px; }
   p { color: var(--muted); }
   .notice { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 16px 18px; color: var(--text); }
+  ul { color: var(--muted); padding-left: 22px; }
+  li { margin: 4px 0; }
+  code { color: var(--text); }
+  .date { color: var(--muted); margin-top: 0; }
+  .foot { margin-top: 36px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="brand" href="index.html"><img src="img/logo.png" alt=""><b>AssetDEK</b></a>
-  <h1>Operational Terms Draft</h1>
-  <p class="notice"><b>Draft for legal review before publication.</b> This page describes product operations only; it is not comprehensive legal terms.</p>
-  <h2>Product and file operations</h2>
-  <p>AssetDEK is an Adobe Photoshop panel for browsing and organizing image libraries. It processes locally and has no network access. It reads folders selected by the user. When requested, it may move or rename files, organize them into Archive or Deleted folders, or write supported metadata fields into supported images.</p>
-  <p>Enabling <b>Save AssetDEK tags into image files</b> writes future tag changes only. Existing AssetDEK tags are not written retroactively; <b>Write existing tags into files…</b> is the separate operation for previously assigned tags.</p>
-  <h2>Storage and availability</h2>
-  <p>Required lightweight organizational state for a writable library is stored in local AppData and that library's portable <code>.assetdeck</code> state. Those copies support matching, reconciliation and recovery; they are not copies of the original images or a backup service. Previews and indexes are rebuildable. Passwords, presentation settings and Photoshop permission tokens remain machine-local. Disconnected libraries must be reconnected and validated before their assets are available in the panel.</p>
-  <h2>User responsibilities</h2>
-  <p>Users choose when to perform file and metadata operations and are responsible for maintaining separate backups of important original images and data.</p>
-  <h2>Legal review</h2>
-  <p>This draft does not set warranties, indemnities, jurisdiction, governing law or broad limitations of liability. Those provisions are deferred for review by qualified legal counsel before publication.</p>
-  <p>Questions: <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a> · <a href="privacy.html">Privacy</a></p>
+  <h1>Terms of Service</h1>
+  <p class="date">Last updated and effective: October 8, 2026</p>
+  <p>These Terms of Service ("Terms") apply to AssetDEK, a plugin for Adobe Photoshop published by GravitysEdge Productions ("Gravity's Edge", "GravitysEdge", "we", "us"). "You" means the person or organization that installs or uses AssetDEK.</p>
+  <h2>1. Acceptance of these Terms</h2>
+  <p>By installing, accessing or using AssetDEK, you agree to these Terms. If you do not agree, do not install or use AssetDEK.</p>
+  <h2>2. The product</h2>
+  <p>AssetDEK by Gravity's Edge is a panel for Adobe Photoshop that shows folders and drives you choose as a visual library, so you can browse, search, organize, open and place your image files. AssetDEK works locally on your computer.</p>
+  <h2>3. Your license</h2>
+  <p>Subject to these Terms, we grant you a limited, non-exclusive, non-transferable, revocable license to install and use AssetDEK for your own personal or business work, in line with the license you obtained it under (for example through the Adobe Marketplace).</p>
+  <p>AssetDEK is licensed, not sold. We and our licensors keep all ownership, copyright and other intellectual property rights in AssetDEK, including its code, design, documentation and branding. Except where applicable law expressly allows it, you may not:</p>
+  <ul><li>copy, redistribute, sell, resell, rent, lend, sublicense or otherwise make AssetDEK available to others;</li><li>reverse engineer, decompile or disassemble AssetDEK;</li><li>remove, bypass or circumvent any license, purchase or technical protection;</li><li>modify AssetDEK or create derivative works from it.</li></ul>
+  <h2>4. Your files and your backups</h2>
+  <p>You remain responsible for your images, documents, folders, drives and backups. Before using any operation that changes files, keep independent, up-to-date backups of anything important.</p>
+  <p>AssetDEK keeps organizational information (such as favorites, notes, tags and display names), previews and indexes in your computer's application data and in <code>.assetdeck</code> folders inside your libraries. <b>These are not backups of your original image files.</b> They help AssetDEK find and reconnect your work; they cannot replace a copy of your images.</p>
+  <h2>5. Operations that change files</h2>
+  <p>AssetDEK can change files and folders on your drives, but only through operations you choose. These include:</p>
+  <ul><li>moving files and folders;</li><li>renaming files and folders, including batch rename;</li><li>archiving files into an Archive folder and moving files to a Deleted folder (AssetDEK moves these files; it does not erase them or empty the Recycle Bin or Trash);</li><li>restoring archived or deleted files;</li><li>creating folders;</li><li>optional metadata writing: saving AssetDEK tags into supported image files and editing supported metadata fields, both of which are off until you turn them on.</li></ul>
+  <p>These operations run only when you request them. Some ask for confirmation first; you can choose to turn some of these confirmations off. File operations depend on your operating system, file system and storage device, which are outside our control.</p>
+  <h2>6. Data loss</h2>
+  <p>To the maximum extent permitted by applicable law, Gravity's Edge is not responsible for the loss or corruption of files, images, metadata, projects, backups or other data resulting from your use of AssetDEK, storage-device or file-system failure, third-party software, external or network drives, synchronization or cloud-storage services, power loss, or other circumstances.</p>
+  <h2>7. No warranty</h2>
+  <p>To the maximum extent permitted by applicable law, AssetDEK is provided "as is" and "as available", without warranties of any kind, whether express or implied, including implied warranties of merchantability, fitness for a particular purpose, title and non-infringement. We do not promise that AssetDEK will be uninterrupted, error-free, secure or free of defects, or that it will meet every need.</p>
+  <h2>8. Compatibility</h2>
+  <p>We do not guarantee that AssetDEK will remain compatible with every past or future version of Adobe Photoshop, operating system, file system, storage device, cloud-synchronization service, image format or third-party metadata implementation. Changes made by others may affect how AssetDEK works.</p>
+  <h2>9. Limitation of liability</h2>
+  <p>To the maximum extent permitted by applicable law:</p>
+  <ul><li>Gravity's Edge will not be liable for any indirect, incidental, consequential, special, exemplary or punitive damages;</li><li>Gravity's Edge will not be liable for loss of data, files, images, metadata or projects, or for lost profits, revenue, productivity or business interruption, even if we were told such loss was possible;</li><li>Gravity's Edge's total liability for all claims arising from or related to AssetDEK or these Terms will not exceed the amount you actually paid for AssetDEK.</li></ul>
+  <h2>10. Your content</h2>
+  <p>You keep all ownership of your images and other files. AssetDEK does not claim any rights to them.</p>
+  <p>You are responsible for having the rights and permissions needed to use and process any content you open, organize or place with AssetDEK. AssetDEK does not grant you any rights to third-party copyrighted material.</p>
+  <h2>11. Lawful use</h2>
+  <p>You may not use AssetDEK in violation of applicable law or the rights of others, including intellectual property and privacy rights.</p>
+  <h2>12. Adobe and other third parties</h2>
+  <p>AssetDEK runs inside Adobe Photoshop and uses Adobe's UXP plugin platform, but it is an independent third-party product. Adobe is not a party to these Terms and is not responsible for AssetDEK, its support or its warranties. Your use of Adobe Photoshop, Creative Cloud and the Adobe Marketplace is governed by Adobe's own terms.</p>
+  <p>Adobe and Photoshop are either registered trademarks or trademarks of Adobe in the United States and/or other countries. AssetDEK is not affiliated with or endorsed by Adobe.</p>
+  <h2>13. Updates and changes to AssetDEK</h2>
+  <p>We may release updates, bug fixes, compatibility updates and feature changes, and may change or discontinue features. Updates may be delivered through the Adobe Marketplace or Creative Cloud.</p>
+  <h2>14. Support</h2>
+  <p>We offer support on a reasonable-effort basis by email at <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a>. We do not guarantee response or resolution times.</p>
+  <h2>15. Purchases and refunds</h2>
+  <p>Purchases made through the Adobe Marketplace are processed by Adobe and are also subject to Adobe's applicable commerce, payment and refund terms.</p>
+  <h2>16. Termination</h2>
+  <p>Subject to applicable law, your license may end if you materially violate these Terms. When it ends, you must stop using AssetDEK and uninstall it. Sections 3 (ownership), 4, 6, 7, 9, 10, 12, 17, 18 and 19 continue to apply after termination.</p>
+  <h2>17. Governing law</h2>
+  <p>These Terms are governed by the laws of the Commonwealth of Virginia, United States, without regard to its conflict-of-law rules, except where the law of your place of residence requires otherwise.</p>
+  <h2>18. Your statutory rights</h2>
+  <p>Nothing in these Terms excludes or limits any rights or remedies that cannot legally be excluded or limited, including consumer rights in your country or state. Where the law does not allow a limitation in these Terms, that limitation applies only to the extent the law permits.</p>
+  <h2>19. Severability</h2>
+  <p>If any part of these Terms is found to be unenforceable, that part will be enforced to the maximum extent permitted, and the rest of these Terms will remain in effect.</p>
+  <h2>20. Entire agreement</h2>
+  <p>These Terms, together with the <a href="privacy.html">Privacy Policy</a>, are the entire agreement between you and Gravity's Edge about AssetDEK and replace any earlier understandings about it.</p>
+  <h2>21. Changes to these Terms</h2>
+  <p>We may update these Terms from time to time. The updated Terms will be posted on this page with a new "Last updated" date. If you continue to use AssetDEK after an update takes effect, the updated Terms apply.</p>
+  <h2>22. Contact</h2>
+  <p>GravitysEdge Productions · <a href="mailto:gravitysedge@gmail.com">gravitysedge@gmail.com</a></p>
+  <p class="foot"><a href="index.html">AssetDEK home</a> · <a href="privacy.html">Privacy Policy</a> · <a href="guide.html">User Guide</a></p>
 </div>
 </body>
 </html>
