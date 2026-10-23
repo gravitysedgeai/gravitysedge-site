@@ -82,7 +82,7 @@ footer{border-top:1px solid var(--border);text-align:center;padding:19px;color:v
 const API="https://songwriting-community-api.gravitysedge.workers.dev";
 const TOKEN_KEY="gravitysedge-community-session-v1";
 const $=id=>document.getElementById(id);
-let token="",signedIn=false,sessionAuthor="";
+let token="",signedIn=false,sessionAuthor="",sessionRole="";
 try{token=sessionStorage.getItem(TOKEN_KEY)||"";}catch(_){}
 const handle=(new URLSearchParams(location.search).get("artist")||"").trim().toLowerCase();
 const valid=/^[a-z0-9_]{3,32}$/.test(handle);
@@ -118,9 +118,11 @@ async function checkSession(){
  try{
   const data=await json("/auth/me",{auth:true});
   signedIn=!!data.author;
-  sessionAuthor=String(data.author?.username||"");
+  sessionAuthor=String(data.author?.username||"").toLowerCase();
+  sessionRole=String(data.author?.role||"");
  }catch(err){
   signedIn=false;
+  sessionRole="";
   if(err.status===401){
    token="";
    try{sessionStorage.removeItem(TOKEN_KEY);}catch(_){}
@@ -266,6 +268,28 @@ function addSong(song){
   }
  });
  actions.append(like,message);
+ if(signedIn && (sessionRole==="admin" || sessionAuthor===handle)){
+  const remove=el("button","","Delete song");
+  remove.type="button";
+  remove.setAttribute("aria-label","Permanently delete "+(song.title||"this song"));
+  remove.addEventListener("click",async()=>{
+   if(!confirm("Permanently delete \""+(song.title||"this song")+"\" and its likes? This cannot be undone."))return;
+   remove.disabled=true;
+   message.textContent="Deleting…";
+   message.classList.remove("error");
+   try{
+    await json("/songs/"+encodeURIComponent(song.id),{method:"DELETE",auth:true});
+    const [profile]=await Promise.all([json("/artists/"+handle),load(true)]);
+    const a=profile.artist;
+    $("artist-count").textContent=a.songCount+" published "+(a.songCount===1?"song":"songs")+" · Music, lyrics, and moments worth sharing.";
+   }catch(err){
+    remove.disabled=false;
+    message.textContent="Could not delete: "+err.message;
+    message.classList.add("error");
+   }
+  });
+  actions.append(remove);
+ }
  card.append(actions);
  if(song.lyrics){
   const details=el("details");
