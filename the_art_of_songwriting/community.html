@@ -101,14 +101,14 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
  </section>
  <section class="panel">
    <h2>Share a song.</h2>
-   <p>Have a track ready? Submit a Suno, SoundCloud, or YouTube link with optional lyrics. An administrator reviews it before it appears publicly.</p>
+   <p>Have a track ready? Submit a Suno, SoundCloud, or YouTube link with optional lyrics. Members can publish immediately after signing in.</p>
    <form id="song-form">
      <label for="track-title">Song title</label><input id="track-title" maxlength="150" required placeholder="The name of your song">
      <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://soundcloud.com/artist/song-title"><p class="form-note">SoundCloud: use the full song URL from your browser’s address bar, not an on.soundcloud.com shortened link.</p>
      <label for="track-lyrics">Lyrics (optional if a link is provided)</label><textarea id="track-lyrics" maxlength="40000" placeholder="Your lyrics, as you want people to read them"></textarea>
      <label class="checkbox-line" for="share-lyrics"><input id="share-lyrics" type="checkbox" checked> Include these lyrics in the public post</label>
-     <div class="actions"><button type="button" id="load-draft">Load my Studio draft</button><button type="submit" class="primary">Submit for review</button></div>
-     <p class="form-note"><strong>Privacy:</strong> Style prompts are never submitted. Lyrics are optional, and songs remain private until approved. Drafts remain saved in your browser.</p>
+     <div class="actions"><button type="button" id="load-draft">Load my Studio draft</button><button type="submit" class="primary">Publish song</button></div>
+     <p class="form-note"><strong>Privacy:</strong> Style prompts are never submitted. Lyrics are optional. Your song appears publicly as soon as you publish. Drafts remain saved in your browser.</p>
      <div class="message" id="song-message" role="status" aria-live="polite"></div>
    </form>
  </section>
@@ -118,7 +118,7 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
  <div id="mine-feed"></div>
 </section>
 <section id="moderation" class="hidden" aria-label="Pending song approvals">
- <div class="section-head"><div><div class="eyebrow">Administration</div><h2>Pending approval</h2></div><button id="refresh-pending" type="button">Refresh queue</button></div>
+ <div class="section-head"><div><div class="eyebrow">Administration</div><h2>Older submissions awaiting review</h2></div><button id="refresh-pending" type="button">Refresh queue</button></div>
  <div id="pending-feed"></div>
 </section>
 <section aria-label="Published song feed">
@@ -334,6 +334,16 @@ async function loadShortSoundcloudEmbed(song,article){
       }catch(e){message("account-message",e.message,true);}
     }));
   }
+  if(kind==="public" && author?.role==="admin"){
+    actions.append(makeButton("Hide song",async()=>{
+      if(!confirm("Hide this song from the public listening room?"))return;
+      try{
+        await api("/songs/"+song.id+"/moderate",{method:"POST",body:{status:"hidden"}});
+        await loadFeed(true);
+        await loadMine();
+      }catch(e){message("account-message",e.message,true);}
+    },"danger"));
+  }
   if(kind==="pending"){
     actions.append(makeButton("✓ Approve",async()=>{
       if(!confirm("Make this song public?"))return;
@@ -419,8 +429,8 @@ $("song-form").addEventListener("submit",async event=>{
   try{
     const data=await api("/songs",{method:"POST",body:{
       title,audioUrl,lyrics,shareLyrics:$("share-lyrics").checked}});
-    message("song-message","Submitted! Your song is pending approval. (ID: "+data.id+")");
-    await Promise.all([loadMine(),loadPending()]);
+    message("song-message","Your song is published! You can find it in the listening room below.");
+    await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
   }catch(e){message("song-message",e.message,true);}
 });
 $("load-draft").addEventListener("click",()=>{
