@@ -78,7 +78,7 @@ async function route(req,env,url){
   }
   if(p==="/auth/register"&&m==="POST"){
     if(!env.ADMIN_INVITE_CODE||!env.AUTHOR_INVITE_CODE||
-      env.ADMIN_INVITE_CODE.length<24||env.AUTHOR_INVITE_CODE.length<24||
+      env.ADMIN_INVITE_CODE.length<12||env.AUTHOR_INVITE_CODE.length<12||
       env.ADMIN_INVITE_CODE===env.AUTHOR_INVITE_CODE)error("Invitation setup incomplete",503);
     const b=await body(req),username=value(b.username,32).toLowerCase(),name=value(b.displayName,80);
     if(!/^[a-z0-9_]{3,32}$/.test(username)||!name||name.length>80)error("Invalid username or display name",422);
