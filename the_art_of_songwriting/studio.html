@@ -39,7 +39,7 @@ textarea{display:block;flex:1 1 auto;width:100%;height:100%;min-height:0;resize:
 </div>
 <div class="workspace"><section class="panel"><div class="panel-head"><strong>Lyrics</strong><span id="save-status" class="status">Stored on this device</span></div><label class="hidden" for="lyrics">Write or paste lyrics</label><textarea id="lyrics" aria-label="Lyrics editor" spellcheck="true" wrap="off" placeholder="[Verse 1]&#10;Write your first line&#10;Write your second line&#10;&#10;[Chorus]&#10;Say what you need to say"></textarea></section>
 <section class="panel"><div class="panel-head"><strong>Line-by-line syllables</strong><span class="status">Estimated · English</span></div><div class="analysis" id="analysis" aria-live="off"></div><div class="details"><div class="summary" id="summary"></div><p class="small" style="margin-bottom:0">Bracketed instructions are preserved but excluded from syllables. When highlighting is on, gold counts flag 3+ syllable differences from the section median; musical phrasing may be intentional.</p></div></section></div>
-<div class="controls"><button id="export-suno" class="primary" title="Lyrics only, with all bracketed Suno directions preserved">Export Suno .txt</button><button id="export-text" title="Song title, style prompt and lyrics">Export plain .txt</button><button id="export-markdown" title="Readable Markdown with song headings and style prompt">Export Markdown .md</button><button id="export-suno-markdown" title="Markdown backup with separate copyable Suno style and lyrics blocks">Export Suno Markdown .md</button><button id="import">Import .txt</button><input id="import-file" class="hidden" type="file" accept=".txt,text/plain"><button id="toggle-prompt" class="prompt-action" aria-controls="prompt-box" aria-expanded="false">+ Attach style prompt</button></div>
+<div class="controls"><button id="export-suno" class="primary" title="Lyrics only, with all bracketed Suno directions preserved">Export Suno .txt</button><button id="export-text" title="Song title, style prompt and lyrics">Export plain .txt</button><button id="export-markdown" title="Readable Markdown with song headings and style prompt">Export Markdown .md</button><button id="export-suno-markdown" title="Markdown backup with separate copyable Suno style and lyrics blocks">Export Suno Markdown .md</button><button id="import">Import .txt / .md</button><input id="import-file" class="hidden" type="file" accept=".txt,.md,text/plain,text/markdown"><button id="toggle-prompt" class="prompt-action" aria-controls="prompt-box" aria-expanded="false">+ Attach style prompt</button></div>
 <section class="prompt-box" id="prompt-box" hidden><label for="style-prompt">Style prompt · saved with this song</label><textarea id="style-prompt" aria-label="Suno style prompt" spellcheck="true" placeholder="Describe the vocal character, instruments, production, mood and sonic texture…"></textarea><p>Optional. Saved with this draft, included in Markdown and plain-text exports. Suno .txt remains lyrics-only.</p></section>
 <div id="toast" role="status" aria-live="polite"></div>
 <div class="note"><strong style="color:var(--ink)">Your words stay yours.</strong> Lyrics and drafts are stored locally in your browser, not uploaded to this site. Export a backup before clearing browser data or changing devices. Local storage can be unavailable or erased; use exports for anything important. The syllable counter is an approximation, not an AI service or a judgment of your writing.</div>
@@ -88,8 +88,36 @@ $('export-suno').addEventListener('click',()=>{download(cleanForExport(),filenam
 $('export-text').addEventListener('click',()=>download(plain(),filename('txt'),'text/plain;charset=utf-8'));
 $('export-markdown').addEventListener('click',()=>{download(markdown(),filename('md'),'text/markdown;charset=utf-8');notify('Markdown file exported.')});
 $('export-suno-markdown').addEventListener('click',()=>{download(sunoMarkdown(),filename('suno.md'),'text/markdown;charset=utf-8');notify('Suno Markdown exported with separate style and lyrics blocks.')});
+function unescapeMd(line){return line.replace(/\\([\\*_{}\[\]<>|#+-])/g,'$1')}
+function parseSongFile(text,filename){
+  const lines=text.replace(/\r\n?/g,'\n').split('\n');
+  if(/\.md$/i.test(filename)&&/^# /.test(lines[0])&&lines.some(line=>line.trim()==='## Lyrics')){
+    function readSection(name){
+      const head=lines.findIndex(line=>line.trim()==='## '+name);
+      if(head<0)return null;
+      const end=lines.findIndex((line,i)=>i>head&&/^## /.test(line));
+      const body=lines.slice(head+1,end<0?undefined:end);
+      while(body.length&&!body[0].trim())body.shift();
+      const tick=String.fromCharCode(96),opener=body[0]||'';
+      const fence=opener.endsWith('text')?opener.slice(0,-4):null;
+      if(fence&&fence.length>=3&&[...fence].every(c=>c===tick)){
+        const close=body.findIndex((line,i)=>i>0&&line===fence);
+        if(close<0)throw Error('Unclosed Markdown block');
+        return body.slice(1,close).join('\n');
+      }
+      if(name==='Style Prompt')return '';
+      return body.map(line=>line.startsWith('### ')?'['+unescapeMd(line.slice(4))+']':unescapeMd(line.replace(/ {2}$/,''))).join('\n').trim();
+    }
+    return {title:unescapeMd(lines[0].slice(2)).trim(),stylePrompt:readSection('Style Prompt')||'',lyrics:readSection('Lyrics')||'',restored:true};
+  }
+  if(/\.txt$/i.test(filename)&&lines[0]&&lines.includes('LYRICS')&&(lines[1]===''||lines[1]===undefined)){
+    const index=lines.indexOf('LYRICS'),styleIndex=lines.indexOf('STYLE PROMPT'),hasStyle=styleIndex>0&&styleIndex<index;
+    return {title:lines[0],stylePrompt:hasStyle?lines.slice(styleIndex+1,index).join('\n').trim():'',lyrics:lines.slice(index+1).join('\n').trim(),restored:true};
+  }
+  return {lyrics:text,restored:false};
+}
 $('import').addEventListener('click',()=>$('import-file').click());
-$('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1e6){notify('This text file is too large (maximum 1 MB).');return}if(editor.value.trim()&&!confirm('Replace the current draft text? Save or export it first if needed.'))return;editor.value=await file.text();update();e.target.value='';notify('Text imported.')});
+$('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1e6){notify('This file is too large (maximum 1 MB).');e.target.value='';return}if((editor.value.trim()||stylePrompt.value.trim())&&!confirm('Replace this draft? Export a backup first if needed.')){e.target.value='';return}try{const parsed=parseSongFile(await file.text(),file.name);editor.value=parsed.lyrics;if(parsed.restored){title.value=parsed.title;stylePrompt.value=parsed.stylePrompt}sync();renderAnalysis();renderPromptButton();notify(parsed.restored?'Song title, lyrics, and style prompt restored.':'Lyrics imported. Existing title and style prompt preserved.')}catch(err){notify('Could not import file: '+err.message)}e.target.value=''});
 loadStore();openDraft(state.current);
 })();
 </script></body></html>
