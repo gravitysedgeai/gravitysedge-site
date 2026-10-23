@@ -377,6 +377,27 @@ async function loadShortSoundcloudEmbed(song,article){
       }catch(e){message("account-message",e.message,true);}
     }));
   }
+  // Owners can remove their own published tracks, and the site
+  // administrator can clean up any public listing.
+  if(kind==="public" && author && (
+    author.role==="admin" ||
+    song.author?.username?.toLowerCase()===author.username?.toLowerCase()
+  )){
+    const deleteButton=makeButton("Delete song",async()=>{
+      if(!confirm("Permanently delete \""+(song.title||"this song")+"\" and its likes? This cannot be undone."))return;
+      deleteButton.disabled=true;
+      const status=addText(actions,"span","form-note","Deleting…");
+      status.setAttribute("role","status");
+      try{
+        await api("/songs/"+song.id,{method:"DELETE"});
+        await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
+      }catch(e){
+        deleteButton.disabled=false;
+        status.textContent="Could not delete song: "+e.message;
+      }
+    },"danger");
+    actions.append(deleteButton);
+  }
   if(kind==="public" && author?.role==="admin"){
     actions.append(makeButton("Hide song",async()=>{
       if(!confirm("Hide this song from the public listening room?"))return;
