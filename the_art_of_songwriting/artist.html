@@ -36,6 +36,14 @@ h3{font-size:1.5rem;margin:0 0 8px}
 .song summary{cursor:pointer;color:var(--accent);font-weight:600}
 .song pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.8}
 .controls{margin:11px 0;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.reaction-controls{padding:9px 0 2px;gap:9px}
+.like-button{font-weight:700;border-color:#76659e;background:#282039;color:#f2eaff;min-width:166px}
+.like-button:hover{border-color:var(--accent);background:#32264c}
+.like-button.liked{border-color:#ae799e;background:#3b2438;color:#ffe2ef}
+.like-button.liked:disabled{opacity:1;cursor:default}
+.reaction-message{font-size:.85rem;color:var(--muted)}
+.reaction-message.error{color:#ffb4a4}
+.reaction-access{font-size:.87rem;margin:12px 0 0;color:var(--muted)}
 .pill{display:inline-block;padding:3px 11px;border:1px solid #695a44;border-radius:30px;color:var(--gold);font-size:.82rem}
 .empty{padding:40px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);background:var(--surface)}
 .section-actions{display:flex;align-items:center;justify-content:center;margin-top:24px}
@@ -58,6 +66,7 @@ footer{border-top:1px solid var(--border);text-align:center;padding:19px;color:v
   <h1 id="artist-name">Loading artist…</h1>
   <div class="meta" id="artist-username"></div>
   <p class="tagline" id="artist-count">Music, lyrics, and moments worth sharing.</p>
+  <p id="reaction-access" class="reaction-access" aria-live="polite">You can listen and see reactions without an account.</p>
  </div>
 </section>
 <section aria-labelledby="catalog-title">
@@ -71,7 +80,10 @@ footer{border-top:1px solid var(--border);text-align:center;padding:19px;color:v
 (()=>{
 "use strict";
 const API="https://songwriting-community-api.gravitysedge.workers.dev";
+const TOKEN_KEY="gravitysedge-community-session-v1";
 const $=id=>document.getElementById(id);
+let token="",signedIn=false,sessionAuthor="";
+try{token=sessionStorage.getItem(TOKEN_KEY)||"";}catch(_){}
 const handle=(new URLSearchParams(location.search).get("artist")||"").trim().toLowerCase();
 const valid=/^[a-z0-9_]{3,32}$/.test(handle);
 let offset=0,busy=false;
@@ -81,11 +93,40 @@ function domainIs(host,domain){return host===domain||host.endsWith("."+domain);}
 function link(parent,url,label){
   const a=el("a","",label);a.href=url;a.target="_blank";a.rel="noopener noreferrer";parent.append(a);return a;
 }
-async function json(url){
- const res=await fetch(API+url,{headers:{"Accept":"application/json"}});
+async function json(url,options={}){
+ const headers={"Accept":"application/json"};
+ if(options.auth&&token)headers["Authorization"]="Bearer "+token;
+ const res=await fetch(API+url,{method:options.method||"GET",headers});
  let data;try{data=await res.json();}catch(_){throw new Error("The music service could not be reached.");}
- if(!res.ok)throw new Error(data.error||"Request failed");
+ if(!res.ok)throw Object.assign(new Error(data.error||"Request failed"),{status:res.status});
  return data;
+}
+function showReactionAccess(){
+ const target=$("reaction-access");
+ target.replaceChildren();
+ if(signedIn){
+  target.textContent="Signed in as @"+sessionAuthor+" · You can give each song a thumbs-up below.";
+ }else{
+  target.append(document.createTextNode("Everyone can see the thumbs-up counts. "));
+  const login=el("a","","Sign in to give a thumbs-up →");
+  login.href="community.html#account-panel";
+  target.append(login);
+ }
+}
+async function checkSession(){
+ if(!token){showReactionAccess();return;}
+ try{
+  const data=await json("/auth/me",{auth:true});
+  signedIn=!!data.author;
+  sessionAuthor=String(data.author?.username||"");
+ }catch(err){
+  signedIn=false;
+  if(err.status===401){
+   token="";
+   try{sessionStorage.removeItem(TOKEN_KEY);}catch(_){}
+  }
+ }
+ showReactionAccess();
 }
 function sunoId(urlText){
  try{
@@ -185,14 +226,52 @@ function addSong(song){
    try{if(new URL(song.audioUrl).hostname==="on.soundcloud.com")shortLinkPlayer(song,card);}catch(_){}
   }
  }
+ // Community reactions are stored against this published song, not the
+ // externally hosted SoundCloud, Suno, or YouTube player.
+ const actions=el("div","controls reaction-controls");
+ const like=el("button","like-button","♡ Give thumbs-up · "+(Number(song.likes)||0));
+ like.type="button";
+ like.setAttribute("aria-pressed","false");
+ like.setAttribute("aria-label","Give "+(song.title||"this song")+" a thumbs-up");
+ const message=el("span","reaction-message","");
+ message.setAttribute("role","status");
+ like.addEventListener("click",async()=>{
+  if(!signedIn){
+   message.replaceChildren(document.createTextNode("Sign in to like. "));
+   const a=el("a","","Go to sign in →");a.href="community.html#account-panel";message.append(a);
+   return;
+  }
+  if(like.disabled)return;
+  like.disabled=true;
+  const previous=like.textContent;
+  like.textContent="Saving thumbs-up…";
+  message.textContent="";
+  message.classList.remove("error");
+  try{
+   const result=await json("/songs/"+encodeURIComponent(song.id)+"/like",{method:"POST",auth:true});
+   like.textContent="♥ Liked · "+result.likes;
+   like.classList.add("liked");
+   like.setAttribute("aria-pressed","true");
+   message.textContent="Thanks for supporting this songwriter!";
+  }catch(err){
+   like.disabled=false;
+   like.textContent=previous;
+   message.textContent=err.message;
+   message.classList.add("error");
+   if(err.status===401){
+    signedIn=false;
+    showReactionAccess();
+    const a=el("a",""," Sign in again →");a.href="community.html#account-panel";message.append(a);
+   }
+  }
+ });
+ actions.append(like,message);
+ card.append(actions);
  if(song.lyrics){
   const details=el("details");
   details.append(el("summary","","Read lyrics"),el("pre","",song.lyrics));card.append(details);
  }
- const actions=el("div","controls");
- actions.append(el("span","muted","♥ "+(song.likes||0)+" likes"));
- const toFeed=el("a","","Visit community to react →");toFeed.href="community.html";actions.append(toFeed);
- card.append(actions);return card;
+ return card;
 }
 async function load(reset){
  if(!valid){$("feed").replaceChildren(empty("No artist was specified. Choose an artist from the community feed."));$("artist-name").textContent="Artist not found";return;}
@@ -207,6 +286,7 @@ async function load(reset){
  finally{busy=false;}
 }
 async function init(){
+ await checkSession();
  if(!valid){$("artist-name").textContent="Artist not found";$("feed").replaceChildren(empty("Choose an artist from the community to view their music."));return;}
  try{
   const data=await json("/artists/"+handle);
