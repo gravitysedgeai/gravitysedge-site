@@ -162,12 +162,12 @@ async function route(req,env,url,ctx){
     if(!lyrics.trim()&&!audio.url)error("Lyrics or an audio link required",422);
     const id=crypto.randomUUID();
     // Style prompts are private and never saved to this public database.
-    await env.DB.prepare("INSERT INTO songs(id,author_id,title,audio_url,audio_provider,lyrics,status) VALUES(?,?,?,?,?,?,'pending')")
+    await env.DB.prepare("INSERT INTO songs(id,author_id,title,audio_url,audio_provider,lyrics,status,published_at) VALUES(?,?,?,?,?,?,'published',CURRENT_TIMESTAMP)")
       .bind(id,a.id,title,audio.url,audio.provider,b.shareLyrics===false?null:(lyrics||null)).run();
     if (ctx && typeof ctx.waitUntil === "function") {
       ctx.waitUntil(notifyPendingSubmission(env, {id, title, username:a.username}));
     }
-    return [{id,status:"pending",message:"Submitted for approval"},201];
+    return [{id,status:"published",message:"Published successfully"},201];
   }
   if(p==="/me/songs"&&m==="GET"){
     const a=await user(env,req,true);
