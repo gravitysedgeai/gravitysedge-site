@@ -176,8 +176,10 @@ function addSong(song){
   const player=playerInfo(song);
   if(player){
    const iframe=document.createElement("iframe");iframe.src=player.src;iframe.height=String(player.height);
-   iframe.title="Music player for "+song.title;iframe.loading="lazy";iframe.allow="autoplay; encrypted-media";
-   iframe.referrerPolicy="strict-origin-when-cross-origin";card.append(iframe);
+   iframe.title="Music player for "+song.title;iframe.loading="lazy";iframe.allow="autoplay; encrypted-media; fullscreen";
+   iframe.allowFullscreen=true;
+   iframe.referrerPolicy=song.audioProvider==="suno"?"no-referrer-when-downgrade":"strict-origin-when-cross-origin";
+   card.append(iframe);
    if(player.soundcloud)soundcloudControls(iframe);
   }else{
    try{if(new URL(song.audioUrl).hostname==="on.soundcloud.com")shortLinkPlayer(song,card);}catch(_){}
