@@ -87,6 +87,21 @@ async function json(url){
  if(!res.ok)throw new Error(data.error||"Request failed");
  return data;
 }
+function sunoId(urlText){
+ try{
+  const u=new URL(urlText);
+  if(u.protocol!=="https:"||!["suno.com","www.suno.com"].includes(u.hostname.toLowerCase()))return "";
+  const match=u.pathname.match(/^\/(?:song|embed)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
+  return match?match[1].toLowerCase():"";
+ }catch(_){return "";}
+}
+function songLink(song){
+ if(song.audioProvider==="suno"){
+  const id=sunoId(song.audioUrl);
+  if(id)return "https://suno.com/song/"+id;
+ }
+ return song.audioUrl;
+}
 function playerInfo(song){
  if(!song.audioUrl)return null;
  let url;try{url=new URL(song.audioUrl);}catch(_){return null;}
@@ -100,6 +115,10 @@ function playerInfo(song){
    if(url.pathname.startsWith("/shorts/")||url.pathname.startsWith("/embed/"))id=url.pathname.split("/")[2]||"";
   }
   if(/^[a-zA-Z0-9_-]{11}$/.test(id))return {src:"https://www.youtube-nocookie.com/embed/"+id,height:270};
+ }
+ if(song.audioProvider==="suno"){
+  const id=sunoId(song.audioUrl);
+  if(id)return {src:"https://suno.com/embed/"+id,height:240};
  }
  if(song.audioProvider==="soundcloud"&&domainIs(host,"soundcloud.com")){
   return {src:"https://w.soundcloud.com/player/?url="+encodeURIComponent(url.href)+"&color=%23bca6ff&auto_play=false",height:166,soundcloud:true};
@@ -152,7 +171,7 @@ function addSong(song){
  card.append(el("h3","",song.title||"Untitled"));
  card.append(el("div","meta",song.publishedAt?"Published "+song.publishedAt.slice(0,10):"Published song"));
  if(song.audioUrl){
-  const source=el("p");link(source,song.audioUrl,"♫ Listen on "+({soundcloud:"SoundCloud",suno:"Suno",youtube:"YouTube"}[song.audioProvider]||"original platform")+" ↗");
+  const source=el("p");link(source,songLink(song),"♫ Listen on "+({soundcloud:"SoundCloud",suno:"Suno",youtube:"YouTube"}[song.audioProvider]||"original platform")+" ↗");
   card.append(source);
   const player=playerInfo(song);
   if(player){
