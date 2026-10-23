@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Discover and share original songs from The Art of Songwriting community.">
+<title>Published Songs | The Art of Songwriting</title>
+<style>
+:root{color-scheme:dark;--bg:#0b101e;--surface:#111a2b;--surface2:#172238;--line:#2d3950;--text:#f2f1f8;--muted:#abb7cd;--faint:#8a99b4;--accent:#bca6ff;--accent2:#eac78f;--good:#a7dec0;--bad:#ffc2b9}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse 80% 25% at 50% -6%,#272040 0%,transparent 80%),var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input,textarea{font:inherit}button{cursor:pointer}a{color:var(--accent)}a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+header{border-bottom:1px solid var(--line);padding:15px clamp(16px,3vw,36px);display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{color:var(--text);text-decoration:none;font-weight:750;letter-spacing:.03em}
+nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+main{max-width:1120px;margin:auto;padding:32px clamp(16px,3vw,32px) 70px}
+.eyebrow{color:var(--accent);font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.16em}
+h1,h2{font-family:Georgia,serif;font-weight:400;line-height:1.16}
+h1{font-size:clamp(2.35rem,5vw,4.3rem);margin:10px 0}
+h2{font-size:1.7rem;margin:0 0 6px}
+p{color:var(--muted)}
+.lead{max-width:670px;font-size:1.08rem;margin:6px 0 22px}
+.hero{padding-bottom:24px;border-bottom:1px solid var(--line)}
+.pill{display:inline-block;color:var(--accent2);font-size:.8rem;border:1px solid #68583f;border-radius:99px;padding:3px 11px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(295px,.76fr);gap:18px;margin:26px 0}
+.panel,.song{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:21px}
+.panel small,.muted{color:var(--faint)}
+.panel p{margin:5px 0 14px}
+.hidden{display:none!important}
+label{display:block;color:var(--text);font-size:.9rem;font-weight:600;margin:11px 0 6px}
+input,textarea{display:block;width:100%;border:1px solid #41516d;border-radius:9px;background:var(--bg);color:var(--text);padding:11px 12px;min-width:0}
+textarea{resize:vertical;min-height:130px;line-height:1.5}
+button,.button{display:inline-flex;justify-content:center;align-items:center;gap:6px;min-height:37px;background:var(--surface2);border:1px solid #43536d;border-radius:9px;padding:8px 13px;color:var(--text);font-weight:650;text-decoration:none}
+button:hover,.button:hover{border-color:var(--accent)}
+.primary{background:var(--accent);color:#20163d;border-color:var(--accent)}
+.primary:hover{background:#d4c4ff}
+.soft{color:var(--accent)}
+.danger{color:var(--bad)}
+.actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:15px}
+.message{font-size:.91rem;margin:12px 0 2px;min-height:22px}
+.success{color:var(--good)!important}.failure{color:var(--bad)!important}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin:35px 0 15px}
+.section-head p{margin:0}
+#feed,#pending-feed,#mine-feed{display:grid;gap:14px}
+.song h3{font:400 1.52rem/1.3 Georgia,serif;margin:0 0 7px}
+.song .meta{font-size:.87rem;color:var(--muted)}
+.song .song-top{display:flex;justify-content:space-between;gap:14px}
+.song .song-top .pill{white-space:nowrap;align-self:flex-start}
+.song .song-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:13px 0}
+.song details{margin:15px 0 0;border-top:1px solid var(--line);padding-top:12px}
+.song details summary{cursor:pointer;color:var(--accent)}
+.song pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.75;color:var(--text)}
+.song iframe{width:100%;border:0;border-radius:10px;margin-top:13px;background:#080d15}
+.player-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:9px 0 4px}
+.player-controls .note{font-size:.84rem;color:var(--faint)}
+.player-controls button:disabled{opacity:.65;cursor:wait}
+.song .track-link{display:inline-block;margin:13px 0 0}
+.empty{padding:35px 15px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:14px;color:var(--muted)}
+.checkbox-line{display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:400}
+.checkbox-line input{width:auto}
+.form-note{font-size:.84rem;margin:8px 0 0}
+footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var(--faint)}
+@media(max-width:800px){.grid{grid-template-columns:1fr}.panel{padding:17px}.song{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <a href="./" class="brand">♫ THE ART OF SONGWRITING</a>
+  <nav aria-label="Main navigation"><a href="artists.html">👥 Browse Artists</a><a href="studio.html">✍ Songwriting Studio</a><a href="./">← Writing Guide</a></nav>
+</header>
+<main>
+<section class="hero">
+ <div class="eyebrow">CORA LITE · THE COMMUNITY</div>
+ <h1>Published Songs.</h1>
+ <p class="lead">Words become music, and music becomes something we can share. Listen to original songs, read the stories in their lyrics, and give another songwriter a little encouragement.</p>
+ <div class="actions"><a href="artists.html" class="button primary">👥 Browse Artists →</a><span class="pill">Original songs · Community listening room</span></div>
+</section>
+<div class="grid">
+ <section class="panel" id="account-panel">
+   <div id="signed-out">
+     <h2>Welcome, songwriter.</h2>
+     <p>Sign in to submit a song or give a thumbs-up. New accounts require a private invitation code.</p>
+     <form id="login-form">
+       <label for="login-username">Username</label><input id="login-username" maxlength="32" autocomplete="username" required>
+       <label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required>
+       <div class="actions"><button class="primary" type="submit">Sign in</button><button type="button" id="show-register">Create an account</button></div>
+     </form>
+     <form id="register-form" class="hidden">
+       <label for="new-username">Choose a username</label><input id="new-username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_]+" autocomplete="username" required>
+       <label for="new-name">Display name</label><input id="new-name" maxlength="80" autocomplete="nickname" required>
+       <label for="new-password">Password (12+ characters)</label><input id="new-password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required>
+       <label for="invite-code">Private invitation code</label><input id="invite-code" type="password" autocomplete="off" required>
+       <div class="actions"><button class="primary" type="submit">Create account</button><button id="show-login" type="button">Back to sign in</button></div>
+     </form>
+   </div>
+   <div id="signed-in" class="hidden">
+     <h2>You're signed in, <span id="account-name"></span>.</h2>
+     <p id="account-role"></p>
+     <div class="actions"><a class="button" id="my-artist-page" href="artist.html">♫ My artist page ↗</a><button id="sign-out" type="button">Sign out</button><button type="button" id="show-my-songs">My submissions</button></div>
+   </div>
+   <div class="message" id="account-message" role="status" aria-live="polite"></div>
+ </section>
+ <section class="panel">
+   <h2>Share a song.</h2>
+   <p>Have a track ready? Submit a Suno, SoundCloud, or YouTube link with optional lyrics. Members can publish immediately after signing in.</p>
+   <form id="song-form">
+     <label for="track-title">Song title</label><input id="track-title" maxlength="150" required placeholder="The name of your song">
+     <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://suno.com/song/… or a SoundCloud / YouTube link"><p class="form-note">Suno song links are embedded automatically. SoundCloud: copy the full track URL from your browser’s address bar.</p>
+     <label for="track-embed">Suno embedded player code (optional alternative)</label><textarea id="track-embed" rows="3" maxlength="6000" spellcheck="false" placeholder='Paste the &lt;iframe src="https://suno.com/embed/…" …&gt;&lt;/iframe&gt; code from Suno'></textarea>
+     <p class="form-note">Choose a music link above, or paste Suno’s iframe embed code here. The site saves only the safe Suno player URL, not the HTML code.</p>
+     <label for="track-lyrics">Lyrics (optional if a link is provided)</label><textarea id="track-lyrics" maxlength="40000" placeholder="Your lyrics, as you want people to read them"></textarea>
+     <label class="checkbox-line" for="share-lyrics"><input id="share-lyrics" type="checkbox" checked> Include these lyrics in the public post</label>
+     <div class="actions"><button type="button" id="load-draft">Load my Studio draft</button><button type="submit" class="primary">Publish song</button></div>
+     <p class="form-note"><strong>Privacy:</strong> Style prompts are never submitted. Lyrics are optional. Your song appears publicly as soon as you publish. Drafts remain saved in your browser.</p>
+     <div class="message" id="song-message" role="status" aria-live="polite"></div>
+   </form>
+ </section>
+</div>
+<section id="mine" class="hidden" aria-label="My submissions">
+ <div class="section-head"><h2>My submissions</h2><button type="button" id="refresh-mine">Refresh</button></div>
+ <div id="mine-feed"></div>
+</section>
+<section id="moderation" class="hidden" aria-label="Pending song approvals">
+ <div class="section-head"><div><div class="eyebrow">Administration</div><h2>Older submissions awaiting review</h2></div><button id="refresh-pending" type="button">Refresh queue</button></div>
+ <div id="pending-feed"></div>
+</section>
+<section aria-label="Published song feed">
+ <div class="section-head"><div><div class="eyebrow">Listening room</div><h2>From the community</h2><p><a href="artists.html">👥 Browse by artist →</a></p></div><button id="refresh-feed" type="button">↻ Refresh songs</button></div>
+ <div id="feed"><div class="empty">Loading published songs…</div></div>
+ <div class="actions"><button id="more" type="button" class="hidden">Load more songs</button></div>
+</section>
+</main>
+<footer>Made for people who have something to say. ♫</footer>
+<script>
+(function(){
+"use strict";
+const API="https://songwriting-community-api.gravitysedge.workers.dev";
+const TOKEN_KEY="gravitysedge-community-session-v1";
+const $=id=>document.getElementById(id);
+let token="",author=null,offset=0,loadingFeed=false;
+try{token=sessionStorage.getItem(TOKEN_KEY)||"";}catch(_){}
+function show(id,yes){$(id).classList.toggle("hidden",!yes);}
+function message(id,s,isError){const el=$(id);el.textContent=s||"";el.classList.toggle("failure",!!isError);el.classList.toggle("success",!!s&&!isError);}
+async function api(path,options={}){
+  const headers={};
+  if(options.body!==undefined)headers["Content-Type"]="application/json";
+  if(token)headers["Authorization"]="Bearer "+token;
+  const response=await fetch(API+path,{
+    method:options.method||"GET",headers,
+    body:options.body===undefined?undefined:JSON.stringify(options.body)
+  });
+  let data;try{data=await response.json();}catch(_){throw Error("The API did not return valid JSON");}
+  if(!response.ok)throw Error(data.error||"Request failed");
+  return data;
+}
+function saveSession(details){
+  token=details.token;author=details.author;
+  try{sessionStorage.setItem(TOKEN_KEY,token);}catch(_){}
+  updateAccount();
+}
+function clearSession(){
+  token="";author=null;
+  try{sessionStorage.removeItem(TOKEN_KEY);}catch(_){}
+  updateAccount();
+}
+function updateAccount(){
+  show("signed-out",!author);show("signed-in",!!author);
+  if(author){
+    $("account-name").textContent=author.displayName||author.username;
+    $("account-role").textContent="Signed in as @"+author.username+(author.role==="admin"?" · Administrator":" · Songwriter");
+    $("my-artist-page").href="artist.html?artist="+encodeURIComponent(author.username);
+  }
+  show("moderation",!!author&&author.role==="admin");
+  show("mine",!!author);
+  message("account-message","");
+}
+function providerName(s){
+  const names={suno:"Suno",soundcloud:"SoundCloud",youtube:"YouTube"};
+  return names[s]||"Listen";
+}
+function addText(parent,tag,cls,txt){
+  const node=document.createElement(tag);
+  if(cls)node.className=cls;
+  node.textContent=txt;
+  parent.append(node);
+  return node;
+}
+function makeButton(label,action,cls){
+  const btn=document.createElement("button");
+  btn.type="button";btn.textContent=label;if(cls)btn.className=cls;
+  btn.addEventListener("click",action);return btn;
+}
+function isHost(h,n){return h===n||h.endsWith("."+n);}
+// Only a Suno song/embed URL with a standard ID can become a Suno player.
+function sunoId(urlText){
+  try{
+    const u=new URL(urlText);
+    if(u.protocol!=="https:"||!["suno.com","www.suno.com"].includes(u.hostname.toLowerCase()))return "";
+    const match=u.pathname.match(/^\/(?:song|embed)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
+    return match?match[1].toLowerCase():"";
+  }catch(_){return "";}
+}
+// The pasted HTML is never rendered. Only its validated iframe src is used.
+function parseSunoEmbed(pasted){
+  const doc=new DOMParser().parseFromString(pasted,"text/html");
+  const frame=doc.querySelector("iframe");
+  if(!frame)return null;
+  const src=frame.getAttribute("src")||"";
+  const songId=sunoId(src);
+  if(!songId||!/^https:\/\/suno\.com\/embed\//i.test(src)){
+    throw Error("The embed code must contain a Suno iframe with an https://suno.com/embed/… address.");
+  }
+  return {id:songId,src:"https://suno.com/embed/"+songId};
+}
+function sunoTrackLink(urlText){
+  const id=sunoId(urlText);
+  return id?"https://suno.com/song/"+id:urlText;
+}
+function embedFor(song){
+  if(!song.audioUrl)return null;
+  let url;
+  try{url=new URL(song.audioUrl);}catch(_){return null;}
+  if(url.protocol!=="https:")return null;
+  const host=url.hostname.toLowerCase();
+  if(song.audioProvider==="youtube"){
+    let id="";
+    if(isHost(host,"youtu.be"))id=url.pathname.split("/")[1]||"";
+    else if(isHost(host,"youtube.com")){
+      if(url.pathname==="/watch")id=url.searchParams.get("v")||"";
+      else if(url.pathname.startsWith("/shorts/")||url.pathname.startsWith("/embed/"))
+        id=url.pathname.split("/")[2]||"";
+    }
+    if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return null;
+    return {src:"https://www.youtube-nocookie.com/embed/"+id,height:"270",title:"YouTube player for "+song.title};
+  }
+  if(song.audioProvider==="suno"){
+    const id=sunoId(song.audioUrl);
+    if(id)return {src:"https://suno.com/embed/"+id,height:"240",title:"Suno player for "+song.title};
+  }
+  if(song.audioProvider==="soundcloud"&&isHost(host,"soundcloud.com")){
+    return {src:"https://w.soundcloud.com/player/?url="+encodeURIComponent(url.href)+"&color=%23bca6ff&auto_play=false",
+      height:"165",title:"SoundCloud player for "+song.title};
+  }
+  return null;
+}
+// SoundCloud sharing sometimes returns on.soundcloud.com links. Those redirect
+// in a browser but cannot be fed straight into the embedded player.
+function soundcloudShortLink(value){
+  try{return new URL(value).hostname.toLowerCase()==="on.soundcloud.com";}catch(_){return false;}
+}
+async function loadShortSoundcloudEmbed(song,article){
+  const note=addText(article,"p","form-note","Resolving SoundCloud sharing link…");
+  try{
+    // SoundCloud's documented oEmbed endpoint supports CORS-enabled JSON.
+    const endpoint="https://soundcloud.com/oembed?format=json&url="+encodeURIComponent(song.audioUrl);
+    const answer=await fetch(endpoint);
+    if(!answer.ok)throw Error("No embeddable track found");
+    const data=await answer.json();
+    const parsed=new DOMParser().parseFromString(String(data.html||""),"text/html");
+    const source=parsed.querySelector("iframe")?.getAttribute("src")||"";
+    const u=new URL(source);
+    if(u.protocol!=="https:"||u.hostname!=="w.soundcloud.com"||u.pathname!=="/player/")
+      throw Error("Invalid player");
+    const iframe=document.createElement("iframe");
+    iframe.src=u.href;iframe.height="166";iframe.loading="lazy";
+    iframe.title="SoundCloud player for "+song.title;
+    iframe.allow="autoplay";iframe.referrerPolicy="strict-origin-when-cross-origin";
+    note.replaceWith(iframe);
+    addSoundCloudControls(iframe);
+  }catch(_){
+    note.textContent="This shortened SoundCloud link does not work with the embedded player. Open the song on SoundCloud and copy its full address from your browser’s address bar.";
+  }
+}
+// The official SoundCloud Widget API controls audio inside the embedded iframe.
+ // This separate button avoids accidentally hitting SoundCloud's external link.
+ let soundCloudApiPromise=null;
+ function loadSoundCloudApi(){
+   if(window.SC?.Widget)return Promise.resolve(window.SC);
+   if(!soundCloudApiPromise){
+     soundCloudApiPromise=new Promise(resolve=>{
+       const script=document.createElement("script");
+       script.src="https://w.soundcloud.com/player/api.js";
+       script.onload=()=>resolve(window.SC?.Widget?window.SC:null);
+       script.onerror=()=>resolve(null);
+       document.head.append(script);
+     });
+   }
+   return soundCloudApiPromise;
+ }
+ async function addSoundCloudControls(iframe){
+   const row=document.createElement("div");
+   row.className="player-controls";
+   const button=makeButton("Loading player…",()=>{}, "primary");
+   button.disabled=true;
+   const note=addText(row,"span","note","Play or pause here without leaving this page.");
+   row.prepend(button);
+   iframe.insertAdjacentElement("afterend",row);
+   const api=await loadSoundCloudApi();
+   if(!iframe.isConnected)return;
+   if(!api?.Widget){
+     button.textContent="Use the player controls";
+     note.textContent="SoundCloud player controls are still available above.";
+     return;
+   }
+   try{
+     const widget=api.Widget(iframe);
+     let ready=false;
+     const markReady=()=>{
+       ready=true;button.disabled=false;button.textContent="▶ Play";
+     };
+     widget.bind(api.Widget.Events.READY,markReady);
+     widget.bind(api.Widget.Events.PLAY,()=>{button.textContent="⏸ Pause";button.disabled=false;});
+     widget.bind(api.Widget.Events.PAUSE,()=>{button.textContent="▶ Play";button.disabled=false;});
+     widget.bind(api.Widget.Events.FINISH,()=>{button.textContent="▶ Play again";button.disabled=false;});
+     widget.bind(api.Widget.Events.ERROR,()=>{
+       button.textContent="Playback unavailable";
+       button.disabled=true;
+     });
+     // READY is the normal route. Some already-loaded embeds only emit an iframe
+     // load event after the script attaches, so that event is a fallback.
+     iframe.addEventListener("load",()=>{if(!ready)markReady();},{once:true});
+     button.addEventListener("click",()=>widget.toggle());
+   }catch(_){
+     button.textContent="Use the player controls";
+     button.disabled=true;
+   }
+ }
+ function makeSong(song,kind){
+  const article=document.createElement("article");article.className="song";
+  const top=addText(article,"div","song-top","");
+  const headings=addText(top,"div","","");
+  addText(headings,"h3","",song.title||"Untitled song");
+  const byline=addText(headings,"div","meta","By ");
+  if(song.author?.username && /^[a-z0-9_]{3,32}$/.test(song.author.username)){
+    const artistLink=document.createElement("a");
+    artistLink.href="artist.html?artist="+encodeURIComponent(song.author.username);
+    artistLink.textContent=song.author.displayName||song.author.username;
+    artistLink.title="View the artist's music profile";
+    byline.append(artistLink);
+  }else{
+    byline.append(document.createTextNode(song.author?.displayName||"Anonymous"));
+  }
+  if(song.publishedAt)byline.append(document.createTextNode(" · "+song.publishedAt.slice(0,10)));
+  if(kind!=="public")addText(top,"span","pill",song.status||"pending");
+  if(song.audioUrl){
+    const link=document.createElement("a");
+    link.href=song.audioProvider==="suno"?sunoTrackLink(song.audioUrl):song.audioUrl;
+    link.target="_blank";link.rel="noopener noreferrer";
+    link.className="track-link";link.textContent="♫ Listen on "+providerName(song.audioProvider)+" ↗";
+    article.append(link);
+    const embedded=embedFor(song);
+    if(soundcloudShortLink(song.audioUrl)){
+      loadShortSoundcloudEmbed(song,article);
+    }
+    if(embedded){
+      const iframe=document.createElement("iframe");
+      iframe.src=embedded.src;iframe.height=embedded.height;
+      iframe.loading="lazy";iframe.title=embedded.title;iframe.allow="autoplay; encrypted-media; fullscreen";
+      iframe.allowFullscreen=true;
+      iframe.referrerPolicy=song.audioProvider==="suno"?"no-referrer-when-downgrade":"strict-origin-when-cross-origin";
+      article.append(iframe);
+      if(song.audioProvider==="soundcloud")addSoundCloudControls(iframe);
+    }
+  }
+  if(song.lyrics){
+    const details=document.createElement("details");
+    addText(details,"summary","","Read lyrics");
+    addText(details,"pre","",song.lyrics);
+    article.append(details);
+  }
+  const actions=addText(article,"div","song-actions","");
+  if(kind==="public"){
+    actions.append(makeButton("♡ "+(song.likes||0)+" thumbs-up",async()=>{
+      if(!author){message("account-message","Sign in to give this song a thumbs-up.",true);$("account-panel").scrollIntoView({behavior:"smooth"});return;}
+      try{
+        const result=await api("/songs/"+song.id+"/like",{method:"POST"});
+        actions.firstChild.textContent="♥ "+result.likes+" thumbs-up";
+      }catch(e){message("account-message",e.message,true);}
+    }));
+  }
+  // Owners can remove their own published tracks, and the site
+  // administrator can clean up any public listing.
+  if(kind==="public" && author && (
+    author.role==="admin" ||
+    song.author?.username?.toLowerCase()===author.username?.toLowerCase()
+  )){
+    const deleteButton=makeButton("Delete song",async()=>{
+      if(!confirm("Permanently delete \""+(song.title||"this song")+"\" and its likes? This cannot be undone."))return;
+      deleteButton.disabled=true;
+      const status=addText(actions,"span","form-note","Deleting…");
+      status.setAttribute("role","status");
+      try{
+        await api("/songs/"+song.id,{method:"DELETE"});
+        await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
+      }catch(e){
+        deleteButton.disabled=false;
+        status.textContent="Could not delete song: "+e.message;
+      }
+    },"danger");
+    actions.append(deleteButton);
+  }
+  if(kind==="public" && author?.role==="admin"){
+    actions.append(makeButton("Hide song",async()=>{
+      if(!confirm("Hide this song from the public listening room?"))return;
+      try{
+        await api("/songs/"+song.id+"/moderate",{method:"POST",body:{status:"hidden"}});
+        await loadFeed(true);
+        await loadMine();
+      }catch(e){message("account-message",e.message,true);}
+    },"danger"));
+  }
+  if(kind==="pending"){
+    actions.append(makeButton("✓ Approve",async()=>{
+      if(!confirm("Make this song public?"))return;
+      try{await api("/songs/"+song.id+"/moderate",{method:"POST",body:{status:"published"}});
+        await Promise.all([loadPending(),loadFeed(true)]);}
+      catch(e){message("account-message",e.message,true);}
+    },"primary"));
+    actions.append(makeButton("Hide",async()=>{
+      try{await api("/songs/"+song.id+"/moderate",{method:"POST",body:{status:"hidden"}});
+        await loadPending();}
+      catch(e){message("account-message",e.message,true);}
+    }));
+  }
+  if(kind==="own"){
+    actions.append(makeButton("Delete submission",async()=>{
+      if(!confirm("Permanently delete this submission and its likes?"))return;
+      try{await api("/songs/"+song.id,{method:"DELETE"});
+        await Promise.all([loadMine(),loadFeed(true)]);
+        if(author?.role==="admin")await loadPending();}
+      catch(e){message("account-message",e.message,true);}
+    },"danger"));
+  }
+  return article;
+}
+async function loadFeed(reset=true){
+  if(loadingFeed)return;
+  loadingFeed=true;
+  if(reset){offset=0;$("feed").replaceChildren();}
+  try{
+    const data=await api("/songs?limit=20&offset="+offset);
+    data.songs.forEach(s=>$("feed").append(makeSong(s,"public")));
+    offset+=data.songs.length;
+    show("more",data.songs.length===20);
+    if(!offset)$("feed").replaceChildren(empty("No published songs yet. Your first song could be the one that starts it all."));
+  }catch(e){if(!offset)$("feed").replaceChildren(empty("Could not load songs: "+e.message));}
+  finally{loadingFeed=false;}
+}
+function empty(msg){const d=document.createElement("div");d.className="empty";d.textContent=msg;return d;}
+async function loadPending(){
+  if(author?.role!=="admin")return;
+  try{const data=await api("/admin/pending");
+    $("pending-feed").replaceChildren(...(data.songs.length?data.songs.map(s=>makeSong(s,"pending")):[empty("Nothing waiting for approval.")]));
+  }catch(e){$("pending-feed").replaceChildren(empty("Could not load approvals: "+e.message));}
+}
+async function loadMine(){
+  if(!author)return;
+  try{const data=await api("/me/songs");
+    $("mine-feed").replaceChildren(...(data.songs.length?data.songs.map(s=>makeSong(s,"own")):[empty("No submissions yet.")]));
+  }catch(e){$("mine-feed").replaceChildren(empty("Could not load submissions: "+e.message));}
+}
+$("show-register").addEventListener("click",()=>{show("login-form",false);show("register-form",true);message("account-message","");});
+$("show-login").addEventListener("click",()=>{show("register-form",false);show("login-form",true);message("account-message","");});
+$("login-form").addEventListener("submit",async event=>{
+  event.preventDefault();message("account-message","Signing in…");
+  try{
+    const data=await api("/auth/login",{method:"POST",body:{
+      username:$("login-username").value,password:$("login-password").value}});
+    $("login-password").value="";saveSession(data);await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
+  }catch(e){message("account-message",e.message,true);}
+});
+$("register-form").addEventListener("submit",async event=>{
+  event.preventDefault();message("account-message","Creating account…");
+  try{
+    const data=await api("/auth/register",{method:"POST",body:{
+      username:$("new-username").value,displayName:$("new-name").value,
+      password:$("new-password").value,inviteCode:$("invite-code").value}});
+    $("new-password").value="";$("invite-code").value="";
+    saveSession(data);await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
+  }catch(e){message("account-message",e.message,true);}
+});
+$("sign-out").addEventListener("click",async()=>{
+  try{await api("/auth/logout",{method:"POST"});}catch(_){}
+  clearSession();show("mine",false);show("moderation",false);
+  message("account-message","You have signed out.");
+});
+$("show-my-songs").addEventListener("click",()=>{$("mine").scrollIntoView({behavior:"smooth"});loadMine();});
+$("song-form").addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(!author){message("song-message","Sign in first to submit a song.",true);return;}
+  const title=$("track-title").value.trim(),lyrics=$("track-lyrics").value;
+  let audioUrl=$("track-url").value.trim();
+  const pastedEmbed=$("track-embed").value.trim();
+  try{
+    if(pastedEmbed){
+      const player=parseSunoEmbed(pastedEmbed);
+      if(!player)throw Error("Paste Suno's complete iframe embed code or leave the field empty.");
+      if(audioUrl){
+        const linkId=sunoId(audioUrl);
+        if(!linkId||linkId!==player.id)throw Error("The music link and Suno embed code must refer to the same song. Clear one field or correct the link.");
+      }
+      // Only this canonical HTTPS URL is sent to our Worker.
+      audioUrl="https://suno.com/song/"+player.id;
+    }
+  }catch(err){message("song-message",err.message,true);return;}
+  if(!lyrics.trim()&&!audioUrl){message("song-message","Add lyrics, a music link, or a Suno embed.",true);return;}
+  message("song-message","Publishing…");
+  try{
+    const data=await api("/songs",{method:"POST",body:{
+      title,audioUrl,lyrics,shareLyrics:$("share-lyrics").checked}});
+    message("song-message","Your song is published! You can find it in the listening room below.");
+    await Promise.all([loadMine(),loadPending(),loadFeed(true)]);
+  }catch(e){message("song-message",e.message,true);}
+});
+$("load-draft").addEventListener("click",()=>{
+  try{
+    const store=JSON.parse(localStorage.getItem("gravitysedge-song-studio-v1")||"null");
+    const draft=store?.songs?.[store.current];
+    if(!draft){message("song-message","No draft found in this browser. Open the Studio and save one first.",true);return;}
+    if(($("track-title").value||$("track-lyrics").value)&&!confirm("Replace the title and lyrics in this form with your current Studio draft?"))return;
+    $("track-title").value=draft.title||"";$("track-lyrics").value=draft.lyrics||"";
+    // Deliberately do not access, copy, or submit draft.stylePrompt.
+    message("song-message","Loaded your current Studio title and lyrics. Nothing has been published.");
+  }catch(_){message("song-message","Could not read local Studio drafts.",true);}
+});
+$("refresh-feed").addEventListener("click",()=>loadFeed(true));
+$("more").addEventListener("click",()=>loadFeed(false));
+$("refresh-pending").addEventListener("click",loadPending);
+$("refresh-mine").addEventListener("click",loadMine);
+(async()=>{
+  updateAccount();
+  if(token){
+    try{const data=await api("/auth/me");author=data.author;updateAccount();}
+    catch(_){clearSession();}
+  }
+  await loadFeed(true);
+  if(author)await Promise.all([loadMine(),loadPending()]);
+})();
+})();
+</script>
+</body>
+</html>

@@ -168,6 +168,11 @@
   
 .mini-song .tag:not(:first-child) { margin-top: 26px; }
 .song-listen { background: var(--accent-light); border: 1px solid var(--line); border-radius: 14px; padding: 17px 20px; margin-top: 17px; }
+.lesson-player { max-width: 760px; min-width: 0; margin: 20px 0 23px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.lesson-player .player-label { margin: 0 0 12px; font-weight: 750; color: var(--text); font-size: .95rem; }
+.lesson-player iframe { display: block; width: 100%; max-width: 100%; border: 0; border-radius: 9px; background: var(--page-bg); }
+.lesson-player .player-link { font-size: .85rem; line-height: 1.5; margin: 10px 0 0; }
+@media print { .lesson-player { display: none !important; } }
 </style>
 </head>
 <body>
@@ -176,7 +181,7 @@
 <div class="mast-inner">
 <a aria-label="Back to top" class="brand" href="#top"><span aria-hidden="true" class="brand-icon">♫</span> THE ART OF SONGWRITING</a>
 <div class="toolbar">
-<a class="small-btn share-link" href="#comments">Share your song ↓</a>
+<a class="small-btn share-link" href="studio.html">✍ Open Songwriting Studio ↗</a><a class="small-btn share-link" href="community.html">🎧 Published Songs ↗</a><a class="small-btn share-link" href="artists.html">👥 Browse Artists ↗</a><a class="small-btn share-link" href="#comments">Share your song ↓</a>
 <button aria-label="Switch to light mode" class="small-btn theme-toggle" id="theme-toggle" type="button">☀ Light mode</button>
 </div>
 </div>
@@ -187,7 +192,7 @@
 <h1>The Art of<br/>Songwriting<span style="color:var(--accent)">.</span></h1>
 <p class="subtitle">Write what you feel. Learn how to shape it.</p>
 <p class="lead">An approachable guide to lyrics, storytelling, rhythm, and musical structure. Start with the ideas in your head, explore the tools that help them sing, and learn a few practical tricks for working with Suno.</p>
-<div class="hero-links"><a class="primary-link" href="#start">Start reading ↓</a><a class="secondary-link" href="#comments">Share your music ↗</a></div>
+<div class="hero-links"><a class="primary-link" href="#start">Start reading ↓</a><a class="secondary-link" href="studio.html">✍ Try the Songwriting Studio ↗</a><a class="secondary-link" href="community.html">🎧 Browse Published Songs ↗</a><a class="secondary-link" href="artists.html">👥 Browse Artists ↗</a><a class="secondary-link" href="#comments">Share your music ↗</a></div>
 </div>
 </div>
 <div class="layout">
@@ -202,6 +207,7 @@
 <a href="#toolbox">06 · Your songwriting toolbox</a>
 <a href="#suno">07 · Structuring for Suno</a>
 <a href="#takeaway">08 · The most important lesson</a>
+<a href="#studio">✍ · Songwriting Studio</a>
 <a href="#comments">✦ · Share your song</a>
 </nav>
 <div class="sidebar-tip"><strong>One thing to remember</strong>Learn techniques to give yourself more creative choices, not fewer.</div>
@@ -283,7 +289,13 @@
 <p>The latch clicked shut. The floorboards cracked.<br/>One breath. One beat. The dark breathed back.</p>
 <p>I left the key upon the windowsill.<br/>By sunrise, the house was gone, but its heartbeat followed me.</p>
 </div>
-</div><p class="song-listen">Hear how these lyrics sound as a completed song: <a href="https://suno.com/s/pUKqoFbV079Nr9XV" rel="noopener noreferrer" target="_blank">Listen to “The House That Stole My Heart” on Suno ↗</a></p>
+</div>
+<p class="song-listen">Hear how these lyrics sound as a completed song: <a href="https://suno.com/s/pUKqoFbV079Nr9XV" rel="noopener noreferrer" target="_blank">Listen to “The House That Stole My Heart” on Suno ↗</a></p>
+<div class="lesson-player" aria-label="Suno song example player">
+  <p class="player-label">♫ Listen to the Suno example</p>
+  <iframe title="Suno embedded song player" src="https://suno.com/embed/8b43c933-ee4f-49cb-8259-b34c50925453" width="760" height="240" allow="autoplay; encrypted-media; fullscreen" allowfullscreen loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <p class="player-link"><a href="https://suno.com/song/8b43c933-ee4f-49cb-8259-b34c50925453" target="_blank" rel="noopener noreferrer">Open this song on Suno ↗</a></p>
+</div>
 <p class="muted">Notice that this is a teaching demonstration, not a blueprint that every song must follow. These lines are intentionally designed to make techniques easy to recognize.</p>
 </section>
 <section aria-labelledby="analysis-title" class="chapter" id="analysis">
@@ -368,6 +380,11 @@
 <p>That's an example, not a requirement. Some songs go straight from a verse to a chorus. Others use no pre-chorus, a single bridge, or no chorus at all.</p>
 <h3>A real song with flexible verse lengths</h3>
 <div aria-label="Family-friendly example verse" class="mini-song"><div class="tag">[Verse 1]</div><p>You fade away, I was waiting on this day<br/>It’s been years in the making, but now I’m okay</p><p>I held out for too long, you always knew<br/>Something better came along, now I see it’s true<br/>Maybe this is for my soul<br/>In the end, I’m gone—<br/>You’re just another wasted song</p><div class="tag">[Pre-Chorus]</div><p>I was blind, hoping you were a different guy<br/>But in time, the light burned out<br/>Wish that last fight had been our goodbye<br/>What was bright just died<br/>Nothing worth saving inside</p><div class="tag">[Chorus]</div><p>Goodbye, goodbye, goodbye, goodbye<br/>I’m letting go, I won’t rewind<br/>Goodbye, goodbye, one final time<br/>You’re no longer mine</p><div class="tag">[Verse 2]</div><p>All that time just erodes<br/>Fleeting thoughts I let go<br/>Had I stayed, I would’ve died<br/>You pulled me under, stole my shine<br/>Just another wasted song</p><div class="tag">[Bridge]</div><p>Truth be told, you’ll never know<br/>The hollow depths you tried to show<br/>A padded cell of your own hell<br/>But I survived, and I can tell</p><div class="tag">[Chorus]</div><p>Goodbye, goodbye, goodbye, goodbye<br/>I’m letting go, I won’t rewind<br/>Goodbye, goodbye, one final time<br/>You’re no longer mine</p><div class="tag">[Outro]</div><p>Goodbye to that dream<br/>Goodbye to your name<br/>Goodbye to the pain</p><p>I’m finally free<br/>Just another wasted song</p></div>
+<div class="lesson-player" aria-label="A Wasted Goodbye SoundCloud song player">
+  <p class="player-label">♫ Hear the example: A Wasted Goodbye</p>
+  <iframe title="A Wasted Goodbye by 4Me2BeFree, SoundCloud player" src="https://w.soundcloud.com/player/?url=https%3A%2F%2Fsoundcloud.com%2Fian-mcdaniel-510305339%2Fa-wasted-goodbye&amp;color=%23bca6ff&amp;auto_play=false" width="760" height="166" allow="autoplay" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  <p class="player-link"><a href="https://soundcloud.com/ian-mcdaniel-510305339/a-wasted-goodbye" target="_blank" rel="noopener noreferrer">Open “A Wasted Goodbye” on SoundCloud ↗</a></p>
+</div>
 <p>Notice that this song doesn't follow a consistent number of lines, words, or syllables. The first verse begins with two lines, then expands into five more; the other sections have their own shapes. The shorter lines create space, the longer lines carry more information, and the repeating phrases connect the story. What matters is how the words work together when performed.</p>
 <h3>Why a long verse can sound flat</h3>
 <p>Imagine putting twenty-four lines under a single <code>[Verse 1]</code> label. The model may keep using similar vocal phrasing for the entire section. You may not immediately recognize the issue as a lack of variation. You'll simply feel that something isn't working.</p>
@@ -388,6 +405,13 @@
 <p>The more techniques you learn, the more options you have.</p>
 <p>You can find a thousand songwriting rules and another thousand songs that break every one of them. And both can sound incredible.</p>
 <p class="closing-quote">Write what you want to write. Learn why things work. Then decide for yourself which rules are worth keeping.</p>
+</section>
+<section aria-labelledby="studio-title" class="chapter" id="studio">
+<p class="chapter-no">Your writing workspace</p>
+<h2 id="studio-title">Try the Songwriting Studio.</h2>
+<p>Ready to put the techniques into practice? Open a free, private writing workspace. Paste lyrics or write a new song, label your verses and choruses, see estimated syllable counts beside each line, and export a clean copy for Suno or your own files.</p>
+<p>Your drafts stay in this browser, not on our server. Download backups to keep or move them between devices.</p>
+<p><a class="primary-link" href="studio.html">✍ Open Songwriting Studio ↗</a></p>
 </section>
 <section aria-labelledby="comments-title" class="chapter comments" id="comments">
 <p class="chapter-no">Join the conversation</p>

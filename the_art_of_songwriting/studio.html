@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Songwriting Studio | The Art of Songwriting</title>
+<meta name="description" content="Private, browser-based songwriting workspace with syllable estimates, song sections and Suno exports.">
+<style>
+:root{--bg:#0b101e;--surface:#111a2b;--s2:#172238;--ink:#f2f1f8;--muted:#abb7cd;--line:#2d3950;--accent:#bca6ff;--danger:#ecbb85;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--accent)}
+header{border-bottom:1px solid var(--line);padding:16px clamp(16px,3vw,34px);display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.brand{font-weight:750;letter-spacing:.03em;text-decoration:none}main{max-width:1420px;margin:auto;padding:19px clamp(14px,2.4vw,32px) 45px}
+h1{font:normal clamp(2rem,3.2vw,2.75rem)/1.16 Georgia,serif;margin:5px 0 4px}p{color:var(--muted)}.top p{margin:0 0 4px}.top{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.toolbar,.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.toolbar{justify-content:space-between;margin:8px 0 12px;padding:8px 11px;background:var(--surface);border:1px solid var(--line);border-radius:12px}.studio-footer{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(340px,1fr);gap:12px;align-items:stretch;margin-top:12px}.export-box,.prompt-box{min-width:0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.export-box>strong,.prompt-box label{display:block;font-size:.87rem;font-weight:700;color:var(--ink);margin-bottom:9px}.controls{margin:0;align-items:flex-start;gap:7px}.controls button{white-space:nowrap}.prompt-box textarea{display:block;width:100%;height:90px;min-height:90px;max-height:300px;flex:none;resize:vertical;border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:var(--bg);white-space:pre-wrap;overflow:auto;font:14px/1.45 ui-monospace,Consolas,monospace}.prompt-box p{font-size:.79rem;margin:7px 0 0}.tool-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.tool-actions{margin-left:auto}
+button,.btn,select,input{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 11px;border-radius:9px;min-height:36px}
+button:hover,.btn:hover{border-color:var(--accent)}button.primary{background:var(--accent);color:#20163d;font-weight:750}.btn{display:inline-flex;align-items:center;cursor:pointer}
+label{color:var(--muted);font-size:.86rem}input[type=text]{width:min(380px,100%)}.title-row{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:12px 0 8px}
+.workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(340px,1fr);gap:12px;height:clamp(440px,62vh,740px);align-items:stretch}
+.panel{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);background:var(--surface);border-radius:14px;overflow:hidden;min-width:0}
+.panel-head{flex:none;padding:11px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.panel-head strong{font-size:1rem}.status{color:var(--muted);font-size:.8rem}
+textarea{display:block;flex:1 1 auto;width:100%;height:100%;min-height:0;resize:none;border:0;background:transparent;color:var(--ink);padding:14px;outline-offset:-2px;white-space:pre;overflow:auto;tab-size:2;font:15px/26px ui-monospace,Consolas,monospace;line-height:26px}
+.analysis{flex:1 1 auto;min-height:0;padding:14px;overflow:auto;font:14px/26px ui-monospace,Consolas,monospace}
+.analysis-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;min-height:26px;border-bottom:1px solid transparent}
+.analysis-row.section{color:var(--accent);font-weight:750;border-top:1px solid var(--line);margin-top:8px;padding-top:6px}
+.analysis-row .lyric{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.analysis-row .num{text-align:right;font-variant-numeric:tabular-nums}
+.analysis-row.outlier .num{color:var(--danger);font-weight:750}.analysis-row.empty{opacity:.3}
+.details{flex:none;padding:10px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:.83rem}
+.summary{display:flex;gap:14px;flex-wrap:wrap}.summary span strong{color:var(--ink)}
+.note{margin-top:14px;padding:13px 16px;border:1px solid var(--line);background:var(--s2);border-radius:12px;font-size:.87rem;color:var(--muted)}
+.small{font-size:.83rem}.toggle-control{display:inline-flex;align-items:center;gap:8px;color:var(--ink);font-size:.87rem;cursor:pointer}.toggle-control input{accent-color:var(--accent);width:17px;height:17px}.hidden{display:none}#toast{min-height:1.5rem;color:var(--accent)}
+@media(max-width:850px){.workspace{grid-template-columns:1fr;height:auto}.workspace .panel:first-child{height:52vh;min-height:350px;max-height:580px}.workspace .panel:last-child{height:390px}.studio-footer{grid-template-columns:1fr}.tool-actions{margin-left:0}}@media(max-width:550px){header{padding:12px 16px}.toolbar{padding:9px}.title-row input[type=text]{width:100%}.title-row label[for=drafts]{margin-left:0}.tool-group{width:100%}.tool-actions{justify-content:flex-start}.workspace .panel:first-child{height:420px}}
+</style></head><body>
+<header><a class="brand" href="./">♫ THE ART OF SONGWRITING</a><nav style="display:flex;align-items:center;gap:18px;flex-wrap:wrap"><a href="artists.html">👥 Browse Artists ↗</a><a href="community.html">🎧 Published Songs ↗</a><a href="./">← Back to the guide</a></nav></header>
+<main><div class="top"><div><div class="small" style="color:var(--accent);letter-spacing:.14em">CORA LITE · WRITING WORKSPACE</div><h1>Your songwriting studio.</h1><p>Write freely. See the rhythm. Keep the words yours.</p></div></div>
+<div class="title-row"><label for="song-title">Song title</label><input id="song-title" type="text" maxlength="150" placeholder="Untitled song" autocomplete="off"><label for="drafts">Saved drafts</label><select id="drafts" aria-label="Saved drafts"></select></div>
+<div class="toolbar">
+<div class="tool-group"><label for="section">Insert section</label><select id="section"><option>Verse 1</option><option>Verse 2</option><option>Verse 3</option><option>Pre-Chorus</option><option>Chorus</option><option>Post-Chorus</option><option>Bridge</option><option>Intro</option><option>Breakdown</option><option>Instrumental</option><option>Hook</option><option>Outro</option></select><button id="insert">+ Add section</button></div>
+<div class="tool-group"><label class="toggle-control"><input id="highlight-toggle" type="checkbox" checked> Highlight syllable differences</label></div>
+<div class="tool-group tool-actions"><button id="new">New draft</button><button id="save" class="primary">Save draft</button><button id="delete">Delete draft</button></div>
+</div>
+<div class="workspace"><section class="panel"><div class="panel-head"><strong>Lyrics</strong><span id="save-status" class="status">Stored on this device</span></div><label class="hidden" for="lyrics">Write or paste lyrics</label><textarea id="lyrics" aria-label="Lyrics editor" spellcheck="true" wrap="off" placeholder="[Verse 1]&#10;Write your first line&#10;Write your second line&#10;&#10;[Chorus]&#10;Say what you need to say"></textarea></section>
+<section class="panel"><div class="panel-head"><strong>Line-by-line syllables</strong><span class="status">Estimated · English</span></div><div class="analysis" id="analysis" aria-live="off"></div><div class="details"><div class="summary" id="summary"></div><p class="small" style="margin-bottom:0">Bracketed instructions are preserved but excluded from syllables. When highlighting is on, gold counts flag 3+ syllable differences from the section median; musical phrasing may be intentional.</p></div></section></div>
+<div class="studio-footer">
+<section class="export-box" aria-label="Song export and import"><strong>Export / Import</strong><div class="controls">
+<button id="export-suno" class="primary" title="Lyrics only, preserving all bracketed Suno instructions">Export Suno .txt</button>
+<button id="export-text" title="Complete text backup with title, style prompt and lyrics">Export plain .txt</button>
+<button id="export-markdown" title="Readable Markdown document with style prompt, sections and lyrics">Export .md</button>
+<button id="export-suno-markdown" title="Markdown backup with separate copyable Suno style and lyrics blocks">Export Suno .md</button>
+<button id="import" title="Restore a plain text or Markdown song backup">Import .txt / .md</button>
+<input id="import-file" class="hidden" type="file" accept=".txt,.md,text/plain,text/markdown"></div></section>
+<section class="prompt-box" id="prompt-box"><label for="style-prompt">Style prompt <span class="status">· saved with this song</span></label>
+<textarea id="style-prompt" aria-label="Song style prompt" spellcheck="true" placeholder="Vocal character, instruments, mood, production direction…"></textarea>
+<p>Included in .md and plain .txt backups. Suno .txt exports lyrics only.</p></section>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="note"><strong style="color:var(--ink)">Your words stay yours.</strong> Lyrics, attached style prompts, and drafts are stored locally in your browser, not uploaded to this site. Export a backup before clearing browser data or changing devices. Local storage can be unavailable or erased; use exports for anything important. The syllable counter is an approximation, not an AI service or a judgment of your writing.</div>
+</main><script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id),title=$('song-title'),editor=$('lyrics'),stylePrompt=$('style-prompt'),drafts=$('drafts'),analysis=$('analysis'),summary=$('summary'),status=$('save-status'),toast=$('toast');
+const KEY='gravitysedge-song-studio-v1',HIGHLIGHT_KEY='gravitysedge-song-studio-highlight-v1';let state={current:null,songs:{}};let debounce;let highlightEnabled=true;
+function id(){return 'song-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7)}
+function notify(message){toast.textContent=message}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(state));status.textContent='Saved on this device';return true}catch(e){status.textContent='Storage unavailable: export backup';notify('Your browser could not save this draft. Export it now.');return false}}
+function loadStore(){try{const data=JSON.parse(localStorage.getItem(KEY)||'null');if(data&&typeof data==='object'&&data.songs&&typeof data.songs==='object'){state=data}}catch(e){notify('Draft storage could not be read. Export any lyrics you write.')}if(!state.current||!state.songs[state.current]){const key=id();state.current=key;state.songs[key]={title:'',lyrics:'',stylePrompt:'',updated:Date.now()}}}
+function current(){return state.songs[state.current]}
+function sync(){const s=current();s.title=title.value;s.lyrics=editor.value;s.stylePrompt=stylePrompt.value;s.updated=Date.now();status.textContent='Saving…';clearTimeout(debounce);debounce=setTimeout(()=>{persist();renderDrafts()},300)}
+function renderDrafts(){const selected=state.current;drafts.replaceChildren();Object.entries(state.songs).sort((a,b)=>(b[1].updated||0)-(a[1].updated||0)).forEach(([key,s])=>{const option=document.createElement('option');option.value=key;option.textContent=s.title.trim()||'Untitled song';drafts.append(option)});drafts.value=selected}
+function openDraft(key){clearTimeout(debounce);state.current=key;title.value=current().title||'';editor.value=current().lyrics||'';stylePrompt.value=current().stylePrompt||'';renderDrafts();renderAnalysis();persist()}
+function normalizeWord(word){return word.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z']/g,'').replace(/^'+|'+$/g,'')}
+const exceptions={i:1,fire:1,hour:1,our:1,world:1,people:2,every:2,heaven:2,poem:2,poetry:3,beautiful:3,family:3,different:3,interesting:3,chocolate:2,comfortable:3,love:1,loved:1,does:1,"doesn't":2,"you're":1,"they're":1,"we're":1,"i'm":1,"it's":1,"can't":1,"won't":1,"didn't":2,"couldn't":2,"shouldn't":2,"wouldn't":2,real:1,realize:3,music:2,quiet:2,create:2,idea:3,again:2,away:2,forever:3,even:2,broken:2,remember:3,another:3,anyone:3};
+function wordSyllables(raw){const w=normalizeWord(raw);if(!w)return 0;if(Object.prototype.hasOwnProperty.call(exceptions,w))return exceptions[w];if(w.length<=3)return 1;let x=w.replace(/(?:'s|'d|'ll|'ve|'re|'m)$/,'');let count=(x.match(/[aeiouy]+/g)||[]).length;if(/[^aeiouy]e$/.test(x)&&!/(?:le|ye)$/.test(x))count--;if(/[^aeiou]le$/.test(x))count++;if(/(?:tion|sion)$/.test(x)){}if(/(?:ia|io|eo|ua|iu)/.test(x))count++;if(/ed$/.test(x)&&!/(?:ted|ded)$/.test(x))count=Math.max(1,count-1);return Math.max(1,count)}
+// Retain Suno directions, but exclude bracketed cues from syllable estimation.
+function withoutInstructions(line){return line.replace(/\[[^\[\]\r\n]*\]/g,'').trim()}
+function directiveOnly(line){return /\[[^\[\]\r\n]+\]/.test(line)&&withoutInstructions(line)===''}
+function sectionName(line){const m=line.trim().match(/^\[\s*((?:pre[\s-]?chorus|post[\s-]?chorus|final[\s-]?chorus|verse|chorus|bridge|intro|outro|instrumental(?:\s+break)?|interlude|breakdown|hook|refrain|solo|drop|build|ending)\b[^\]]*)\]/i);return m?m[1].trim():null}
+function lineCount(line){const words=withoutInstructions(line).match(/[A-Za-zÀ-ÿ]+(?:['’][A-Za-zÀ-ÿ]+)*/g)||[];return words.reduce((sum,w)=>sum+wordSyllables(w.replace(/’/g,"'")),0)}
+function median(nums){if(!nums.length)return null;let a=[...nums].sort((x,y)=>x-y);let m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
+function analyze(lines){let groups=[],group={items:[],label:'Unlabeled'};groups.push(group);for(const [idx,line] of lines.entries()){const label=sectionName(line);if(label!==null&&directiveOnly(line)){group={items:[],label};groups.push(group);continue}if(!withoutInstructions(line))continue;group.items.push({idx,count:lineCount(line)})}const flags=new Set();for(const g of groups){const med=median(g.items.map(i=>i.count));if(g.items.length>=3)for(const item of g.items){if(Math.abs(item.count-med)>=3)flags.add(item.idx)}}return flags}
+function renderAnalysis(){const lines=editor.value.replace(/\r\n/g,'\n').split('\n'),flags=highlightEnabled?analyze(lines):new Set();analysis.replaceChildren();let lyricLines=0,total=0,sections=0;for(let i=0;i<lines.length;i++){const line=lines[i],label=sectionName(line),isDirection=directiveOnly(line),isSection=isDirection&&label!==null,row=document.createElement('div');row.className='analysis-row'+(isDirection?' section':'')+(!line.trim()?' empty':'')+(flags.has(i)?' outlier':'');const text=document.createElement('span');text.className='lyric';text.textContent=line||' ';text.title=line;const n=document.createElement('span');n.className='num';if(isSection){sections++}else if(withoutInstructions(line)){const count=lineCount(line);n.textContent=String(count);lyricLines++;total+=count}row.append(text,n);analysis.append(row)}summary.textContent='';for(const [label,value] of [['Sections',sections],['Lyric lines',lyricLines],['Syllables',total],['Review flags',flags.size]]){const span=document.createElement('span');const strong=document.createElement('strong');strong.textContent=String(value);span.append(label+': ',strong);summary.append(span)}}
+function update(){sync();renderAnalysis()}
+function insertSection(){const tag='['+$('section').value+']';let start=editor.selectionStart,end=editor.selectionEnd,value=editor.value;const before=value.slice(0,start),after=value.slice(end);const prefix=before&& !before.endsWith('\n')?'\n':'';const suffix=after&&!after.startsWith('\n')?'\n':'';const insertion=prefix+tag+'\n'+suffix;editor.value=before+insertion+after;editor.focus();editor.setSelectionRange(start+insertion.length,start+insertion.length);update()}
+function cleanForExport(){return editor.value.replace(/\r\n/g,'\n').trim()+'\n'}
+function filename(ext){return (title.value.trim()||'untitled-song').normalize('NFKD').replace(/[^a-zA-Z0-9 _-]/g,'').trim().replace(/\s+/g,'-').slice(0,80)+'.'+ext}
+function download(data,name,type){const blob=new Blob([data],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
+function plain(){const prompt=stylePrompt.value.trim();return (title.value.trim()||'Untitled song')+'\n\n'+(prompt?'STYLE PROMPT\n'+prompt+'\n\n':'')+'LYRICS\n'+cleanForExport()}
+function escapeMd(line){const tick=String.fromCharCode(96);return line.replace(/([\\*_{}\[\]<>|])/g,'\\$1').split(tick).join('\\'+tick).replace(/^([ \t]*)([#>+\-])(?=\s)/,'$1\\$2')}
+function fenced(text){const tick=String.fromCharCode(96),runs=text.match(new RegExp(tick+'+','g'))||[],max=Math.max(2,...runs.map(s=>s.length)),fence=tick.repeat(max+1);return fence+'text\n'+text.replace(/\r\n/g,'\n').trimEnd()+'\n'+fence}
+function markdown(){const lines=cleanForExport().trimEnd().split('\n'),parts=['# '+escapeMd(title.value.trim()||'Untitled song'),''];if(stylePrompt.value.trim())parts.push('## Style Prompt','',fenced(stylePrompt.value),'');parts.push('## Lyrics','');for(const line of lines){const section=sectionName(line);if(section!==null&&directiveOnly(line)&&line.trim()==='['+section+']'){parts.push('### '+escapeMd(section))}else if(directiveOnly(line)){parts.push(escapeMd(line)+'  ')}else if(!line.trim()){parts.push('')}else{parts.push(escapeMd(line)+'  ')}}return parts.join('\n').trimEnd()+'\n'}
+function sunoMarkdown(){const name=title.value.trim()||'Untitled song',parts=['# '+escapeMd(name),''];if(stylePrompt.value.trim())parts.push('## Style Prompt','',fenced(stylePrompt.value),'');parts.push('## Lyrics','',fenced(cleanForExport()));return parts.join('\n').trimEnd()+'\n'}
+$('insert').addEventListener('click',insertSection);
+const highlightToggle=$('highlight-toggle');try{highlightEnabled=localStorage.getItem(HIGHLIGHT_KEY)!=='off'}catch(e){}highlightToggle.checked=highlightEnabled;highlightToggle.addEventListener('change',()=>{highlightEnabled=highlightToggle.checked;try{localStorage.setItem(HIGHLIGHT_KEY,highlightEnabled?'on':'off')}catch(e){}renderAnalysis()});
+editor.addEventListener('input',update);title.addEventListener('input',sync);stylePrompt.addEventListener('input',sync);
+$('new').addEventListener('click',()=>{if((editor.value.trim()||stylePrompt.value.trim())&&!confirm('Create a new draft? Your current draft is saved locally.'))return;sync();clearTimeout(debounce);persist();const key=id();state.songs[key]={title:'',lyrics:'',stylePrompt:'',updated:Date.now()};openDraft(key);notify('New draft created.')});
+$('save').addEventListener('click',()=>{clearTimeout(debounce);sync();clearTimeout(debounce);persist();renderDrafts();notify('Draft saved in this browser. Export a backup for safekeeping.')});
+$('delete').addEventListener('click',()=>{if(!confirm('Delete this saved draft from this browser? This cannot be undone.'))return;delete state.songs[state.current];const next=Object.keys(state.songs)[0];if(next)openDraft(next);else{const key=id();state.current=key;state.songs[key]={title:'',lyrics:'',stylePrompt:'',updated:Date.now()};openDraft(key)}notify('Draft deleted.')});
+drafts.addEventListener('change',()=>{clearTimeout(debounce);persist();openDraft(drafts.value)});
+$('export-suno').addEventListener('click',()=>{download(cleanForExport(),filename('suno.txt'),'text/plain;charset=utf-8');notify('Suno-ready lyrics exported. No syllable numbers included.')});
+$('export-text').addEventListener('click',()=>download(plain(),filename('txt'),'text/plain;charset=utf-8'));
+$('export-markdown').addEventListener('click',()=>{download(markdown(),filename('md'),'text/markdown;charset=utf-8');notify('Markdown file exported.')});
+$('export-suno-markdown').addEventListener('click',()=>{download(sunoMarkdown(),filename('suno.md'),'text/markdown;charset=utf-8');notify('Suno Markdown exported with separate style and lyrics blocks.')});
+function unescapeMd(line){return line.replace(/\\([\\*_{}\[\]<>|#+-])/g,'$1')}
+function parseSongFile(text,filename){
+  const lines=text.replace(/\r\n?/g,'\n').split('\n');
+  if(/\.md$/i.test(filename)&&/^# /.test(lines[0])&&lines.some(line=>line.trim()==='## Lyrics')){
+    function readSection(name){
+      const head=lines.findIndex(line=>line.trim()==='## '+name);
+      if(head<0)return null;
+      const end=lines.findIndex((line,i)=>i>head&&/^## /.test(line));
+      const body=lines.slice(head+1,end<0?undefined:end);
+      while(body.length&&!body[0].trim())body.shift();
+      const tick=String.fromCharCode(96),opener=body[0]||'';
+      const fence=opener.endsWith('text')?opener.slice(0,-4):null;
+      if(fence&&fence.length>=3&&[...fence].every(c=>c===tick)){
+        const close=body.findIndex((line,i)=>i>0&&line===fence);
+        if(close<0)throw Error('Unclosed Markdown block');
+        return body.slice(1,close).join('\n');
+      }
+      if(name==='Style Prompt')return '';
+      return body.map(line=>line.startsWith('### ')?'['+unescapeMd(line.slice(4))+']':unescapeMd(line.replace(/ {2}$/,''))).join('\n').trim();
+    }
+    return {title:unescapeMd(lines[0].slice(2)).trim(),stylePrompt:readSection('Style Prompt')||'',lyrics:readSection('Lyrics')||'',restored:true};
+  }
+  if(/\.txt$/i.test(filename)&&lines[0]&&lines.includes('LYRICS')&&(lines[1]===''||lines[1]===undefined)){
+    const index=lines.indexOf('LYRICS'),styleIndex=lines.indexOf('STYLE PROMPT'),hasStyle=styleIndex>0&&styleIndex<index;
+    return {title:lines[0],stylePrompt:hasStyle?lines.slice(styleIndex+1,index).join('\n').trim():'',lyrics:lines.slice(index+1).join('\n').trim(),restored:true};
+  }
+  return {lyrics:text,restored:false};
+}
+$('import').addEventListener('click',()=>$('import-file').click());
+$('import-file').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>1e6){notify('This file is too large (maximum 1 MB).');e.target.value='';return}if((editor.value.trim()||stylePrompt.value.trim())&&!confirm('Replace this draft? Export a backup first if needed.')){e.target.value='';return}try{const parsed=parseSongFile(await file.text(),file.name);editor.value=parsed.lyrics;if(parsed.restored){title.value=parsed.title;stylePrompt.value=parsed.stylePrompt}sync();renderAnalysis();notify(parsed.restored?'Song title, lyrics, and style prompt restored.':'Lyrics imported. Existing title and style prompt preserved.')}catch(err){notify('Could not import file: '+err.message)}e.target.value=''});
+loadStore();openDraft(state.current);
+})();
+</script></body></html>
