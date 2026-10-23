@@ -65,14 +65,14 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
 <body>
 <header>
   <a href="./" class="brand">♫ THE ART OF SONGWRITING</a>
-  <nav aria-label="Main navigation"><a href="studio.html">✍ Songwriting Studio</a><a href="./">← Writing Guide</a></nav>
+  <nav aria-label="Main navigation"><a href="artists.html">👥 Browse Artists</a><a href="studio.html">✍ Songwriting Studio</a><a href="./">← Writing Guide</a></nav>
 </header>
 <main>
 <section class="hero">
  <div class="eyebrow">CORA LITE · THE COMMUNITY</div>
  <h1>Published Songs.</h1>
  <p class="lead">Words become music, and music becomes something we can share. Listen to original songs, read the stories in their lyrics, and give another songwriter a little encouragement.</p>
- <span class="pill">Original songs · Community listening room</span>
+ <div class="actions"><a href="artists.html" class="button primary">👥 Browse Artists →</a><span class="pill">Original songs · Community listening room</span></div>
 </section>
 <div class="grid">
  <section class="panel" id="account-panel">
@@ -122,7 +122,7 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
  <div id="pending-feed"></div>
 </section>
 <section aria-label="Published song feed">
- <div class="section-head"><div><div class="eyebrow">Listening room</div><h2>From the community</h2></div><button id="refresh-feed" type="button">↻ Refresh songs</button></div>
+ <div class="section-head"><div><div class="eyebrow">Listening room</div><h2>From the community</h2><p><a href="artists.html">👥 Browse by artist →</a></p></div><button id="refresh-feed" type="button">↻ Refresh songs</button></div>
  <div id="feed"><div class="empty">Loading published songs…</div></div>
  <div class="actions"><button id="more" type="button" class="hidden">Load more songs</button></div>
 </section>
