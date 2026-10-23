@@ -50,6 +50,9 @@ button:hover,.button:hover{border-color:var(--accent)}
 .song details summary{cursor:pointer;color:var(--accent)}
 .song pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.75;color:var(--text)}
 .song iframe{width:100%;border:0;border-radius:10px;margin-top:13px;background:#080d15}
+.player-controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:9px 0 4px}
+.player-controls .note{font-size:.84rem;color:var(--faint)}
+.player-controls button:disabled{opacity:.65;cursor:wait}
 .song .track-link{display:inline-block;margin:13px 0 0}
 .empty{padding:35px 15px;text-align:center;background:var(--surface);border:1px dashed var(--line);border-radius:14px;color:var(--muted)}
 .checkbox-line{display:flex;align-items:center;gap:9px;color:var(--muted);font-weight:400}
@@ -230,11 +233,66 @@ async function loadShortSoundcloudEmbed(song,article){
     iframe.title="SoundCloud player for "+song.title;
     iframe.allow="autoplay";iframe.referrerPolicy="strict-origin-when-cross-origin";
     note.replaceWith(iframe);
+    addSoundCloudControls(iframe);
   }catch(_){
     note.textContent="This shortened SoundCloud link does not work with the embedded player. Open the song on SoundCloud and copy its full address from your browser’s address bar.";
   }
 }
-function makeSong(song,kind){
+// The official SoundCloud Widget API controls audio inside the embedded iframe.
+ // This separate button avoids accidentally hitting SoundCloud's external link.
+ let soundCloudApiPromise=null;
+ function loadSoundCloudApi(){
+   if(window.SC?.Widget)return Promise.resolve(window.SC);
+   if(!soundCloudApiPromise){
+     soundCloudApiPromise=new Promise(resolve=>{
+       const script=document.createElement("script");
+       script.src="https://w.soundcloud.com/player/api.js";
+       script.onload=()=>resolve(window.SC?.Widget?window.SC:null);
+       script.onerror=()=>resolve(null);
+       document.head.append(script);
+     });
+   }
+   return soundCloudApiPromise;
+ }
+ async function addSoundCloudControls(iframe){
+   const row=document.createElement("div");
+   row.className="player-controls";
+   const button=makeButton("Loading player…",()=>{}, "primary");
+   button.disabled=true;
+   const note=addText(row,"span","note","Play or pause here without leaving this page.");
+   row.prepend(button);
+   iframe.insertAdjacentElement("afterend",row);
+   const api=await loadSoundCloudApi();
+   if(!iframe.isConnected)return;
+   if(!api?.Widget){
+     button.textContent="Use the player controls";
+     note.textContent="SoundCloud player controls are still available above.";
+     return;
+   }
+   try{
+     const widget=api.Widget(iframe);
+     let ready=false;
+     const markReady=()=>{
+       ready=true;button.disabled=false;button.textContent="▶ Play";
+     };
+     widget.bind(api.Widget.Events.READY,markReady);
+     widget.bind(api.Widget.Events.PLAY,()=>{button.textContent="⏸ Pause";button.disabled=false;});
+     widget.bind(api.Widget.Events.PAUSE,()=>{button.textContent="▶ Play";button.disabled=false;});
+     widget.bind(api.Widget.Events.FINISH,()=>{button.textContent="▶ Play again";button.disabled=false;});
+     widget.bind(api.Widget.Events.ERROR,()=>{
+       button.textContent="Playback unavailable";
+       button.disabled=true;
+     });
+     // READY is the normal route. Some already-loaded embeds only emit an iframe
+     // load event after the script attaches, so that event is a fallback.
+     iframe.addEventListener("load",()=>{if(!ready)markReady();},{once:true});
+     button.addEventListener("click",()=>widget.toggle());
+   }catch(_){
+     button.textContent="Use the player controls";
+     button.disabled=true;
+   }
+ }
+ function makeSong(song,kind){
   const article=document.createElement("article");article.className="song";
   const top=addText(article,"div","song-top","");
   const headings=addText(top,"div","","");
@@ -257,6 +315,7 @@ function makeSong(song,kind){
       iframe.loading="lazy";iframe.title=embedded.title;iframe.allow="autoplay; encrypted-media";
       iframe.referrerPolicy="strict-origin-when-cross-origin";
       article.append(iframe);
+      if(song.audioProvider==="soundcloud")addSoundCloudControls(iframe);
     }
   }
   if(song.lyrics){
