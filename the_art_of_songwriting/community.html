@@ -95,7 +95,7 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
    <div id="signed-in" class="hidden">
      <h2>You're signed in, <span id="account-name"></span>.</h2>
      <p id="account-role"></p>
-     <div class="actions"><button id="sign-out" type="button">Sign out</button><button type="button" id="show-my-songs">My submissions</button></div>
+     <div class="actions"><a class="button" id="my-artist-page" href="artist.html">♫ My artist page ↗</a><button id="sign-out" type="button">Sign out</button><button type="button" id="show-my-songs">My submissions</button></div>
    </div>
    <div class="message" id="account-message" role="status" aria-live="polite"></div>
  </section>
@@ -165,6 +165,7 @@ function updateAccount(){
   if(author){
     $("account-name").textContent=author.displayName||author.username;
     $("account-role").textContent="Signed in as @"+author.username+(author.role==="admin"?" · Administrator":" · Songwriter");
+    $("my-artist-page").href="artist.html?artist="+encodeURIComponent(author.username);
   }
   show("moderation",!!author&&author.role==="admin");
   show("mine",!!author);
@@ -297,8 +298,17 @@ async function loadShortSoundcloudEmbed(song,article){
   const top=addText(article,"div","song-top","");
   const headings=addText(top,"div","","");
   addText(headings,"h3","",song.title||"Untitled song");
-  addText(headings,"div","meta","By "+(song.author?.displayName||song.author?.username||"Anonymous")+
-    (song.publishedAt?" · "+song.publishedAt.slice(0,10):""));
+  const byline=addText(headings,"div","meta","By ");
+  if(song.author?.username && /^[a-z0-9_]{3,32}$/.test(song.author.username)){
+    const artistLink=document.createElement("a");
+    artistLink.href="artist.html?artist="+encodeURIComponent(song.author.username);
+    artistLink.textContent=song.author.displayName||song.author.username;
+    artistLink.title="View the artist's music profile";
+    byline.append(artistLink);
+  }else{
+    byline.append(document.createTextNode(song.author?.displayName||"Anonymous"));
+  }
+  if(song.publishedAt)byline.append(document.createTextNode(" · "+song.publishedAt.slice(0,10)));
   if(kind!=="public")addText(top,"span","pill",song.status||"pending");
   if(song.audioUrl){
     const link=document.createElement("a");
