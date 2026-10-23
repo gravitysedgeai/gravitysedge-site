@@ -6,35 +6,36 @@
 :root{--bg:#0b101e;--surface:#111a2b;--s2:#172238;--ink:#f2f1f8;--muted:#abb7cd;--line:#2d3950;--accent:#bca6ff;--danger:#ecbb85;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer}a{color:var(--accent)}
 header{border-bottom:1px solid var(--line);padding:16px clamp(16px,3vw,34px);display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
-.brand{font-weight:750;letter-spacing:.03em;text-decoration:none}main{max-width:1360px;margin:auto;padding:28px clamp(14px,3vw,34px) 65px}
-h1{font:normal clamp(2.1rem,5vw,3.4rem)/1.13 Georgia,serif;margin:12px 0}p{color:var(--muted)}.top{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.toolbar,.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:15px 0}
-button,.btn,select,input{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:10px 13px;border-radius:10px;min-height:40px}
+.brand{font-weight:750;letter-spacing:.03em;text-decoration:none}main{max-width:1420px;margin:auto;padding:19px clamp(14px,2.4vw,32px) 45px}
+h1{font:normal clamp(2rem,3.2vw,2.75rem)/1.16 Georgia,serif;margin:5px 0 4px}p{color:var(--muted)}.top p{margin:0 0 4px}.top{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.toolbar,.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.toolbar{justify-content:space-between;margin:8px 0 12px;padding:8px 11px;background:var(--surface);border:1px solid var(--line);border-radius:12px}.controls{margin:12px 0}.tool-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.tool-actions{margin-left:auto}
+button,.btn,select,input{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 11px;border-radius:9px;min-height:36px}
 button:hover,.btn:hover{border-color:var(--accent)}button.primary{background:var(--accent);color:#20163d;font-weight:750}.btn{display:inline-flex;align-items:center;cursor:pointer}
-label{color:var(--muted);font-size:.9rem}input[type=text]{width:min(440px,100%)}.title-row{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:16px 0}
-.workspace{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:14px}
-.panel{border:1px solid var(--line);background:var(--surface);border-radius:16px;overflow:hidden;min-width:0}
-.panel-head{padding:14px 17px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+label{color:var(--muted);font-size:.86rem}input[type=text]{width:min(380px,100%)}.title-row{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:12px 0 8px}
+.workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(340px,1fr);gap:12px;height:clamp(440px,62vh,740px);align-items:stretch}
+.panel{display:flex;flex-direction:column;min-height:0;border:1px solid var(--line);background:var(--surface);border-radius:14px;overflow:hidden;min-width:0}
+.panel-head{flex:none;padding:11px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
 .panel-head strong{font-size:1rem}.status{color:var(--muted);font-size:.8rem}
-textarea{display:block;width:100%;min-height:550px;resize:vertical;border:0;background:transparent;color:var(--ink);padding:17px;outline-offset:-2px;white-space:pre;overflow:auto;tab-size:2;font:15px/27px ui-monospace,Consolas,monospace;line-height:27px}
-.analysis{padding:17px;min-height:550px;max-height:700px;overflow:auto;font:14px/27px ui-monospace,Consolas,monospace}
-.analysis-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;min-height:27px;border-bottom:1px solid transparent}
+textarea{display:block;flex:1 1 auto;width:100%;height:100%;min-height:0;resize:none;border:0;background:transparent;color:var(--ink);padding:14px;outline-offset:-2px;white-space:pre;overflow:auto;tab-size:2;font:15px/26px ui-monospace,Consolas,monospace;line-height:26px}
+.analysis{flex:1 1 auto;min-height:0;padding:14px;overflow:auto;font:14px/26px ui-monospace,Consolas,monospace}
+.analysis-row{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:8px;min-height:26px;border-bottom:1px solid transparent}
 .analysis-row.section{color:var(--accent);font-weight:750;border-top:1px solid var(--line);margin-top:8px;padding-top:6px}
 .analysis-row .lyric{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
 .analysis-row .num{text-align:right;font-variant-numeric:tabular-nums}
 .analysis-row.outlier .num{color:var(--danger);font-weight:750}.analysis-row.empty{opacity:.3}
-.details{padding:13px 17px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+.details{flex:none;padding:10px 14px;border-top:1px solid var(--line);color:var(--muted);font-size:.83rem}
 .summary{display:flex;gap:14px;flex-wrap:wrap}.summary span strong{color:var(--ink)}
-.note{margin-top:18px;padding:16px 19px;border:1px solid var(--line);background:var(--s2);border-radius:12px;font-size:.9rem;color:var(--muted)}
+.note{margin-top:14px;padding:13px 16px;border:1px solid var(--line);background:var(--s2);border-radius:12px;font-size:.87rem;color:var(--muted)}
 .small{font-size:.83rem}.toggle-control{display:inline-flex;align-items:center;gap:8px;color:var(--ink);font-size:.87rem;cursor:pointer}.toggle-control input{accent-color:var(--accent);width:17px;height:17px}.hidden{display:none}#toast{min-height:1.5rem;color:var(--accent)}
-@media(max-width:850px){.workspace{grid-template-columns:1fr}.analysis{min-height:240px;max-height:390px}textarea{min-height:380px}}
+@media(max-width:850px){.workspace{grid-template-columns:1fr;height:auto}.workspace .panel:first-child{height:52vh;min-height:350px;max-height:580px}.workspace .panel:last-child{height:390px}.tool-actions{margin-left:0}}@media(max-width:550px){header{padding:12px 16px}.toolbar{padding:9px}.title-row input[type=text]{width:100%}.title-row label[for=drafts]{margin-left:0}.tool-group{width:100%}.tool-actions{justify-content:flex-start}.workspace .panel:first-child{height:420px}}
 </style></head><body>
 <header><a class="brand" href="./">♫ THE ART OF SONGWRITING</a><a href="./">← Back to the guide</a></header>
 <main><div class="top"><div><div class="small" style="color:var(--accent);letter-spacing:.14em">CORA LITE · WRITING WORKSPACE</div><h1>Your songwriting studio.</h1><p>Write freely. See the rhythm. Keep the words yours.</p></div></div>
 <div class="title-row"><label for="song-title">Song title</label><input id="song-title" type="text" maxlength="150" placeholder="Untitled song" autocomplete="off"><label for="drafts">Saved drafts</label><select id="drafts" aria-label="Saved drafts"></select></div>
 <div class="toolbar">
-<label for="section">Insert section</label><select id="section"><option>Verse 1</option><option>Verse 2</option><option>Verse 3</option><option>Pre-Chorus</option><option>Chorus</option><option>Post-Chorus</option><option>Bridge</option><option>Intro</option><option>Breakdown</option><option>Instrumental</option><option>Hook</option><option>Outro</option></select><button id="insert">+ Add section</button>
-<label class="toggle-control"><input id="highlight-toggle" type="checkbox" checked> Highlight syllable differences</label><button id="new">New draft</button><button id="save" class="primary">Save draft</button><button id="delete">Delete draft</button>
+<div class="tool-group"><label for="section">Insert section</label><select id="section"><option>Verse 1</option><option>Verse 2</option><option>Verse 3</option><option>Pre-Chorus</option><option>Chorus</option><option>Post-Chorus</option><option>Bridge</option><option>Intro</option><option>Breakdown</option><option>Instrumental</option><option>Hook</option><option>Outro</option></select><button id="insert">+ Add section</button></div>
+<div class="tool-group"><label class="toggle-control"><input id="highlight-toggle" type="checkbox" checked> Highlight syllable differences</label></div>
+<div class="tool-group tool-actions"><button id="new">New draft</button><button id="save" class="primary">Save draft</button><button id="delete">Delete draft</button></div>
 </div>
 <div class="workspace"><section class="panel"><div class="panel-head"><strong>Lyrics</strong><span id="save-status" class="status">Stored on this device</span></div><label class="hidden" for="lyrics">Write or paste lyrics</label><textarea id="lyrics" aria-label="Lyrics editor" spellcheck="true" wrap="off" placeholder="[Verse 1]&#10;Write your first line&#10;Write your second line&#10;&#10;[Chorus]&#10;Say what you need to say"></textarea></section>
 <section class="panel"><div class="panel-head"><strong>Line-by-line syllables</strong><span class="status">Estimated · English</span></div><div class="analysis" id="analysis" aria-live="off"></div><div class="details"><div class="summary" id="summary"></div><p class="small" style="margin-bottom:0">When highlighting is enabled, gold counts flag lines differing by 3+ syllables from their section's median. Musical phrasing may make those differences intentional.</p></div></section></div>
