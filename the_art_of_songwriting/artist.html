@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="An original songwriter's public song catalog and music profile at The Art of Songwriting.">
+<title>Artist Profile | The Art of Songwriting</title>
+<style>
+:root{--bg:#0b101e;--surface:#111a2b;--surface2:#172238;--border:#2d3950;--ink:#f2f1f8;--muted:#abb7cd;--accent:#bca6ff;--gold:#eac78f;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;color:var(--ink);background:radial-gradient(ellipse 80% 300px at 50% 0,#29203f 0%,transparent 80%),var(--bg);font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}a:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+button{font:inherit;cursor:pointer;color:var(--ink);background:var(--surface2);border:1px solid #46536b;border-radius:9px;padding:8px 13px}
+button:hover{border-color:var(--accent)}button:disabled{opacity:.6;cursor:wait}
+header{border-bottom:1px solid var(--border);padding:15px clamp(16px,3vw,36px);display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}
+header .brand{font-weight:750;letter-spacing:.04em;text-decoration:none;color:var(--ink)}
+header nav{display:flex;gap:18px;flex-wrap:wrap}
+main{max-width:1050px;margin:auto;padding:26px clamp(16px,3vw,32px) 72px}
+.back{display:inline-block;margin:0 0 30px;text-decoration:none}
+.eyebrow{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:var(--accent)}
+.artist-hero{display:flex;align-items:center;gap:22px;padding:0 0 30px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.avatar{height:104px;width:104px;flex:none;border:1px solid #76659e;border-radius:25px;display:grid;place-items:center;background:linear-gradient(140deg,#493969,#19253c);color:#eee5ff;font:400 54px/1 Georgia,serif}
+h1,h2,h3{font-family:Georgia,serif;font-weight:400;line-height:1.22}
+h1{font-size:clamp(2rem,5vw,3.6rem);margin:6px 0}
+h2{font-size:1.8rem;margin:0}
+h3{font-size:1.5rem;margin:0 0 8px}
+.muted,.meta{color:var(--muted)}
+.meta{font-size:.89rem}
+.eyebrow+.meta{margin-top:2px}
+.heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin:12px 0 18px}
+.heading p{margin:3px 0 0}
+.feed{display:grid;gap:16px}
+.song{padding:22px;background:var(--surface);border:1px solid var(--border);border-radius:15px}
+.song p{margin:4px 0}
+.song iframe{display:block;width:100%;border:0;border-radius:11px;margin-top:14px;background:#080d15}
+.song details{border-top:1px solid var(--border);padding-top:12px;margin-top:15px}
+.song summary{cursor:pointer;color:var(--accent);font-weight:600}
+.song pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.8}
+.controls{margin:11px 0;display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.pill{display:inline-block;padding:3px 11px;border:1px solid #695a44;border-radius:30px;color:var(--gold);font-size:.82rem}
+.empty{padding:40px 20px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--muted);background:var(--surface)}
+.section-actions{display:flex;align-items:center;justify-content:center;margin-top:24px}
+.tagline{color:var(--muted);max-width:650px}
+footer{border-top:1px solid var(--border);text-align:center;padding:19px;color:var(--muted)}
+@media(max-width:570px){.artist-hero{gap:14px;align-items:flex-start}.avatar{height:70px;width:70px;font-size:37px;border-radius:17px}.song{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+ <a class="brand" href="./">♫ THE ART OF SONGWRITING</a>
+ <nav aria-label="Main navigation"><a href="community.html">🎧 Published Songs</a><a href="studio.html">✍ Studio</a><a href="./">Writing Guide</a></nav>
+</header>
+<main>
+<a class="back" href="community.html">← Back to the community</a>
+<section id="artist-header" class="artist-hero" aria-live="polite">
+ <div id="avatar" class="avatar" aria-hidden="true">♫</div>
+ <div>
+  <div class="eyebrow">Independent artist · Public songbook</div>
+  <h1 id="artist-name">Loading artist…</h1>
+  <div class="meta" id="artist-username"></div>
+  <p class="tagline" id="artist-count">Music, lyrics, and moments worth sharing.</p>
+ </div>
+</section>
+<section aria-labelledby="catalog-title">
+ <div class="heading"><div><div class="eyebrow">Artist catalog</div><h2 id="catalog-title">Published songs</h2><p class="muted">Newest first · Listen here or visit the original recording</p></div><button type="button" id="refresh">↻ Refresh</button></div>
+ <div id="feed" class="feed" aria-live="polite"><div class="empty">Loading songs…</div></div>
+ <div class="section-actions"><button type="button" id="more" hidden>Load more songs</button></div>
+</section>
+</main>
+<footer>Every song has a story. ♫ · <a href="community.html">Explore other artists</a></footer>
+<script>
+(()=>{
+"use strict";
+const API="https://songwriting-community-api.gravitysedge.workers.dev";
+const $=id=>document.getElementById(id);
+const handle=(new URLSearchParams(location.search).get("artist")||"").trim().toLowerCase();
+const valid=/^[a-z0-9_]{3,32}$/.test(handle);
+let offset=0,busy=false;
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e;}
+function empty(text){return el("div","empty",text);}
+function domainIs(host,domain){return host===domain||host.endsWith("."+domain);}
+function link(parent,url,label){
+  const a=el("a","",label);a.href=url;a.target="_blank";a.rel="noopener noreferrer";parent.append(a);return a;
+}
+async function json(url){
+ const res=await fetch(API+url,{headers:{"Accept":"application/json"}});
+ let data;try{data=await res.json();}catch(_){throw new Error("The music service could not be reached.");}
+ if(!res.ok)throw new Error(data.error||"Request failed");
+ return data;
+}
+function playerInfo(song){
+ if(!song.audioUrl)return null;
+ let url;try{url=new URL(song.audioUrl);}catch(_){return null;}
+ if(url.protocol!=="https:")return null;
+ const host=url.hostname.toLowerCase();
+ if(song.audioProvider==="youtube"){
+  let id="";
+  if(domainIs(host,"youtu.be"))id=url.pathname.split("/")[1]||"";
+  if(domainIs(host,"youtube.com")){
+   if(url.pathname==="/watch")id=url.searchParams.get("v")||"";
+   if(url.pathname.startsWith("/shorts/")||url.pathname.startsWith("/embed/"))id=url.pathname.split("/")[2]||"";
+  }
+  if(/^[a-zA-Z0-9_-]{11}$/.test(id))return {src:"https://www.youtube-nocookie.com/embed/"+id,height:270};
+ }
+ if(song.audioProvider==="soundcloud"&&domainIs(host,"soundcloud.com")){
+  return {src:"https://w.soundcloud.com/player/?url="+encodeURIComponent(url.href)+"&color=%23bca6ff&auto_play=false",height:166,soundcloud:true};
+ }
+ return null;
+}
+let widgetPromise;
+function soundcloudSDK(){
+ if(window.SC?.Widget)return Promise.resolve(window.SC);
+ if(!widgetPromise)widgetPromise=new Promise(resolve=>{
+  const script=document.createElement("script");
+  script.src="https://w.soundcloud.com/player/api.js";
+  script.onload=()=>resolve(window.SC?.Widget?window.SC:null);
+  script.onerror=()=>resolve(null);document.head.append(script);
+ });
+ return widgetPromise;
+}
+async function soundcloudControls(iframe){
+ const container=el("div","controls");const btn=el("button","","Loading controls…");
+ btn.type="button";btn.disabled=true;container.append(btn);iframe.insertAdjacentElement("afterend",container);
+ const sdk=await soundcloudSDK();if(!iframe.isConnected)return;
+ if(!sdk){btn.textContent="Use controls in the player";return;}
+ try{
+  const widget=sdk.Widget(iframe);
+  widget.bind(sdk.Widget.Events.READY,()=>{btn.disabled=false;btn.textContent="▶ Play / pause";});
+  widget.bind(sdk.Widget.Events.PLAY,()=>btn.textContent="⏸ Pause");
+  widget.bind(sdk.Widget.Events.PAUSE,()=>btn.textContent="▶ Play");
+  widget.bind(sdk.Widget.Events.FINISH,()=>btn.textContent="▶ Play again");
+  widget.bind(sdk.Widget.Events.ERROR,()=>{btn.disabled=true;btn.textContent="Playback unavailable";});
+  btn.addEventListener("click",()=>widget.toggle());
+ }catch(_){btn.textContent="Use controls in the player";}
+}
+async function shortLinkPlayer(song,article){
+ const note=el("p","muted","Resolving SoundCloud link…");article.append(note);
+ try{
+  const res=await fetch("https://soundcloud.com/oembed?format=json&url="+encodeURIComponent(song.audioUrl));
+  if(!res.ok)throw Error("Cannot resolve");
+  const data=await res.json(),doc=new DOMParser().parseFromString(String(data.html||""),"text/html");
+  const raw=doc.querySelector("iframe")?.getAttribute("src");
+  const url=new URL(raw);
+  if(url.protocol!=="https:"||url.hostname!=="w.soundcloud.com"||url.pathname!=="/player/")throw Error("Invalid embed");
+  const iframe=document.createElement("iframe");iframe.src=url.href;iframe.height="166";iframe.loading="lazy";
+  iframe.title="SoundCloud player for "+song.title;iframe.allow="autoplay";
+  note.replaceWith(iframe);soundcloudControls(iframe);
+ }catch(_){note.textContent="This shortened link could not be embedded. Use the full SoundCloud track address for playback.";}
+}
+function addSong(song){
+ const card=el("article","song");
+ el("div","meta",song.publishedAt?"Published "+song.publishedAt.slice(0,10):"Original song");
+ card.append(el("h3","",song.title||"Untitled"));
+ card.append(el("div","meta",song.publishedAt?"Published "+song.publishedAt.slice(0,10):"Published song"));
+ if(song.audioUrl){
+  const source=el("p");link(source,song.audioUrl,"♫ Listen on "+({soundcloud:"SoundCloud",suno:"Suno",youtube:"YouTube"}[song.audioProvider]||"original platform")+" ↗");
+  card.append(source);
+  const player=playerInfo(song);
+  if(player){
+   const iframe=document.createElement("iframe");iframe.src=player.src;iframe.height=String(player.height);
+   iframe.title="Music player for "+song.title;iframe.loading="lazy";iframe.allow="autoplay; encrypted-media";
+   iframe.referrerPolicy="strict-origin-when-cross-origin";card.append(iframe);
+   if(player.soundcloud)soundcloudControls(iframe);
+  }else{
+   try{if(new URL(song.audioUrl).hostname==="on.soundcloud.com")shortLinkPlayer(song,card);}catch(_){}
+  }
+ }
+ if(song.lyrics){
+  const details=el("details");
+  details.append(el("summary","","Read lyrics"),el("pre","",song.lyrics));card.append(details);
+ }
+ const actions=el("div","controls");
+ actions.append(el("span","muted","♥ "+(song.likes||0)+" likes"));
+ const toFeed=el("a","","Visit community to react →");toFeed.href="community.html";actions.append(toFeed);
+ card.append(actions);return card;
+}
+async function load(reset){
+ if(!valid){$("feed").replaceChildren(empty("No artist was specified. Choose an artist from the community feed."));$("artist-name").textContent="Artist not found";return;}
+ if(busy)return;busy=true;
+ if(reset){offset=0;$("feed").replaceChildren();}
+ try{
+  const data=await json("/songs?artist="+encodeURIComponent(handle)+"&limit=20&offset="+offset);
+  for(const song of data.songs)$("feed").append(addSong(song));
+  offset+=data.songs.length;$("more").hidden=data.songs.length<20;
+  if(!offset)$("feed").replaceChildren(empty("This artist hasn't published any songs yet."));
+ }catch(err){$("feed").replaceChildren(empty(err.message));}
+ finally{busy=false;}
+}
+async function init(){
+ if(!valid){$("artist-name").textContent="Artist not found";$("feed").replaceChildren(empty("Choose an artist from the community to view their music."));return;}
+ try{
+  const data=await json("/artists/"+handle);
+  const a=data.artist;
+  document.title=a.displayName+" | The Art of Songwriting";
+  $("artist-name").textContent=a.displayName;
+  $("artist-username").textContent="@"+a.username;
+  $("artist-count").textContent=a.songCount+" published "+(a.songCount===1?"song":"songs")+" · Music, lyrics, and moments worth sharing.";
+  $("avatar").textContent=(a.displayName||a.username).charAt(0).toUpperCase();
+  await load(true);
+ }catch(err){$("artist-name").textContent="Artist unavailable";$("feed").replaceChildren(empty(err.message));}
+}
+$("refresh").addEventListener("click",()=>load(true));
+$("more").addEventListener("click",()=>load(false));
+init();
+})();
+</script>
+</body>
+</html>
