@@ -101,7 +101,7 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
    <p>Have a track ready? Submit a Suno, SoundCloud, or YouTube link with optional lyrics. An administrator reviews it before it appears publicly.</p>
    <form id="song-form">
      <label for="track-title">Song title</label><input id="track-title" maxlength="150" required placeholder="The name of your song">
-     <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://suno.com/song/...">
+     <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://soundcloud.com/artist/song-title"><p class="form-note">SoundCloud: use the full song URL from your browser’s address bar, not an on.soundcloud.com shortened link.</p>
      <label for="track-lyrics">Lyrics (optional if a link is provided)</label><textarea id="track-lyrics" maxlength="40000" placeholder="Your lyrics, as you want people to read them"></textarea>
      <label class="checkbox-line" for="share-lyrics"><input id="share-lyrics" type="checkbox" checked> Include these lyrics in the public post</label>
      <div class="actions"><button type="button" id="load-draft">Load my Studio draft</button><button type="submit" class="primary">Submit for review</button></div>
@@ -207,6 +207,33 @@ function embedFor(song){
   }
   return null;
 }
+// SoundCloud sharing sometimes returns on.soundcloud.com links. Those redirect
+// in a browser but cannot be fed straight into the embedded player.
+function soundcloudShortLink(value){
+  try{return new URL(value).hostname.toLowerCase()==="on.soundcloud.com";}catch(_){return false;}
+}
+async function loadShortSoundcloudEmbed(song,article){
+  const note=addText(article,"p","form-note","Resolving SoundCloud sharing link…");
+  try{
+    // SoundCloud's documented oEmbed endpoint supports CORS-enabled JSON.
+    const endpoint="https://soundcloud.com/oembed?format=json&url="+encodeURIComponent(song.audioUrl);
+    const answer=await fetch(endpoint);
+    if(!answer.ok)throw Error("No embeddable track found");
+    const data=await answer.json();
+    const parsed=new DOMParser().parseFromString(String(data.html||""),"text/html");
+    const source=parsed.querySelector("iframe")?.getAttribute("src")||"";
+    const u=new URL(source);
+    if(u.protocol!=="https:"||u.hostname!=="w.soundcloud.com"||u.pathname!=="/player/")
+      throw Error("Invalid player");
+    const iframe=document.createElement("iframe");
+    iframe.src=u.href;iframe.height="166";iframe.loading="lazy";
+    iframe.title="SoundCloud player for "+song.title;
+    iframe.allow="autoplay";iframe.referrerPolicy="strict-origin-when-cross-origin";
+    note.replaceWith(iframe);
+  }catch(_){
+    note.textContent="This shortened SoundCloud link does not work with the embedded player. Open the song on SoundCloud and copy its full address from your browser’s address bar.";
+  }
+}
 function makeSong(song,kind){
   const article=document.createElement("article");article.className="song";
   const top=addText(article,"div","song-top","");
@@ -221,6 +248,9 @@ function makeSong(song,kind){
     link.className="track-link";link.textContent="♫ Listen on "+providerName(song.audioProvider)+" ↗";
     article.append(link);
     const embedded=embedFor(song);
+    if(soundcloudShortLink(song.audioUrl)){
+      loadShortSoundcloudEmbed(song,article);
+    }
     if(embedded){
       const iframe=document.createElement("iframe");
       iframe.src=embedded.src;iframe.height=embedded.height;
