@@ -27,7 +27,7 @@ async function hash(s){return hex(new Uint8Array(await crypto.subtle.digest("SHA
 async function passHash(password,salt){
   const key=await crypto.subtle.importKey("raw",encoder.encode(password),"PBKDF2",false,["deriveBits"]);
   return hex(new Uint8Array(await crypto.subtle.deriveBits(
-    {name:"PBKDF2",salt:unhex(salt),iterations:210000,hash:"SHA-256"},key,256)));
+    {name:"PBKDF2",salt:unhex(salt),iterations:100000,hash:"SHA-256"},key,256)));
 }
 async function body(request){
   if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get("Content-Type")||""))error("Expected JSON",415);
