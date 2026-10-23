@@ -147,11 +147,28 @@ async function route(req,env,url,ctx){
       .bind(await hash(req.headers.get("Authorization").slice(7))).run();
     return [{ok:true},200];
   }
+  // Public artist profiles only reveal public identity and published-song count.
+  const artistMatch=p.match(/^\/artists\/([a-z0-9_]{3,32})$/);
+  if(artistMatch&&m==="GET"){
+    const artist=await env.DB.prepare(
+      "SELECT a.username,a.display_name,COUNT(s.id) AS song_count " +
+      "FROM authors a LEFT JOIN songs s ON s.author_id=a.id AND s.status='published' " +
+      "WHERE a.username=? GROUP BY a.id"
+    ).bind(artistMatch[1]).first();
+    if(!artist)error("Artist not found",404);
+    return [{artist:{username:artist.username,displayName:artist.display_name,
+      songCount:Number(artist.song_count)||0}},200];
+  }
   if(p==="/songs"&&m==="GET"){
     const limit=Math.min(30,Math.max(1,parseInt(url.searchParams.get("limit")||"20",10)||20));
     const offset=Math.min(2000,Math.max(0,parseInt(url.searchParams.get("offset")||"0",10)||0));
-    const rows=await env.DB.prepare("SELECT "+fields+" FROM songs s JOIN authors a ON s.author_id=a.id WHERE s.status='published' ORDER BY s.published_at DESC LIMIT ? OFFSET ?")
-      .bind(limit,offset).all();
+    const artist=value(url.searchParams.get("artist"),32).toLowerCase();
+    if(artist&&!/^[a-z0-9_]{3,32}$/.test(artist))error("Invalid artist username",422);
+    const query="SELECT "+fields+" FROM songs s JOIN authors a ON s.author_id=a.id " +
+      "WHERE s.status='published' " + (artist?"AND a.username=? ":"") +
+      "ORDER BY s.published_at DESC LIMIT ? OFFSET ?";
+    const statement=env.DB.prepare(query);
+    const rows=await (artist?statement.bind(artist,limit,offset):statement.bind(limit,offset)).all();
     return [{songs:(rows.results||[]).map(out),limit,offset},200];
   }
   if(p==="/songs"&&m==="POST"){
