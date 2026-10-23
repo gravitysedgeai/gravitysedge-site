@@ -104,7 +104,9 @@ footer{padding:18px;text-align:center;border-top:1px solid var(--line);color:var
    <p>Have a track ready? Submit a Suno, SoundCloud, or YouTube link with optional lyrics. Members can publish immediately after signing in.</p>
    <form id="song-form">
      <label for="track-title">Song title</label><input id="track-title" maxlength="150" required placeholder="The name of your song">
-     <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://soundcloud.com/artist/song-title"><p class="form-note">SoundCloud: use the full song URL from your browser’s address bar, not an on.soundcloud.com shortened link.</p>
+     <label for="track-url">Music link (optional)</label><input id="track-url" type="url" maxlength="2048" placeholder="https://suno.com/song/… or a SoundCloud / YouTube link"><p class="form-note">Suno song links are embedded automatically. SoundCloud: copy the full track URL from your browser’s address bar.</p>
+     <label for="track-embed">Suno embedded player code (optional alternative)</label><textarea id="track-embed" rows="3" maxlength="6000" spellcheck="false" placeholder='Paste the &lt;iframe src="https://suno.com/embed/…" …&gt;&lt;/iframe&gt; code from Suno'></textarea>
+     <p class="form-note">Choose a music link above, or paste Suno’s iframe embed code here. The site saves only the safe Suno player URL, not the HTML code.</p>
      <label for="track-lyrics">Lyrics (optional if a link is provided)</label><textarea id="track-lyrics" maxlength="40000" placeholder="Your lyrics, as you want people to read them"></textarea>
      <label class="checkbox-line" for="share-lyrics"><input id="share-lyrics" type="checkbox" checked> Include these lyrics in the public post</label>
      <div class="actions"><button type="button" id="load-draft">Load my Studio draft</button><button type="submit" class="primary">Publish song</button></div>
@@ -188,6 +190,31 @@ function makeButton(label,action,cls){
   btn.addEventListener("click",action);return btn;
 }
 function isHost(h,n){return h===n||h.endsWith("."+n);}
+// Only a Suno song/embed URL with a standard ID can become a Suno player.
+function sunoId(urlText){
+  try{
+    const u=new URL(urlText);
+    if(u.protocol!=="https:"||!["suno.com","www.suno.com"].includes(u.hostname.toLowerCase()))return "";
+    const match=u.pathname.match(/^\/(?:song|embed)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i);
+    return match?match[1].toLowerCase():"";
+  }catch(_){return "";}
+}
+// The pasted HTML is never rendered. Only its validated iframe src is used.
+function parseSunoEmbed(pasted){
+  const doc=new DOMParser().parseFromString(pasted,"text/html");
+  const frame=doc.querySelector("iframe");
+  if(!frame)return null;
+  const src=frame.getAttribute("src")||"";
+  const songId=sunoId(src);
+  if(!songId||!/^https:\/\/suno\.com\/embed\//i.test(src)){
+    throw Error("The embed code must contain a Suno iframe with an https://suno.com/embed/… address.");
+  }
+  return {id:songId,src:"https://suno.com/embed/"+songId};
+}
+function sunoTrackLink(urlText){
+  const id=sunoId(urlText);
+  return id?"https://suno.com/song/"+id:urlText;
+}
 function embedFor(song){
   if(!song.audioUrl)return null;
   let url;
@@ -204,6 +231,10 @@ function embedFor(song){
     }
     if(!/^[a-zA-Z0-9_-]{11}$/.test(id))return null;
     return {src:"https://www.youtube-nocookie.com/embed/"+id,height:"270",title:"YouTube player for "+song.title};
+  }
+  if(song.audioProvider==="suno"){
+    const id=sunoId(song.audioUrl);
+    if(id)return {src:"https://suno.com/embed/"+id,height:"240",title:"Suno player for "+song.title};
   }
   if(song.audioProvider==="soundcloud"&&isHost(host,"soundcloud.com")){
     return {src:"https://w.soundcloud.com/player/?url="+encodeURIComponent(url.href)+"&color=%23bca6ff&auto_play=false",
@@ -312,7 +343,8 @@ async function loadShortSoundcloudEmbed(song,article){
   if(kind!=="public")addText(top,"span","pill",song.status||"pending");
   if(song.audioUrl){
     const link=document.createElement("a");
-    link.href=song.audioUrl;link.target="_blank";link.rel="noopener noreferrer";
+    link.href=song.audioProvider==="suno"?sunoTrackLink(song.audioUrl):song.audioUrl;
+    link.target="_blank";link.rel="noopener noreferrer";
     link.className="track-link";link.textContent="♫ Listen on "+providerName(song.audioProvider)+" ↗";
     article.append(link);
     const embedded=embedFor(song);
@@ -433,9 +465,23 @@ $("show-my-songs").addEventListener("click",()=>{$("mine").scrollIntoView({behav
 $("song-form").addEventListener("submit",async event=>{
   event.preventDefault();
   if(!author){message("song-message","Sign in first to submit a song.",true);return;}
-  const title=$("track-title").value.trim(),audioUrl=$("track-url").value.trim(),lyrics=$("track-lyrics").value;
-  if(!lyrics.trim()&&!audioUrl){message("song-message","Add lyrics or a music link.",true);return;}
-  message("song-message","Submitting…");
+  const title=$("track-title").value.trim(),lyrics=$("track-lyrics").value;
+  let audioUrl=$("track-url").value.trim();
+  const pastedEmbed=$("track-embed").value.trim();
+  try{
+    if(pastedEmbed){
+      const player=parseSunoEmbed(pastedEmbed);
+      if(!player)throw Error("Paste Suno's complete iframe embed code or leave the field empty.");
+      if(audioUrl){
+        const linkId=sunoId(audioUrl);
+        if(!linkId||linkId!==player.id)throw Error("The music link and Suno embed code must refer to the same song. Clear one field or correct the link.");
+      }
+      // Only this canonical HTTPS URL is sent to our Worker.
+      audioUrl="https://suno.com/song/"+player.id;
+    }
+  }catch(err){message("song-message",err.message,true);return;}
+  if(!lyrics.trim()&&!audioUrl){message("song-message","Add lyrics, a music link, or a Suno embed.",true);return;}
+  message("song-message","Publishing…");
   try{
     const data=await api("/songs",{method:"POST",body:{
       title,audioUrl,lyrics,shareLyrics:$("share-lyrics").checked}});
