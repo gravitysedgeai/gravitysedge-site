@@ -67,7 +67,44 @@ function out(s){return {id:s.id,title:s.title,lyrics:s.lyrics,audioUrl:s.audio_u
   status:s.status,createdAt:s.created_at,publishedAt:s.published_at,likes:Number(s.likes)||0,
   author:{username:s.username,displayName:s.display_name}};}
 async function song(env,id){return env.DB.prepare("SELECT "+fields+" FROM songs s JOIN authors a ON s.author_id=a.id WHERE s.id=?").bind(id).first();}
-async function route(req,env,url){
+// Optional email notifications using Resend (https://resend.com).
+// RESEND_API_KEY and NOTIFY_EMAIL are Cloudflare Secrets.
+// NOTIFY_FROM is a verified sender such as "Songwriting Studio <notify@yourdomain.com>".
+// Email delivery failures are logged but never block saving a song.
+async function notifyPendingSubmission(env, submission) {
+  if (!env.RESEND_API_KEY || !env.NOTIFY_EMAIL || !env.NOTIFY_FROM) return;
+  const title = String(submission.title || "Untitled").replace(/[\r\n\t]+/g, " ").slice(0, 150);
+  const handle = String(submission.username || "Songwriter").replace(/[\r\n\t]+/g, " ").slice(0, 32);
+  const reviewPage = "https://raw.githack.com/gravitysedgeai/gravitysedge-site/feature/songwriting-studio-mvp/the_art_of_songwriting/community.html";
+  const mail = {
+    from: env.NOTIFY_FROM,
+    to: [env.NOTIFY_EMAIL],
+    subject: "Song awaiting approval: " + title,
+    text: "A song was submitted to The Art of Songwriting.\n\n" +
+      "Title: " + title + "\n" +
+      "Songwriter: @" + handle + "\n" +
+      "Status: Pending approval\n\n" +
+      "Review the submission:\n" + reviewPage + "\n\n" +
+      "Sign in as an administrator to approve or hide it.\n" +
+      "This is an automated notification; please do not reply."
+  };
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + env.RESEND_API_KEY,
+        "Content-Type": "application/json",
+        "Idempotency-Key": "song-notification/" + submission.id },
+      body: JSON.stringify(mail)
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      console.error("Notification email failed; HTTP " + res.status + ": " + detail.slice(0, 400));
+    }
+  } catch (err) {
+    console.error("Notification email request failed:", String(err));
+  }
+}
+async function route(req,env,url,ctx){
   const p=url.pathname.replace(/\/+$/,"")||"/",m=req.method;
   if(p==="/health"&&m==="GET"){
     const tables=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('authors','author_sessions','songs','song_likes')").all();
@@ -127,6 +164,9 @@ async function route(req,env,url){
     // Style prompts are private and never saved to this public database.
     await env.DB.prepare("INSERT INTO songs(id,author_id,title,audio_url,audio_provider,lyrics,status) VALUES(?,?,?,?,?,?,'pending')")
       .bind(id,a.id,title,audio.url,audio.provider,b.shareLyrics===false?null:(lyrics||null)).run();
+    if (ctx && typeof ctx.waitUntil === "function") {
+      ctx.waitUntil(notifyPendingSubmission(env, {id, title, username:a.username}));
+    }
     return [{id,status:"pending",message:"Submitted for approval"},201];
   }
   if(p==="/me/songs"&&m==="GET"){
@@ -178,7 +218,7 @@ async function route(req,env,url){
   error("Route not found",404);
 }
 export default {
-  async fetch(req,env){
+  async fetch(req,env,ctx){
     const origin=req.headers.get("Origin")||"";
     if(origin&&!origins.has(origin))return response({error:"Origin not allowed"},403);
     if(req.method==="OPTIONS")return new Response(null,{status:204,headers:new Headers({
@@ -188,7 +228,7 @@ export default {
       "Vary":"Origin"
     })});
     if(!env.DB)return response({error:"Missing D1 binding DB"},503,origin);
-    try{const [data,status]=await route(req,env,new URL(req.url));return response(data,status,origin);}
+    try{const [data,status]=await route(req,env,new URL(req.url),ctx);return response(data,status,origin);}
     catch(e){const status=e.status||500;if(status===500)console.error(String(e));return response({error:status===500?"Server error":e.message},status,origin);}
   }
 };
