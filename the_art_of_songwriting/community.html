@@ -354,8 +354,9 @@ async function loadShortSoundcloudEmbed(song,article){
     if(embedded){
       const iframe=document.createElement("iframe");
       iframe.src=embedded.src;iframe.height=embedded.height;
-      iframe.loading="lazy";iframe.title=embedded.title;iframe.allow="autoplay; encrypted-media";
-      iframe.referrerPolicy="strict-origin-when-cross-origin";
+      iframe.loading="lazy";iframe.title=embedded.title;iframe.allow="autoplay; encrypted-media; fullscreen";
+      iframe.allowFullscreen=true;
+      iframe.referrerPolicy=song.audioProvider==="suno"?"no-referrer-when-downgrade":"strict-origin-when-cross-origin";
       article.append(iframe);
       if(song.audioProvider==="soundcloud")addSoundCloudControls(iframe);
     }
