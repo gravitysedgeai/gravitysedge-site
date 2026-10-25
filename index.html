@@ -305,14 +305,31 @@
     @keyframes archiveFade { 0%, 22% { opacity: 1; } 36%, 62% { opacity: .15; } 76%, 100% { opacity: 1; } }
     .feature:hover, .cta:hover { transform: none; }
   }
+
+/* Shared GravitysEdge navigation: keep this block consistent across site pages. */
+.site-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;padding:22px 0;}
+.site-header .brand{display:flex;flex:none;align-items:center;gap:12px;text-decoration:none;color:var(--text);margin:0;}
+.site-header .brand img{display:block;width:44px;height:44px;border-radius:10px;}
+.site-header .brand b{display:block;font-size:19px;line-height:1.15;color:var(--text);}
+.site-header .brand span{display:block;color:var(--muted);font-size:12px;line-height:1.5;}
+.site-header .site-nav{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:15px;max-width:100%;}
+.site-header .site-nav a{display:inline-block;font-size:14px;font-weight:400;text-decoration:none;color:var(--muted);white-space:nowrap;border:0;padding:0;}
+.site-header .site-nav a:hover,.site-header .site-nav a[aria-current="page"]{color:var(--text);}
+.site-header .site-nav .live:after{content:"LIVE";font-size:9px;font-weight:800;color:#0b1424;background:#ff9f43;border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:2px;}
+@media(max-width:860px){
+ .site-header{padding-bottom:8px;}
+ .site-header .site-nav{justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;width:100%;gap:8px;padding:7px 0 9px;scrollbar-width:thin;}
+ .site-header .site-nav a{border:1px solid var(--edge);border-radius:999px;padding:5px 12px;font-size:13px;}
+}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <a class="brand" href="#"><img src="img/logo.png" alt="GEAD logo" width="44" height="44"><div><b>AssetDEK</b><span>by GravitysEdge</span></div></a>
-    <nav aria-label="Sections"><a href="#how">How it works</a><a class="live" href="#try">Try it</a><a href="#features">Organize</a><a href="#find">Find fast</a><a href="#looks">Looks</a><a href="#watch">Videos</a><a href="#safe">Portable &amp; safe</a><a href="#faq">FAQ</a><a href="guide.html">User Guide</a><a href="about.html">About</a><a href="development.html">Updates</a><a href="#get">Get it</a></nav>
-  </header>
+  <header class="site-header">
+<a class="brand" href="index.html"><img src="img/logo.png" alt="GravitysEdge logo" width="44" height="44"><div><b>GravitysEdge</b><span>Creators of AssetDEK</span></div></a>
+<nav class="site-nav" aria-label="Main navigation"><a href="index.html" aria-current="page">AssetDEK</a><a href="demo.html" class="live">Try It</a><a href="index.html#features">Features</a><a href="guide.html">User Guide</a><a href="about.html">About</a><a href="development.html">Development Log</a><a href="index.html#get">Get It</a></nav>
+</header>
 
   <div class="hero">
     <div>
