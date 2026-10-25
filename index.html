@@ -294,6 +294,31 @@
     .video-frame.short { max-width: 220px; }
     .training-spot { padding: 22px 18px; }
   }
+
+  /* Batch metadata tag-writing feature spotlight */
+  .tag-spotlight { padding-top: 32px; }
+  .tag-spotlight-box {
+    display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(280px, .82fr);
+    gap: clamp(22px, 4vw, 56px); align-items: center;
+    background: radial-gradient(650px 350px at 100% 0%, rgba(143, 208, 255, .105), transparent 75%), var(--card);
+    border: 1px solid #345171; border-radius: 18px; padding: clamp(24px, 4vw, 46px);
+  }
+  .tag-spotlight .tag-kicker { color: var(--orange); font-size: 12px; letter-spacing: 1.6px; font-weight: 800; text-transform: uppercase; }
+  .tag-spotlight h2 { margin: 12px 0 20px; max-width: 640px; }
+  .tag-spotlight p { color: var(--muted); margin: 0 0 15px; }
+  .tag-spotlight p strong { color: var(--text); }
+  .tag-spotlight .tag-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--blue); font-weight: 650; text-decoration: none; }
+  .tag-spotlight .tag-link:hover { text-decoration: underline; }
+  .tag-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 13px; }
+  .tag-steps li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; padding: 15px; background: rgba(7, 15, 27, .42); border: 1px solid var(--edge); border-radius: 12px; }
+  .tag-steps .tag-n { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: #233b57; color: var(--blue); font-size: 12px; font-weight: 800; }
+  .tag-steps strong { display: block; color: var(--text); margin-bottom: 3px; }
+  .tag-steps span:last-child { display: block; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .tag-scope { font-size: 13px; margin-top: 12px !important; }
+  @media (max-width: 800px) {
+    .tag-spotlight-box { grid-template-columns: 1fr; }
+  }
+
   /* Reduced motion: keep gentle fades, drop movement. */
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
@@ -427,6 +452,26 @@
   </div>
 </section>
 
+<section id="batch-tag-writing" class="tag-spotlight" aria-labelledby="batch-tags-heading">
+  <div class="wrap">
+    <div class="tag-spotlight-box reveal">
+      <div>
+        <div class="tag-kicker">Feature spotlight · Batch metadata tag writing</div>
+        <h2 id="batch-tags-heading">Write tags into many images. One batch operation.</h2>
+        <p>Already organized your images with AssetDEK tags? You can embed those existing tags as <strong>standard image metadata keywords</strong> in supported JPEG and PNG files, without opening and editing every image individually.</p>
+        <p>Use <strong>Write existing tags into files…</strong> to review eligible images, confirm the operation, and process the files in a single batch. AssetDEK shows progress, lets you stop, and reports what was written or skipped.</p>
+        <p class="tag-scope">Writing is optional and off by default. The operation updates supported image files one at a time, retains keywords from other applications, and does not embed notes, favorites, locks, or display names.</p>
+        <a class="tag-link" href="guide.html#saving-tags-into-image-files">See how batch tag writing works <span aria-hidden="true">→</span></a>
+      </div>
+      <ol class="tag-steps" aria-label="How to write existing AssetDEK tags into images">
+        <li><span class="tag-n" aria-hidden="true">01</span><div><strong>Tag your assets</strong><span>Assign AssetDEK tags as you organize your library.</span></div></li>
+        <li><span class="tag-n" aria-hidden="true">02</span><div><strong>Enable tag writing</strong><span>In Settings › Metadata, turn on Save AssetDEK tags into image files.</span></div></li>
+        <li><span class="tag-n" aria-hidden="true">03</span><div><strong>Run a reviewed batch</strong><span>Choose Write existing tags into files…, review what's eligible, then confirm.</span></div></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
 <section id="looks">
   <div class="wrap">
     <h2 class="reveal">Make the gallery feel like your workspace</h2>
@@ -480,6 +525,7 @@
     <details><summary>Which Photoshop versions does it work with?</summary><p>Photoshop 2023 (version 24) and later. It is tested with Photoshop 2025 and 2026.</p></details>
     <details><summary>Windows or Mac?</summary><p>Both. AssetDEK is a standard Photoshop (UXP) plugin for Windows and macOS, and every version is reviewed by Adobe before it appears on the Marketplace.</p></details>
     <details><summary>Does it change or move my images?</summary><p>Only when you explicitly choose an operation that does so. Browsing, previews, search, favorites, notes and reading metadata do not change image files. Enabling <b>Save AssetDEK tags into image files</b> writes new tag changes to supported PNG and JPEG files from that point forward. Existing AssetDEK tags are not written retroactively; to write previously assigned tags into existing images, use <b>Write existing tags into files…</b>. Metadata editing is a separate opt-in control. Move, Rename, Archive, Delete and Restore happen only when selected.</p></details>
+    <details><summary>Can I write tags into many image files at once?</summary><p>Yes. In Settings › Metadata, enable <b>Save AssetDEK tags into image files</b>, then use <b>Write existing tags into files…</b> to embed previously assigned AssetDEK tags as standard keywords in supported JPEG and PNG files. The batch previews which files are eligible or skipped, asks for confirmation, processes them one at a time, and provides progress and a completion summary. This is optional and doesn't embed your notes, favorites, locks, or display names. <a href="guide.html#saving-tags-into-image-files">Read the guide</a>.</p></details>
     <details><summary>Where are my favorites, notes and tags kept?</summary><p>For each writable library, required organizational records are transactionally stored in local AppData and that library's portable .assetdeck state. The Portable setting controls optional previews, indexes and caches only. AppData is recovery storage, not a backup of original images; keep separate backups of important files.</p></details>
     <details><summary>What can I see when a library is disconnected?</summary><p>The source remains listed so you can reconnect it, but its assets and folders do not appear in galleries, placeholders, cached previews, search or saved-search results. Saved searches keep their definitions and use only connected, validated sources. Reconnecting restores eligible results after validation and reconciliation.</p></details>
     <details><summary>Are previews originals?</summary><p>No. Generated previews are rebuildable display representations. For a connected, validated library, AssetDEK checks portable preview storage first, then AppData, then regenerates from the original. Open, Place and file operations require the live original.</p></details>
