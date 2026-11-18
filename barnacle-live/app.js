@@ -258,6 +258,8 @@ function renderAll(snap, connState = 'WAITING') {
     : '<tr><td colspan="7" class="muted">No matching real-money trades recorded yet.</td></tr>';
 }
 
+let lastPollOk = false;
+
 async function pollSnapshot() {
   if (!RELAY_URL) return;
   try {
@@ -265,12 +267,15 @@ async function pollSnapshot() {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const snap = await r.json();
     if (snap && snap.published_at_utc) {
+      lastPollOk = true;
       saveCached(snap);
       renderAll(snap, 'LIVE');
     } else {
+      lastPollOk = false;
       renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
     }
   } catch {
+    lastPollOk = false;
     renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
   }
 }
@@ -284,18 +289,19 @@ function connectStream() {
     es = new EventSource(`${RELAY_URL}/events`);
     es.onmessage = (ev) => {
       retryMs = 2000;
+      lastPollOk = true;
       const snap = JSON.parse(ev.data);
       saveCached(snap);
       renderAll(snap, 'LIVE');
     };
     es.onerror = () => {
-      renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
+      if (!lastPollOk) renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
       es.close();
       setTimeout(connectStream, retryMs);
       retryMs = Math.min(30000, retryMs * 2);
     };
   } catch {
-    renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
+    if (!lastPollOk) renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
   }
 }
 
