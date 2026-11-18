@@ -92,31 +92,27 @@
       <article class="panel">
         <div class="panel-head">
           <div>
-            <h2 id="viz-title">BTC / ETH Signal Geometry</h2>
-            <p class="muted">Non-geographic market telemetry (favorite proxy vs. spread &amp; 5m volatility).</p>
-          </div>
-          <div class="view-toggle" role="group" aria-label="Market view">
-            <button id="viz-crypto" class="toggle-btn active" type="button">BTC / ETH</button>
-            <button id="viz-geo" class="toggle-btn" type="button">Geo Map</button>
+            <h2 id="viz-title">Experiment Status &amp; 24h Checkpoint</h2>
+            <p class="muted">Four-account live vs. simulated performance summary (completed trades only).</p>
           </div>
         </div>
         <div id="market-viz" class="chart-box"></div>
       </article>
     </section>
 
-    <!-- 4. Clickable Bet Cards & Live Activity Feed -->
+    <!-- 4. Clickable Settled Trades & Settled Activity Feed -->
     <section class="split-grid">
       <article class="panel">
         <div class="panel-head">
-          <h2>Active &amp; Settled Bets</h2>
-          <span class="muted">Tap any bet card to inspect execution trace</span>
+          <h2>Completed &amp; Settled Real Trades</h2>
+          <span class="muted">Displayed only after settlement (open positions kept private)</span>
         </div>
         <div id="bet-cards" class="bet-list"></div>
       </article>
 
       <article class="panel">
         <div class="panel-head">
-          <h2>Live Activity Feed</h2>
+          <h2>Settled Activity Feed</h2>
           <span id="feed-delay" class="muted">Public delay: 60s</span>
         </div>
         <div id="activity-feed" class="feed-list"></div>
@@ -127,17 +123,14 @@
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2>Trade &amp; Signal Explorer</h2>
-          <p class="muted">Searchable history across qualifying signals, fills, settlements, and exits.</p>
+          <h2>Settled Trade Explorer</h2>
+          <p class="muted">Completed &amp; settled real-money results (P&amp;L and fees).</p>
         </div>
         <div class="filters">
           <input id="filter-q" type="search" placeholder="Filter ticker…" aria-label="Filter ticker">
           <select id="filter-status" aria-label="Filter status">
-            <option value="">All statuses</option>
-            <option value="filled">Filled</option>
-            <option value="resting">Resting</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="blocked">Blocked</option>
+            <option value="">All results</option>
+            <option value="settled">Settled</option>
           </select>
         </div>
       </div>

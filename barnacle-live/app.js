@@ -162,32 +162,23 @@ function renderThreeAccounts(snap) {
       <div class="kpi-head"><b>${a.label}</b><span class="tag ${a.kind === 'REAL' ? 'real' : 'info'}">${a.kind === 'REAL' ? 'REAL' : 'PAPER SIM'}</span></div>
       <div class="kpi-val mono">${fmtUsd((a.equity_cents || 0) / 100)}</div>
       <div class="kpi-sub">P&amp;L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} (${Number(a.return_pct || 0) >= 0 ? '+' : ''}${Number(a.return_pct || 0).toFixed(2)}%)</div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Trades: ${a.trades_count ?? 0} · Fees: ${fmtUsd((a.fees_cents || 0) / 100)} · Cycles: ${a.compounding_cycles ?? 0}</div>
-      <div class="muted" style="font-size:11px">Open: ${a.open_positions ?? 0} · Max DD: ${fmtUsd((a.max_drawdown_cents || 0) / 100)} · Missed Cap: ${a.missed_bankroll_count ?? 0}</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Trades: ${a.trades_count ?? 0} · Closed: ${a.closed_trades ?? 0} · Fees: ${fmtUsd((a.fees_cents || 0) / 100)}</div>
+      <div class="muted" style="font-size:11px">Open Positions: ${a.open_positions ?? 0} · Max DD: ${fmtUsd((a.max_drawdown_cents || 0) / 100)}</div>
     </div>`).join('');
 }
 
 function renderMarketViz(snap) {
   const box = $('market-viz');
-  if (vizMode === 'geo') {
-    const pins = snap.geo_markets || [];
-    if (!pins.length) {
-      box.innerHTML = '<div class="muted">No location-based markets (e.g. Weather) active in Live Run #001 yet. Current scope is BTC/ETH; geographic pins appear only for genuinely location-based contracts.</div>';
-      return;
-    }
-    box.innerHTML = `<svg viewBox="0 0 500 200" style="width:100%;height:190px"><rect x="10" y="15" width="480" height="170" rx="12" fill="rgba(56,189,248,0.05)" stroke="rgba(148,163,184,0.2)"/>${pins.map(p => `<circle cx="${p.x || 250}" cy="${p.y || 100}" r="6" fill="#38bdf8"><title>${p.label || p.ticker}</title></circle>`).join('')}</svg>`;
-    return;
-  }
-  const cm = snap.crypto_markets || [];
-  if (!cm.length) {
-    box.innerHTML = '<div class="muted">Waiting for live BTC/ETH signal telemetry. Displays favorite proxy (&ge;0.88) vs. spread (&le;0.04) and 5m volatility (&le;0.01).</div>';
-    return;
-  }
-  box.innerHTML = `<div style="width:100%;display:grid;gap:6px">${cm.slice(0, 5).map(m =>
-    `<div style="display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid rgba(148,163,184,.12);padding:4px 0">
-      <span class="mono"><b>${m.ticker}</b></span>
-      <span class="muted">fav ${m.favorite_proxy != null ? Number(m.favorite_proxy).toFixed(3) : '–'} · spr ${m.spread != null ? Number(m.spread).toFixed(3) : '–'} · std ${m.mid_std_5m != null ? Number(m.mid_std_5m).toFixed(4) : '–'}</span>
-    </div>`).join('')}</div>`;
+  const m = snap?.metrics || {};
+  const run = snap?.run || {};
+  const accts = snap?.three_accounts?.accounts || [];
+  const totalOpen = accts.reduce((acc, a) => acc + Number(a.open_positions || 0), 0);
+  const totalTrades = accts.reduce((acc, a) => acc + Number(a.trades_count || 0), 0);
+  box.innerHTML = `<div style="width:100%;display:grid;gap:8px;font-size:13px">
+    <div><b>Experiment Status:</b> ${snap?.barnacle_status || 'STANDBY'} · <b>24h Clock:</b> ${run.first_fill_ts ? fmtEt(run.first_fill_ts) : 'Awaiting first settled checkpoint'}</div>
+    <div><b>Total Trades Across 4 Accounts:</b> ${totalTrades} · <b>Total Open Positions:</b> ${totalOpen} (details kept private until settlement)</div>
+    <div class="muted">Strategy thresholds, scoring formulas, open market selections, and rejected/missed opportunities are intentionally omitted from the public feed.</div>
+  </div>`;
 }
 
 function openBetModal(bet) {
@@ -216,8 +207,8 @@ function renderAll(snap, connState = 'WAITING') {
   } : (snap.metrics || {});
 
   $('run-title').textContent = run.title || 'Strategy Discovery — Live Run #001';
-  $('run-subtitle').textContent = run.subtitle || 'From $5 to wherever discovery takes us.';
-  const authUsd = m.authorized_bankroll_usd ?? m.initial_capital_usd ?? 5.0;
+  const authUsd = m.authorized_bankroll_usd ?? 25.0;
+  $('run-subtitle').textContent = `Authorized Live Capital: ${fmtUsd(authUsd)} · Four-Account Controlled Comparison`;
   const walletTxt = m.verified_kalshi_wallet_usd != null ? fmtUsd(m.verified_kalshi_wallet_usd) : '–';
   const propTxt = m.proposed_allocation_usd != null ? `Pending Approval: ${fmtUsd(m.proposed_allocation_usd)}` : `Contributions: ${fmtUsd(m.contributions_usd)}`;
   $('kpi-init').textContent = fmtUsd(authUsd);
@@ -260,50 +251,40 @@ function renderAll(snap, connState = 'WAITING') {
   renderBankrollChart(snap);
   renderMarketViz(snap);
 
-  // Bets
+  // Bets (settled only)
   const betsBox = $('bet-cards');
-  const bets = snap.bets || [];
+  const bets = (snap.bets || []).filter(b => b.status === 'settled');
   betsBox.innerHTML = '';
   if (!bets.length) {
-    betsBox.innerHTML = '<div class="muted">No real-money bets placed yet. Honest waiting state.</div>';
+    betsBox.innerHTML = '<div class="muted">No settled real-money trades yet. Active positions are kept private until settlement.</div>';
   } else {
     bets.forEach(b => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'bet-card';
-      btn.innerHTML = `<div style="display:flex;justify-content:space-between"><b>${b.ticker}</b><span class="pill">${b.status}</span></div><div class="muted">${b.description} · Implied ${b.implied_odds_pct}%</div>`;
+      btn.innerHTML = `<div style="display:flex;justify-content:space-between"><b>${b.ticker}</b><span class="pill">${b.result || 'SETTLED'}</span></div><div class="muted">${b.description}</div>`;
       btn.onclick = () => openBetModal(b);
       betsBox.append(btn);
     });
   }
 
-  // Unified Chronological Feed (REAL vs PAPER) + clickable 3-account signal comparisons
+  // Settled Activity Feed (REAL vs PAPER)
   const feedBox = $('activity-feed');
-  const unifiedFeed = (snap.three_accounts?.activity_feed || []).length
-    ? snap.three_accounts.activity_feed
-    : (snap.feed || []).map(f => ({ ...f, account: 'LIVE', kind: 'REAL', outcome: f.kind }));
-  const comps = snap.three_accounts?.signal_comparisons || [];
+  const unifiedFeed = (snap.three_accounts?.activity_feed || []).filter(f => f.outcome === 'settled');
   feedBox.innerHTML = unifiedFeed.length
     ? unifiedFeed.slice(0, 20).map(f => {
         const tag = `<span class="tag ${f.kind === 'REAL' ? 'real' : 'info'}" style="font-size:10px;margin-right:6px">${f.kind}</span>`;
-        return `<div class="feed-item" style="cursor:pointer" data-sig="${f.ticker || ''}"><div style="display:flex;justify-content:space-between"><span>${tag}<b>${f.account || 'LIVE'} · ${f.ticker}</b></span><span class="muted">${fmtEt(f.ts)}</span></div><div class="muted">${f.outcome || f.kind} · ${f.reason}</div></div>`;
+        return `<div class="feed-item"><div style="display:flex;justify-content:space-between"><span>${tag}<b>${f.account || 'LIVE'} · ${f.ticker}</b></span><span class="muted">${fmtEt(f.ts)}</span></div><div class="muted">${f.reason}</div></div>`;
       }).join('')
-    : '<div class="muted">No delayed public events received yet.</div>';
-  feedBox.querySelectorAll('[data-sig]').forEach(el => {
-    el.onclick = () => {
-      const tk = el.getAttribute('data-sig');
-      const cmp = comps.find(c => c.ticker === tk) || { ticker: tk, note: 'Single-account event' };
-      openBetModal({ ticker: `3-Account Comparison: ${tk}`, description: 'Side-by-side LIVE vs SHADOW $100 vs SHADOW $1,000', ...cmp });
-    };
-  });
+    : '<div class="muted">No settled public events yet. Active positions are kept private until settlement.</div>';
 
-  // Explorer table
+  // Explorer table (settled only)
   const q = $('filter-q').value.trim().toLowerCase();
   const st = $('filter-status').value;
   const rows = bets.filter(b => (!q || b.ticker.toLowerCase().includes(q)) && (!st || b.status === st));
   $('explorer-body').innerHTML = rows.length
-    ? rows.map(b => `<tr><td>${fmtEt(b.ts)}</td><td class="mono">${b.ticker}</td><td>${b.side}</td><td>${b.entry_cents}¢</td><td>${b.implied_odds_pct}%</td><td>${b.status}</td><td>$${Number(b.fee_usd || 0).toFixed(2)}</td></tr>`).join('')
-    : '<tr><td colspan="7" class="muted">No matching real-money trades recorded yet.</td></tr>';
+    ? rows.map(b => `<tr><td>${fmtEt(b.ts)}</td><td class="mono">${b.ticker}</td><td>–</td><td>–</td><td>–</td><td>${b.result || b.status}</td><td>$${Number(b.fee_usd || 0).toFixed(2)}</td></tr>`).join('')
+    : '<tr><td colspan="7" class="muted">No settled real-money trades recorded yet.</td></tr>';
 }
 
 let lastPollOk = false;
@@ -363,8 +344,6 @@ $('line-live').onclick = () => { showLines.live_25 = !showLines.live_25; $('line
 $('line-s25').onclick = () => { showLines.shadow_25 = !showLines.shadow_25; $('line-s25').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('line-s100').onclick = () => { showLines.shadow_100 = !showLines.shadow_100; $('line-s100').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('line-s1000').onclick = () => { showLines.shadow_1000 = !showLines.shadow_1000; $('line-s1000').classList.toggle('active'); renderBankrollChart(currentSnap); };
-$('viz-crypto').onclick = () => { vizMode = 'crypto'; $('viz-crypto').classList.add('active'); $('viz-geo').classList.remove('active'); renderMarketViz(currentSnap); };
-$('viz-geo').onclick = () => { vizMode = 'geo'; $('viz-geo').classList.add('active'); $('viz-crypto').classList.remove('active'); renderMarketViz(currentSnap); };
 $('filter-q').oninput = () => renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING');
 $('filter-status').onchange = () => renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING');
 $('modal-close').onclick = () => $('trace-modal').close();
