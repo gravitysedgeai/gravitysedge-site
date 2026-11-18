@@ -122,9 +122,9 @@ function renderBankrollChart(snap) {
     const pts = sp.raw.map(p => ({ x: xOf(p.ts), y: yOf(valOf(p, sp.init)), v: valOf(p, sp.init), p }));
     const d = pts.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`).join(' ');
     const dots = pts.map(pt => {
-      const cash = pt.p.cash_cents != null ? `Cash $${(pt.p.cash_cents/100).toFixed(2)}` : '';
-      const comm = pt.p.committed_cents != null ? ` · Committed $${(pt.p.committed_cents/100).toFixed(2)}` : '';
-      return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.8" fill="${sp.color}"><title>${sp.label}: ${chartUnit === 'pct' ? pt.v.toFixed(2)+'%' : '$'+pt.v.toFixed(2)} (${cash}${comm} · ${fmtEt(pt.p.ts)})</title></circle>`;
+      const cash = pt.p.cash_cents != null ? `Cash $${(pt.p.cash_cents / 100).toFixed(2)}` : '';
+      const comm = pt.p.committed_cents != null ? ` · Committed $${(pt.p.committed_cents / 100).toFixed(2)}` : '';
+      return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.8" fill="${sp.color}"><title>${sp.label}: ${chartUnit === 'pct' ? pt.v.toFixed(2) + '%' : '$' + pt.v.toFixed(2)} (${cash}${comm} · ${fmtEt(pt.p.ts)})</title></circle>`;
     }).join('');
     return `<path d="${d}" fill="none" stroke="${sp.color}" stroke-width="2.1"/>${dots}`;
   }).join('');
@@ -137,13 +137,13 @@ function renderBankrollChart(snap) {
 
   const unitLbl = chartUnit === 'pct' ? '%' : '$';
   const legend = [...plottable.map(s => `<span style="color:${s.color};margin-right:10px">● ${s.label} (${s.raw.length} pts)</span>`),
-    ...singleObs.map(s => `<span style="color:${s.color};margin-right:10px">○ ${s.label} (1 obs — insufficient history)</span>`)].join('');
+  ...singleObs.map(s => `<span style="color:${s.color};margin-right:10px">○ ${s.label} (1 obs — insufficient history)</span>`)].join('');
 
   box.innerHTML = `
     <div style="font-size:11px;margin-bottom:4px;display:flex;flex-wrap:wrap;gap:4px">${legend}</div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:190px">
-      <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="rgba(148,163,184,0.2)"/>
-      <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="rgba(148,163,184,0.2)"/>
+      <line x1="${pad}" y1="${h - pad}" x2="${w - pad}" y2="${h - pad}" stroke="rgba(148,163,184,0.2)"/>
+      <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h - pad}" stroke="rgba(148,163,184,0.2)"/>
       ${paths}${singleDots}
       <text x="${pad}" y="14" fill="#94a3b8" font-size="11">High ${unitLbl === '$' ? '$' : ''}${maxV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · Low ${unitLbl === '$' ? '$' : ''}${minV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · ${fmtEt(minT)} → ${fmtEt(maxT)}</text>
     </svg>`;
@@ -176,6 +176,7 @@ function renderThreeAccounts(snap) {
         <span class="muted">Available Cash</span><span class="mono">${fmtUsd((a.available_cents || 0) / 100)}</span>
         <span class="muted">Invested Balance</span><span class="mono">${fmtUsd((a.invested_cents || 0) / 100)}</span>
         <span class="muted">${valLabel}</span><span class="mono">${fmtUsd((a.position_value_cents ?? a.invested_cents ?? 0) / 100)}</span>
+        <span class="muted">Est. Net Sell Value</span><span class="mono">${a.net_sell_value_cents != null ? fmtUsd(a.net_sell_value_cents / 100) : '–'}</span>
         <span class="muted">Realized / Unrealized</span><span class="mono">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${fmtSignedUsd((a.unrealized_pnl_cents || 0) / 100)}</span>
       </div>
       <div class="muted" style="font-size:11px;margin-top:6px">Open: ${a.open_positions ?? 0} · Completed: ${a.closed_trades ?? 0} (${a.wins ?? 0}W/${a.losses ?? 0}L) · Fees: ${fmtUsd((a.fees_cents || 0) / 100)}</div>
@@ -239,7 +240,7 @@ function renderAll(snap, connState = 'WAITING') {
   if ($('kpi-avail')) $('kpi-avail').textContent = fmtUsd(availUsd);
   if ($('kpi-wallet')) $('kpi-wallet').textContent = `Kalshi Shard 2 · Combined Wallet: ${walletTxt}`;
   if ($('kpi-posval')) $('kpi-posval').textContent = fmtUsd(posValUsd);
-  if ($('kpi-invested')) $('kpi-invested').textContent = `Invested Cost: ${fmtUsd(invUsd)} · ${m.open_positions ?? 0} Open`;
+  if ($('kpi-invested')) $('kpi-invested').textContent = `Invested: ${fmtUsd(invUsd)} · Est. Net Sell: ${m.estimated_net_sell_usd != null ? fmtUsd(m.estimated_net_sell_usd) : '–'} · ${m.open_positions ?? 0} Open`;
   $('kpi-equity').textContent = fmtUsd(eqUsd);
   $('kpi-return').textContent = `Cash + Position Value · Return: ${Number(m.return_pct_excl_deposits || 0) >= 0 ? '+' : ''}${Number(m.return_pct_excl_deposits || 0).toFixed(2)}%`;
   $('kpi-pnl').textContent = fmtSignedUsd(netPnlUsd);
@@ -253,7 +254,7 @@ function renderAll(snap, connState = 'WAITING') {
   const pubSt = snap.publisher_status || 'DISABLED';
   const effState = connState === 'OFFLINE' ? 'OFFLINE'
     : (!pubTs || pubSt === 'DISABLED' || (feedAgeS != null && feedAgeS > 180)) ? 'STALE'
-    : 'ONLINE';
+      : 'ONLINE';
   $('chart-asof').textContent = snap.published_at_utc ? `As of ${snap.published_at_utc} (${feedAgeS}s ago)` : 'Awaiting live feed';
   $('last-verified').textContent = `Publisher: ${pubSt} · Last Published: ${fmtEt(snap.last_published_ts || pubTs)} · Source Event: ${fmtEt(snap.source_event_ts)} · Feed Age: ${feedAgeS != null ? feedAgeS + 's' : '–'}`;
 
@@ -294,6 +295,8 @@ function renderAll(snap, connState = 'WAITING') {
         btn.className = 'bet-card';
         const isReal = p.kind === 'REAL' || p.account_id === 'live_25';
         const valTxt = p.current_value_usd != null ? fmtUsd(p.current_value_usd) : 'Cost Basis (No Quote)';
+        const sellTxt = p.estimated_net_sell_usd != null ? fmtUsd(p.estimated_net_sell_usd) : '–';
+        const sellPnlTxt = p.sell_pnl_usd != null ? fmtSignedUsd(p.sell_pnl_usd) : '–';
         const uTxt = p.unrealized_pnl_usd != null ? fmtSignedUsd(p.unrealized_pnl_usd) : '–';
         btn.innerHTML = `
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
@@ -303,6 +306,9 @@ function renderAll(snap, connState = 'WAITING') {
           <div class="muted" style="font-size:11px;margin-top:2px">${p.event_title || ''}</div>
           <div class="muted" style="font-size:12px;margin-top:4px">
             Entry: ${p.entry_price_cents != null ? p.entry_price_cents + '¢' : '–'} · Invested: ${fmtUsd(p.invested_usd)} · Cur Value: ${valTxt} · Unrealized: ${uTxt}
+          </div>
+          <div class="muted" style="font-size:11px;margin-top:2px">
+            Est. Net Sell (hypothetical): ${sellTxt} (${sellPnlTxt})
           </div>`;
         btn.onclick = () => openBetModal(p);
         openBox.append(btn);
@@ -347,15 +353,18 @@ function renderAll(snap, connState = 'WAITING') {
   });
   $('explorer-body').innerHTML = rows.length
     ? rows.map(b => {
-        const isOpen = String(b.status || '').toUpperCase() === 'OPEN';
-        const isReal = b.kind === 'REAL' || b.account_id === 'live_25';
-        const curOrUnreal = isOpen
-          ? `${b.current_value_usd != null ? fmtUsd(b.current_value_usd) : 'No Quote'} (${b.unrealized_pnl_usd != null ? fmtSignedUsd(b.unrealized_pnl_usd) : '–'})`
-          : 'Settled';
-        const statusOrRealized = isOpen
-          ? `OPEN · Fee $${Number(b.fee_usd || 0).toFixed(2)}`
-          : `${b.result || b.status} · ${fmtSignedUsd(b.realized_net_usd ?? b.net_pnl_usd ?? 0)}`;
-        return `<tr>
+      const isOpen = String(b.status || '').toUpperCase() === 'OPEN';
+      const isReal = b.kind === 'REAL' || b.account_id === 'live_25';
+      const curOrUnreal = isOpen
+        ? `${b.current_value_usd != null ? fmtUsd(b.current_value_usd) : 'No Quote'} (${b.unrealized_pnl_usd != null ? fmtSignedUsd(b.unrealized_pnl_usd) : '–'})`
+        : 'Settled';
+      const sellCol = isOpen
+        ? `${b.estimated_net_sell_usd != null ? fmtUsd(b.estimated_net_sell_usd) : '–'} (${b.sell_pnl_usd != null ? fmtSignedUsd(b.sell_pnl_usd) : '–'})`
+        : '—';
+      const statusOrRealized = isOpen
+        ? `OPEN · Fee $${Number(b.fee_usd || 0).toFixed(2)}`
+        : `${b.result || b.status} · ${fmtSignedUsd(b.realized_net_usd ?? b.net_pnl_usd ?? 0)}`;
+      return `<tr>
           <td>${fmtEt(b.opened_ts || b.ts)}</td>
           <td><span class="tag ${isReal ? 'real' : 'info'}" style="font-size:10px">${b.account_label || 'LIVE $25'}</span></td>
           <td><div class="mono">${b.ticker}</div><div class="muted" style="font-size:11px">${b.event_title || ''}</div></td>
@@ -364,10 +373,11 @@ function renderAll(snap, connState = 'WAITING') {
           <td>${b.entry_price_cents != null ? b.entry_price_cents + '¢' : '–'}</td>
           <td class="mono">${fmtUsd(b.invested_usd)}</td>
           <td class="mono">${curOrUnreal}</td>
+          <td class="mono">${sellCol}</td>
           <td>${statusOrRealized}</td>
         </tr>`;
-      }).join('')
-    : '<tr><td colspan="9" class="muted">No purchases or holdings match the current filter.</td></tr>';
+    }).join('')
+    : '<tr><td colspan="10" class="muted">No purchases or holdings match the current filter.</td></tr>';
 }
 
 let lastPollOk = false;
@@ -419,7 +429,7 @@ function connectStream() {
 
 $('btn-24h').onclick = () => { viewMode = 'first_24h'; $('btn-24h').classList.add('active'); $('btn-life').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
 $('btn-life').onclick = () => { viewMode = 'lifetime'; $('btn-life').classList.add('active'); $('btn-24h').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
-const setUnit = (u, btn) => { chartUnit = u; ['unit-pct', 'unit-pnl', 'unit-usd'].forEach(id => $(id).classList.remove('active')); btn.classList.add('active'); renderBankrollChart(currentSnap); };
+const setUnit = (u, btn) => { chartUnit = u;['unit-pct', 'unit-pnl', 'unit-usd'].forEach(id => $(id).classList.remove('active')); btn.classList.add('active'); renderBankrollChart(currentSnap); };
 $('unit-pct').onclick = () => setUnit('pct', $('unit-pct'));
 $('unit-pnl').onclick = () => setUnit('pnl', $('unit-pnl'));
 $('unit-usd').onclick = () => setUnit('usd', $('unit-usd'));
