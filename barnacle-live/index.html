@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#070b14">
+  <title>Strategy Discovery — Live Run #001 | Barnacle</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="ambient-glow" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand-wrap">
+      <div class="brand-badge">RUN #001</div>
+      <div>
+        <h1 id="run-title">Strategy Discovery — Live Run #001</h1>
+        <p id="run-subtitle" class="subtitle">From $5 to wherever discovery takes us.</p>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <span id="conn-pill" class="pill warn">● WAITING FOR STREAM</span>
+      <span id="clock-pill" class="pill mono">24H CLOCK: STANDBY</span>
+      <div class="view-toggle" role="group" aria-label="Run timeframe">
+        <button id="btn-24h" class="toggle-btn" type="button">First 24 Hours</button>
+        <button id="btn-life" class="toggle-btn active" type="button">Lifetime Live Run</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 1. Truth & Waiting / Offline Banner -->
+    <section id="truth-banner" class="banner" role="status"></section>
+
+    <!-- 2. $5 Experiment KPIs -->
+    <section class="kpi-grid" aria-label="Strategy Equity and Performance">
+      <article class="kpi-card">
+        <div class="kpi-head"><span>Initial Capital</span><span class="tag real">REAL</span></div>
+        <div id="kpi-init" class="kpi-val mono">$5.00</div>
+        <div id="kpi-contrib" class="kpi-sub">Contributions: $5.00</div>
+      </article>
+      <article class="kpi-card highlight">
+        <div class="kpi-head"><span>Verified Equity</span><span class="tag real">REAL</span></div>
+        <div id="kpi-equity" class="kpi-val mono">$5.00</div>
+        <div id="kpi-return" class="kpi-sub">Return excl. deposits: +0.00%</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-head"><span>Realized Net P&amp;L</span><span class="tag real">REAL</span></div>
+        <div id="kpi-pnl" class="kpi-val mono">$0.00</div>
+        <div id="kpi-unrealized" class="kpi-sub">Unrealized: Not Recorded</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-head"><span>Record &amp; Fees</span><span class="tag real">EXCHANGE</span></div>
+        <div id="kpi-record" class="kpi-val mono">0W / 0L</div>
+        <div id="kpi-fees" class="kpi-sub">Total fees: $0.00</div>
+      </article>
+    </section>
+
+    <!-- 3. Interactive Bankroll Chart + Market Relationship / Geo Visualization -->
+    <section class="split-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Bankroll Progression</h2>
+            <p class="muted">Exchange-confirmed events only. Deposits separated from trading profits.</p>
+          </div>
+          <span id="chart-asof" class="mono muted">–</span>
+        </div>
+        <div id="bankroll-chart" class="chart-box"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="viz-title">BTC / ETH Signal Geometry</h2>
+            <p class="muted">Non-geographic market telemetry (favorite proxy vs. spread &amp; 5m volatility).</p>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Market view">
+            <button id="viz-crypto" class="toggle-btn active" type="button">BTC / ETH</button>
+            <button id="viz-geo" class="toggle-btn" type="button">Geo Map</button>
+          </div>
+        </div>
+        <div id="market-viz" class="chart-box"></div>
+      </article>
+    </section>
+
+    <!-- 4. Clickable Bet Cards & Live Activity Feed -->
+    <section class="split-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Active &amp; Settled Bets</h2>
+          <span class="muted">Tap any bet card to inspect execution trace</span>
+        </div>
+        <div id="bet-cards" class="bet-list"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Live Activity Feed</h2>
+          <span id="feed-delay" class="muted">Public delay: 60s</span>
+        </div>
+        <div id="activity-feed" class="feed-list"></div>
+      </article>
+    </section>
+
+    <!-- 5. Complete Trade-History Explorer -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Trade &amp; Signal Explorer</h2>
+          <p class="muted">Searchable history across qualifying signals, fills, settlements, and exits.</p>
+        </div>
+        <div class="filters">
+          <input id="filter-q" type="search" placeholder="Filter ticker…" aria-label="Filter ticker">
+          <select id="filter-status" aria-label="Filter status">
+            <option value="">All statuses</option>
+            <option value="filled">Filled</option>
+            <option value="resting">Resting</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="blocked">Blocked</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Ticker</th><th>Side</th><th>Entry</th><th>Implied Odds</th><th>Status</th><th>Fee</th>
+            </tr>
+          </thead>
+          <tbody id="explorer-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Honest Experiment Explainer -->
+    <section class="panel explainer">
+      <h2>About Live Run #001 · Paper vs. Real Execution</h2>
+      <div class="explainer-grid">
+        <div>
+          <h3>Why $5?</h3>
+          <p>Barnacle's frozen paper strategy (<code>xp_b8f53a9912 v1</code>) achieved strong simulated results. Live Run #001 tests whether that edge survives real Kalshi order books, queue priority, exchange fees, and $5 capital constraints.</p>
+        </div>
+        <div>
+          <h3>Paper vs. Real</h3>
+          <p>Paper trades simulate fills against displayed quotes. Real trades require resting or crossing live liquidity, paying actual exchange fees, and reconciling real cash balances—never interpolated or backfilled.</p>
+        </div>
+        <div>
+          <h3>Display-Only &amp; Safe</h3>
+          <p>This public terminal has zero trading controls, zero API keys, and zero inbound connection to Barnacle. Updates arrive via a sanitized, delayed outbound feed.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="trace-modal" class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">Bet Detail</h3>
+      <button id="modal-close" class="toggle-btn" type="button">Close</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </dialog>
+
+  <footer class="foot">
+    <span>Barnacle Public Display · Strategy Discovery — Live Run #001</span>
+    <span id="last-verified">Last verified update: —</span>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
