@@ -2,184 +2,166 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#070b14">
-  <title>Strategy Discovery — Live Run #001 | Barnacle</title>
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Barnacle Live Run #001 — Real vs. Shadow Portfolio Dashboard</title>
+  <meta name="description" content="Live read-only portfolio scoreboard, equity graphs, open holdings, and settled trades for Barnacle Live Run #001.">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="ambient-glow" aria-hidden="true"></div>
+  <div class="ambient-glow"></div>
+
   <header class="topbar">
     <div class="brand-wrap">
-      <div class="brand-badge">RUN #001</div>
+      <div class="brand-badge">LIVE RUN #001</div>
       <div>
-        <h1 id="run-title">Strategy Discovery — Live Run #001</h1>
-        <p id="run-subtitle" class="subtitle">Authorized Live Capital: $25.00 · Four-Account Controlled Comparison</p>
+        <h1 id="run-title">Barnacle Live Portfolio Monitor</h1>
+        <p id="run-subtitle" class="subtitle">Real Kalshi Shard 2 ($25.00) vs. Three Independent Shadow Controls ($25 / $100 / $1,000)</p>
       </div>
     </div>
     <div class="status-cluster">
-      <span id="conn-pill" class="pill warn">● WAITING FOR STREAM</span>
-      <span id="clock-pill" class="pill mono">24H CLOCK: STANDBY</span>
-      <div class="view-toggle" role="group" aria-label="Run timeframe">
-        <button id="btn-24h" class="toggle-btn" type="button">First 24 Hours</button>
-        <button id="btn-life" class="toggle-btn active" type="button">Lifetime Live Run</button>
-      </div>
+      <span id="conn-pill" class="pill warn">● CONNECTING</span>
+      <span id="armed-pill" class="pill warn">LIVE TRADING: –</span>
+      <span id="clock-pill" class="pill mono">24H CLOCK: –</span>
+      <span id="age-pill" class="pill mono">AGE: –</span>
     </div>
   </header>
 
   <main class="container">
-    <!-- 1. Truth & Waiting / Offline Banner -->
-    <section id="truth-banner" class="banner" role="status"></section>
+    <section id="truth-banner" class="banner" role="status">Connecting to Barnacle live relay…</section>
 
-    <!-- 2. Live Experiment KPIs -->
-    <section class="kpi-grid" aria-label="Strategy Equity and Performance">
-      <article class="kpi-card">
-        <div class="kpi-head"><span>Starting Capital</span><span class="tag real">ALLOCATION</span></div>
-        <div id="kpi-init" class="kpi-val mono">$25.00</div>
-        <div id="kpi-contrib" class="kpi-sub">Original Allocation · Excluded Cash: $0.58</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-head"><span>Available Balance</span><span class="tag real">CASH</span></div>
-        <div id="kpi-avail" class="kpi-val mono">$25.00</div>
-        <div id="kpi-wallet" class="kpi-sub">Kalshi Shard 2 · Wallet: –</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-head"><span>Open Position Value</span><span class="tag real">PORTFOLIO</span></div>
-        <div id="kpi-posval" class="kpi-val mono">$0.00</div>
-        <div id="kpi-invested" class="kpi-sub">Invested Cost: $0.00 · 0 Open</div>
-      </article>
-      <article class="kpi-card highlight">
-        <div class="kpi-head"><span>Total Equity</span><span class="tag real">REAL</span></div>
-        <div id="kpi-equity" class="kpi-val mono">$25.00</div>
-        <div id="kpi-return" class="kpi-sub">Cash + Portfolio · Return: +0.00%</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-head"><span>Net Profit / Loss</span><span class="tag real">REAL</span></div>
-        <div id="kpi-pnl" class="kpi-val mono">$0.00</div>
-        <div id="kpi-unrealized" class="kpi-sub">Realized: $0.00 · Unrealized: $0.00</div>
-      </article>
-      <article class="kpi-card">
-        <div class="kpi-head"><span>Record &amp; Fees</span><span class="tag real">EXCHANGE</span></div>
-        <div id="kpi-record" class="kpi-val mono">0W / 0L</div>
-        <div id="kpi-fees" class="kpi-sub">Total fees: $0.00</div>
-      </article>
+    <!-- 1. FOUR-ACCOUNT SCOREBOARD AT THE TOP -->
+    <section aria-label="Four-Account Scoreboard">
+      <div id="scoreboard-grid" class="scoreboard-grid"></div>
     </section>
 
-    <!-- 2b. Four-Account Comparison Cards -->
-    <section class="panel" id="three-accounts-panel">
+    <!-- 2. FOUR-ACCOUNT PERFORMANCE GRAPH -->
+    <section class="panel" aria-label="Four-Account Performance Graph">
       <div class="panel-head">
         <div>
-          <h2>Four-Account Balance &amp; Performance Comparison</h2>
-          <p class="muted">Consistent accounting across LIVE $25 (reconciled Kalshi shard 2) and SHADOW $25, $100, $1,000 (independent paper ledgers).</p>
+          <h2>Four-Account Performance Graph</h2>
+          <p class="muted">Solid line = REAL money · Dashed lines = SIMULATED paper. Percentage mode normalizes every account to its own starting bankroll.</p>
         </div>
-        <span class="tag info">REAL vs PAPER</span>
-      </div>
-      <div id="three-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px"></div>
-    </section>
-
-    <!-- 3. Interactive Bankroll Chart + Market Relationship / Geo Visualization -->
-    <section class="split-grid">
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <h2>Four-Account Performance Chart</h2>
-            <p class="muted">Exchange-confirmed Live vs. order-book simulated Shadow accounts. Deposits separated from trading profits.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <div class="view-toggle" role="group" aria-label="Chart Metric">
+            <button id="unit-pct" class="toggle-btn active" type="button">% Return</button>
+            <button id="unit-usd" class="toggle-btn" type="button">$ Equity</button>
+            <button id="unit-pnl" class="toggle-btn" type="button">$ Net P&amp;L</button>
           </div>
-          <div class="view-toggle" style="flex-wrap:wrap;gap:4px">
-            <button id="unit-pct" class="toggle-btn active" type="button">% Ret</button>
-            <button id="unit-pnl" class="toggle-btn" type="button">$ P&amp;L</button>
-            <button id="unit-usd" class="toggle-btn" type="button">$ Eq</button>
-            <button id="line-live" class="toggle-btn active" type="button">LIVE</button>
+          <div class="view-toggle" role="group" aria-label="Time Range">
+            <button id="range-1h" class="toggle-btn" type="button">1H</button>
+            <button id="range-6h" class="toggle-btn" type="button">6H</button>
+            <button id="range-24h" class="toggle-btn" type="button">24H</button>
+            <button id="range-all" class="toggle-btn active" type="button">ALL</button>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Toggle Accounts">
+            <button id="line-live" class="toggle-btn active" type="button">LIVE $25</button>
             <button id="line-s25" class="toggle-btn active" type="button">$25 Sim</button>
-            <button id="line-s100" class="toggle-btn active" type="button">$100</button>
-            <button id="line-s1000" class="toggle-btn active" type="button">$1k</button>
-            <span id="chart-asof" class="mono muted">–</span>
+            <button id="line-s100" class="toggle-btn active" type="button">$100 Sim</button>
+            <button id="line-s1000" class="toggle-btn active" type="button">$1k Sim</button>
           </div>
         </div>
-        <div id="bankroll-chart" class="chart-box"></div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <div>
-            <h2 id="viz-title">Experiment Status &amp; 24h Checkpoint</h2>
-            <p class="muted">Four-account live vs. simulated performance summary (completed trades only).</p>
-          </div>
-        </div>
-        <div id="market-viz" class="chart-box"></div>
-      </article>
+      </div>
+      <div class="chart-wrap">
+        <div id="chart-legend" class="chart-legend"></div>
+        <div id="bankroll-chart" style="position:relative;min-height:220px"></div>
+        <div id="chart-tooltip" class="chart-tooltip"></div>
+      </div>
     </section>
 
-    <!-- 4. Actual Open Positions & Completed Trades -->
-    <section class="split-grid">
-      <article class="panel">
-        <div class="panel-head">
-          <h2>Open Holdings (All 4 Accounts)</h2>
-          <span class="muted">Real exchange &amp; simulated holdings</span>
-        </div>
-        <div id="open-positions-cards" class="bet-list"></div>
-      </article>
-
-      <article class="panel">
-        <div class="panel-head">
-          <h2>Completed &amp; Settled Trades</h2>
-          <span id="feed-delay" class="muted">Public delay: 60s</span>
-        </div>
-        <div id="bet-cards" class="bet-list"></div>
-      </article>
-    </section>
-
-    <!-- 5. Complete Purchases & Holdings Explorer -->
-    <section class="panel">
+    <!-- 3. CURRENT HOLDINGS — ACTUAL PURCHASED TICKETS -->
+    <section class="panel" aria-label="Current Holdings">
       <div class="panel-head">
         <div>
-          <h2>Purchases &amp; Holdings Explorer (All 4 Accounts)</h2>
-          <p class="muted">Open holdings first, followed by completed trades. Actual purchases only — skipped/declined signals excluded.</p>
+          <h2>Current Holdings — Actual Purchased Tickets</h2>
+          <p id="holdings-summary" class="muted">Loading open positions…</p>
         </div>
         <div class="filters">
-          <input id="filter-q" type="search" placeholder="Filter market…" aria-label="Filter market">
-          <select id="filter-account" aria-label="Filter account">
-            <option value="">All accounts</option>
-            <option value="live_25">LIVE $25</option>
-            <option value="shadow_25">SHADOW $25</option>
-            <option value="shadow_100">SHADOW $100</option>
-            <option value="shadow_1000">SHADOW $1,000</option>
-          </select>
-          <select id="filter-status" aria-label="Filter status">
-            <option value="">Open + Completed</option>
-            <option value="OPEN">OPEN</option>
-            <option value="SETTLED">SETTLED</option>
-            <option value="SOLD">SOLD</option>
-          </select>
+          <div id="holdings-tabs" class="tabs-row" role="tablist">
+            <button class="tab-btn active" data-acct="" type="button">All</button>
+            <button class="tab-btn" data-acct="live_25" type="button">LIVE $25</button>
+            <button class="tab-btn" data-acct="shadow_25" type="button">SHADOW $25</button>
+            <button class="tab-btn" data-acct="shadow_100" type="button">SHADOW $100</button>
+            <button class="tab-btn" data-acct="shadow_1000" type="button">SHADOW $1,000</button>
+          </div>
+          <input id="holdings-q" type="search" placeholder="Filter ticket…" aria-label="Filter holdings">
         </div>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Time</th><th>Account</th><th>Market / Event</th><th>Side</th><th>Qty</th><th>Entry</th><th>Invested</th><th>Cur Value / Unrealized</th><th>Est. Net Sell (P&amp;L)</th><th>Status / Realized</th>
+              <th>Account</th>
+              <th>Market / Ticket</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Entry</th>
+              <th>Total Cost</th>
+              <th>Cur Value</th>
+              <th>Est. Net Sell</th>
+              <th>Unrealized P&amp;L</th>
+              <th>Purchased</th>
+              <th>Status</th>
             </tr>
           </thead>
-          <tbody id="explorer-body"></tbody>
+          <tbody id="holdings-body"></tbody>
         </table>
       </div>
     </section>
 
-    <!-- 6. Honest Experiment Explainer -->
-    <section class="panel explainer">
-      <h2>About Live Run #001 · Paper vs. Real Execution</h2>
+    <!-- 4. COMPLETED TRANSACTIONS LEDGER -->
+    <section class="panel" aria-label="Completed Transactions">
+      <div class="panel-head">
+        <div>
+          <h2>Completed Transactions Ledger</h2>
+          <p class="muted">Actual settled outcomes with entry cost, gross settlement payout, fees, and true NET profit/loss.</p>
+        </div>
+        <div class="filters">
+          <div id="completed-tabs" class="tabs-row" role="tablist">
+            <button class="tab-btn active" data-acct="" type="button">All</button>
+            <button class="tab-btn" data-acct="live_25" type="button">LIVE $25</button>
+            <button class="tab-btn" data-acct="shadow_25" type="button">SHADOW $25</button>
+            <button class="tab-btn" data-acct="shadow_100" type="button">SHADOW $100</button>
+            <button id="tab-s1000" class="tab-btn" data-acct="shadow_1000" type="button">SHADOW $1,000</button>
+          </div>
+          <input id="completed-q" type="search" placeholder="Filter ticket…" aria-label="Filter completed trades">
+        </div>
+      </div>
+      <div id="completed-summary" class="cum-strip"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Ticket Purchased</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Entry Cost</th>
+              <th>Payout</th>
+              <th>Fees</th>
+              <th>NET P&amp;L</th>
+              <th>Result</th>
+              <th>Settled</th>
+            </tr>
+          </thead>
+          <tbody id="completed-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. TRANSPARENCY FOOTER NOTE -->
+    <section class="panel">
       <div class="explainer-grid">
         <div>
-          <h3>Why $25?</h3>
-          <p>Barnacle's controlled baseline strategy achieved strong simulated results. Live Run #001 tests whether that edge survives real Kalshi order books, queue priority, exchange fees, and $25.00 live capital constraints alongside $25, $100, and $1,000 shadow controls.</p>
+          <h3>Real vs. Simulated</h3>
+          <p><b>LIVE $25 (REAL)</b> reflects reconciled Kalshi shard 2 cash (`$0.58` on shard 0 is excluded), actual fills, and exchange settlements. <b>SHADOW</b> accounts simulate order-book fills on independent ledgers.</p>
         </div>
         <div>
-          <h3>Paper vs. Real</h3>
-          <p>Paper trades simulate fills against displayed quotes. Real trades require resting or crossing live liquidity, paying actual exchange fees, and reconciling real cash balances—never interpolated or backfilled.</p>
+          <h3>Hypothetical Sell-Now Estimates</h3>
+          <p>Est. Net Sell Value walks live bid-side order-book depth minus estimated Kalshi taker fees. Barnacle holds to settlement; sell-now figures are informational only, never completed sales.</p>
         </div>
         <div>
-          <h3>Display-Only &amp; Safe</h3>
-          <p>This public terminal has zero trading controls, zero API keys, and zero inbound connection to Barnacle. Updates arrive via a sanitized, delayed outbound feed.</p>
+          <h3>Read-Only &amp; Sanitized</h3>
+          <p>No trading controls, API keys, skipped signals, or strategy thresholds are exposed. Updates stream via outbound snapshot relay.</p>
         </div>
       </div>
     </section>
@@ -187,17 +169,17 @@
 
   <dialog id="trace-modal" class="modal">
     <div class="modal-head">
-      <h3 id="modal-title">Bet Detail</h3>
+      <h3 id="modal-title" style="margin:0">Position Detail</h3>
       <button id="modal-close" class="toggle-btn" type="button">Close</button>
     </div>
-    <div id="modal-body" class="modal-body"></div>
+    <div id="modal-body"></div>
   </dialog>
 
   <footer class="foot">
-    <span>Barnacle Public Display · Strategy Discovery — Live Run #001</span>
-    <span id="last-verified">Last verified update: —</span>
+    <span id="last-verified">Last update: –</span>
+    <span class="mono">Barnacle Live Run #001 · Display-Only</span>
   </footer>
 
-  <script type="module" src="./app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
