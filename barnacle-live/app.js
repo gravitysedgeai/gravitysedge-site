@@ -6,8 +6,8 @@ const RELAY_URL = (params.get('relay') || 'https://barnacle-live-relay.gravityse
 const $ = (id) => document.getElementById(id);
 let viewMode = 'lifetime'; // 'first_24h' | 'lifetime'
 let vizMode = 'crypto';    // 'crypto' | 'geo'
-let chartUnit = 'usd';     // 'usd' | 'pct'
-let showLines = { live_25: true, shadow_100: true, shadow_1000: true };
+let chartUnit = 'pct';     // 'pct' | 'pnl' | 'usd'
+let showLines = { live_25: true, shadow_25: true, shadow_100: true, shadow_1000: true };
 let currentSnap = null;
 let es = null;
 let retryMs = 2000;
@@ -61,44 +61,92 @@ function renderBankrollChart(snap) {
   const seriesMap = ta.series || {};
   const accounts = ta.accounts || [];
   const lineSpecs = [
-    { key: 'live_25', label: 'LIVE (actual)', color: '#34d399', init: 500 },
-    { key: 'shadow_100', label: 'SHADOW $100 (sim)', color: '#38bdf8', init: 10000 },
-    { key: 'shadow_1000', label: 'SHADOW $1,000 (sim)', color: '#f59e0b', init: 100000 },
+    { key: 'live_25', label: 'LIVE (REAL)', color: '#34d399', init: 500 },
+    { key: 'shadow_25', label: 'SHADOW $25', color: '#a78bfa', init: 2500 },
+    { key: 'shadow_100', label: 'SHADOW $100', color: '#38bdf8', init: 10000 },
+    { key: 'shadow_1000', label: 'SHADOW $1,000', color: '#f59e0b', init: 100000 },
   ];
   accounts.forEach(a => {
     const sp = lineSpecs.find(x => x.key === a.account_id);
     if (sp && a.initial_cents) sp.init = a.initial_cents;
   });
-  const activeLines = lineSpecs.filter(sp => showLines[sp.key] && Array.isArray(seriesMap[sp.key]) && seriesMap[sp.key].length);
-  if (!activeLines.length) {
-    const series = snap?.bankroll_series || [];
-    if (!series.length) {
-      box.innerHTML = '<div class="muted">No exchange-confirmed or shadow bankroll events published yet. Chart updates automatically on fills &amp; settlements.</div>';
-      return;
-    }
-    activeLines.push({ key: '__legacy__', label: 'LIVE', color: '#34d399', init: 500, ptsRaw: series.map(p => ({ ts: p.ts, equity_cents: Number(p.equity_usd || 5) * 100, pnl_cents: Number(p.pnl_usd || 0) * 100 })) });
-  }
-  const w = 520, h = 195, pad = 30;
+
+  const activeSpecs = lineSpecs.filter(sp => showLines[sp.key]);
+  const plottable = [];
+  const singleObs = [];
+  const allTs = [];
   const allY = [];
-  activeLines.forEach(sp => {
-    const raw = sp.ptsRaw || seriesMap[sp.key] || [];
-    sp.vals = raw.map(p => chartUnit === 'pct' ? ((Number(p.pnl_cents || 0) / Math.max(1, sp.init)) * 100) : (Number(p.equity_cents || sp.init) / 100));
-    allY.push(...sp.vals);
+
+  activeSpecs.forEach(sp => {
+    const raw = (seriesMap[sp.key] || []).slice();
+    if (!raw.length) return;
+    if (raw.length === 1) {
+      singleObs.push({ ...sp, raw });
+    } else {
+      plottable.push({ ...sp, raw });
+    }
+    raw.forEach(p => {
+      if (p.ts != null) allTs.push(Number(p.ts));
+      const v = chartUnit === 'pct'
+        ? ((Number(p.pnl_cents || 0) / Math.max(1, sp.init)) * 100)
+        : chartUnit === 'pnl'
+          ? (Number(p.pnl_cents || 0) / 100)
+          : (Number(p.equity_cents ?? sp.init) / 100);
+      allY.push(v);
+    });
   });
-  const minV = Math.min(...allY), maxV = Math.max(...allY);
-  const span = Math.max(chartUnit === 'pct' ? 1.0 : 1.0, maxV - minV);
-  const paths = activeLines.map(sp => {
-    const vals = sp.vals;
-    const pts = vals.map((v, i) => ({
-      x: pad + (vals.length === 1 ? (w - 2 * pad) / 2 : (i / (vals.length - 1)) * (w - 2 * pad)),
-      y: h - pad - ((v - minV) / span) * (h - 2 * pad),
-    }));
-    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const dots = pts.map((p, i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${sp.color}"><title>${sp.label}: ${chartUnit === 'pct' ? vals[i].toFixed(2) + '%' : '$' + vals[i].toFixed(2)}</title></circle>`).join('');
+
+  if (!plottable.length && !singleObs.length) {
+    box.innerHTML = '<div class="muted">No exchange-confirmed or shadow bankroll events published yet.</div>';
+    return;
+  }
+
+  const w = 540, h = 195, pad = 32;
+  const minT = allTs.length ? Math.min(...allTs) : 0;
+  const maxT = allTs.length ? Math.max(...allTs) : 1;
+  const spanT = Math.max(1, maxT - minT);
+  const minV = allY.length ? Math.min(...allY) : 0;
+  const maxV = allY.length ? Math.max(...allY) : 1;
+  const spanV = Math.max(chartUnit === 'pct' ? 1.0 : 1.0, maxV - minV);
+
+  const valOf = (p, init) => chartUnit === 'pct'
+    ? ((Number(p.pnl_cents || 0) / Math.max(1, init)) * 100)
+    : chartUnit === 'pnl'
+      ? (Number(p.pnl_cents || 0) / 100)
+      : (Number(p.equity_cents ?? init) / 100);
+
+  const xOf = (t) => pad + ((Number(t) - minT) / spanT) * (w - 2 * pad);
+  const yOf = (v) => h - pad - ((v - minV) / spanV) * (h - 2 * pad);
+
+  const paths = plottable.map(sp => {
+    const pts = sp.raw.map(p => ({ x: xOf(p.ts), y: yOf(valOf(p, sp.init)), v: valOf(p, sp.init), p }));
+    const d = pts.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`).join(' ');
+    const dots = pts.map(pt => {
+      const cash = pt.p.cash_cents != null ? `Cash $${(pt.p.cash_cents/100).toFixed(2)}` : '';
+      const comm = pt.p.committed_cents != null ? ` · Committed $${(pt.p.committed_cents/100).toFixed(2)}` : '';
+      return `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="2.8" fill="${sp.color}"><title>${sp.label}: ${chartUnit === 'pct' ? pt.v.toFixed(2)+'%' : '$'+pt.v.toFixed(2)} (${cash}${comm} · ${fmtEt(pt.p.ts)})</title></circle>`;
+    }).join('');
     return `<path d="${d}" fill="none" stroke="${sp.color}" stroke-width="2.1"/>${dots}`;
   }).join('');
+
+  const singleDots = singleObs.map(sp => {
+    const p = sp.raw[0];
+    const v = valOf(p, sp.init);
+    return `<circle cx="${xOf(p.ts).toFixed(1)}" cy="${yOf(v).toFixed(1)}" r="4.5" fill="${sp.color}" stroke="#0b1220" stroke-width="1.5"><title>${sp.label}: Insufficient chart history (1 observation) @ ${fmtEt(p.ts)}</title></circle>`;
+  }).join('');
+
   const unitLbl = chartUnit === 'pct' ? '%' : '$';
-  box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:195px">${paths}<text x="${pad}" y="15" fill="#94a3b8" font-size="11">High ${unitLbl === '$' ? '$' : ''}${maxV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · Low ${unitLbl === '$' ? '$' : ''}${minV.toFixed(2)}${unitLbl === '%' ? '%' : ''}</text></svg>`;
+  const legend = [...plottable.map(s => `<span style="color:${s.color};margin-right:10px">● ${s.label} (${s.raw.length} pts)</span>`),
+    ...singleObs.map(s => `<span style="color:${s.color};margin-right:10px">○ ${s.label} (1 obs — insufficient history)</span>`)].join('');
+
+  box.innerHTML = `
+    <div style="font-size:11px;margin-bottom:4px;display:flex;flex-wrap:wrap;gap:4px">${legend}</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:190px">
+      <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="rgba(148,163,184,0.2)"/>
+      <line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="rgba(148,163,184,0.2)"/>
+      ${paths}${singleDots}
+      <text x="${pad}" y="14" fill="#94a3b8" font-size="11">High ${unitLbl === '$' ? '$' : ''}${maxV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · Low ${unitLbl === '$' ? '$' : ''}${minV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · ${fmtEt(minT)} → ${fmtEt(maxT)}</text>
+    </svg>`;
 }
 
 function renderThreeAccounts(snap) {
@@ -307,9 +355,12 @@ function connectStream() {
 
 $('btn-24h').onclick = () => { viewMode = 'first_24h'; $('btn-24h').classList.add('active'); $('btn-life').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
 $('btn-life').onclick = () => { viewMode = 'lifetime'; $('btn-life').classList.add('active'); $('btn-24h').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
-$('unit-usd').onclick = () => { chartUnit = 'usd'; $('unit-usd').classList.add('active'); $('unit-pct').classList.remove('active'); renderBankrollChart(currentSnap); };
-$('unit-pct').onclick = () => { chartUnit = 'pct'; $('unit-pct').classList.add('active'); $('unit-usd').classList.remove('active'); renderBankrollChart(currentSnap); };
+const setUnit = (u, btn) => { chartUnit = u; ['unit-pct', 'unit-pnl', 'unit-usd'].forEach(id => $(id).classList.remove('active')); btn.classList.add('active'); renderBankrollChart(currentSnap); };
+$('unit-pct').onclick = () => setUnit('pct', $('unit-pct'));
+$('unit-pnl').onclick = () => setUnit('pnl', $('unit-pnl'));
+$('unit-usd').onclick = () => setUnit('usd', $('unit-usd'));
 $('line-live').onclick = () => { showLines.live_25 = !showLines.live_25; $('line-live').classList.toggle('active'); renderBankrollChart(currentSnap); };
+$('line-s25').onclick = () => { showLines.shadow_25 = !showLines.shadow_25; $('line-s25').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('line-s100').onclick = () => { showLines.shadow_100 = !showLines.shadow_100; $('line-s100').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('line-s1000').onclick = () => { showLines.shadow_1000 = !showLines.shadow_1000; $('line-s1000').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('viz-crypto').onclick = () => { vizMode = 'crypto'; $('viz-crypto').classList.add('active'); $('viz-geo').classList.remove('active'); renderMarketViz(currentSnap); };
