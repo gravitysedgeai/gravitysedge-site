@@ -4,27 +4,31 @@
  */
 let latestSnapshot = null;
 const clients = new Set();
-const CACHE_KEY = "https://barnacle-live-relay.internal/latest-snapshot.json";
 
-async function saveSnap(snap) {
+function cacheUrl(requestUrl) {
+  const u = new URL("/__latest_snapshot.json", requestUrl);
+  return u.toString();
+}
+
+async function saveSnap(snap, requestUrl) {
   latestSnapshot = snap;
   try {
-    await caches.default.put(CACHE_KEY, new Response(JSON.stringify(snap), {
+    await caches.default.put(cacheUrl(requestUrl), new Response(JSON.stringify(snap), {
       headers: { "Content-Type": "application/json", "Cache-Control": "max-age=86400" },
     }));
   } catch {}
 }
 
-async function loadSnap() {
-  if (latestSnapshot) return latestSnapshot;
+async function loadSnap(requestUrl) {
+  let cached = null;
   try {
-    const hit = await caches.default.match(CACHE_KEY);
-    if (hit) {
-      latestSnapshot = await hit.json();
-      return latestSnapshot;
-    }
+    const hit = await caches.default.match(cacheUrl(requestUrl));
+    if (hit) cached = await hit.json();
   } catch {}
-  return null;
+  if (cached && (!latestSnapshot || Number(cached.event_id || 0) >= Number(latestSnapshot.event_id || 0))) {
+    latestSnapshot = cached;
+  }
+  return latestSnapshot;
 }
 
 const CORS = {
@@ -46,7 +50,7 @@ export default {
         }
       }
       const snap = await request.json();
-      await saveSnap(snap);
+      await saveSnap(snap, request.url);
       const payload = `id: ${snap.event_id || Date.now()}\ndata: ${JSON.stringify(snap)}\n\n`;
       const enc = new TextEncoder().encode(payload);
       for (const ctrl of clients) {
@@ -56,14 +60,14 @@ export default {
     }
 
     if (url.pathname === "/snapshot" && request.method === "GET") {
-      const snap = await loadSnap();
+      const snap = await loadSnap(request.url);
       return new Response(JSON.stringify(snap || { barnacle_status: "OFFLINE", published_at_utc: null }), {
         headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
       });
     }
 
     if (url.pathname === "/events" && request.method === "GET") {
-      const snap = await loadSnap();
+      const snap = await loadSnap(request.url);
       let ctrlRef;
       const stream = new ReadableStream({
         start(controller) {
