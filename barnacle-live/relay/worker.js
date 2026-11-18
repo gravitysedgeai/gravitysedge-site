@@ -4,6 +4,28 @@
  */
 let latestSnapshot = null;
 const clients = new Set();
+const CACHE_KEY = "https://barnacle-live-relay.internal/latest-snapshot.json";
+
+async function saveSnap(snap) {
+  latestSnapshot = snap;
+  try {
+    await caches.default.put(CACHE_KEY, new Response(JSON.stringify(snap), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "max-age=86400" },
+    }));
+  } catch {}
+}
+
+async function loadSnap() {
+  if (latestSnapshot) return latestSnapshot;
+  try {
+    const hit = await caches.default.match(CACHE_KEY);
+    if (hit) {
+      latestSnapshot = await hit.json();
+      return latestSnapshot;
+    }
+  } catch {}
+  return null;
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -24,7 +46,7 @@ export default {
         }
       }
       const snap = await request.json();
-      latestSnapshot = snap;
+      await saveSnap(snap);
       const payload = `id: ${snap.event_id || Date.now()}\ndata: ${JSON.stringify(snap)}\n\n`;
       const enc = new TextEncoder().encode(payload);
       for (const ctrl of clients) {
@@ -34,19 +56,21 @@ export default {
     }
 
     if (url.pathname === "/snapshot" && request.method === "GET") {
-      return new Response(JSON.stringify(latestSnapshot || { barnacle_status: "OFFLINE", published_at_utc: null }), {
+      const snap = await loadSnap();
+      return new Response(JSON.stringify(snap || { barnacle_status: "OFFLINE", published_at_utc: null }), {
         headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" },
       });
     }
 
     if (url.pathname === "/events" && request.method === "GET") {
+      const snap = await loadSnap();
       let ctrlRef;
       const stream = new ReadableStream({
         start(controller) {
           ctrlRef = controller;
           clients.add(controller);
-          if (latestSnapshot) {
-            const msg = `id: ${latestSnapshot.event_id || Date.now()}\ndata: ${JSON.stringify(latestSnapshot)}\n\n`;
+          if (snap) {
+            const msg = `id: ${snap.event_id || Date.now()}\ndata: ${JSON.stringify(snap)}\n\n`;
             controller.enqueue(new TextEncoder().encode(msg));
           }
         },

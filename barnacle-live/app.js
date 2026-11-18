@@ -1,7 +1,7 @@
 // Barnacle Public Display-Only Terminal — Strategy Discovery — Live Run #001
 const STORAGE_KEY = 'barnacle_live_run_001_snapshot';
 const params = new URLSearchParams(location.search);
-const RELAY_URL = (params.get('relay') || '').replace(/\/$/, '');
+const RELAY_URL = (params.get('relay') || 'https://barnacle-live-relay.gravitysedge.workers.dev').replace(/\/$/, '');
 
 const $ = (id) => document.getElementById(id);
 let viewMode = 'lifetime'; // 'first_24h' | 'lifetime'
@@ -169,8 +169,11 @@ function renderAll(snap, connState = 'WAITING') {
 
   $('run-title').textContent = run.title || 'Strategy Discovery — Live Run #001';
   $('run-subtitle').textContent = run.subtitle || 'From $5 to wherever discovery takes us.';
-  $('kpi-init').textContent = fmtUsd(m.initial_capital_usd);
-  $('kpi-contrib').textContent = `Contributions: ${fmtUsd(m.contributions_usd)}`;
+  const authUsd = m.authorized_bankroll_usd ?? m.initial_capital_usd ?? 5.0;
+  const walletTxt = m.verified_kalshi_wallet_usd != null ? fmtUsd(m.verified_kalshi_wallet_usd) : '–';
+  const propTxt = m.proposed_allocation_usd != null ? `Pending Approval: ${fmtUsd(m.proposed_allocation_usd)}` : `Contributions: ${fmtUsd(m.contributions_usd)}`;
+  $('kpi-init').textContent = fmtUsd(authUsd);
+  $('kpi-contrib').textContent = `Kalshi Wallet: ${walletTxt} · ${propTxt}`;
   $('kpi-equity').textContent = fmtUsd(m.verified_equity_usd);
   $('kpi-return').textContent = `Return excl. deposits: ${Number(m.return_pct_excl_deposits || 0) >= 0 ? '+' : ''}${Number(m.return_pct_excl_deposits || 0).toFixed(2)}%`;
   $('kpi-pnl').textContent = fmtSignedUsd(m.realized_net_usd);
@@ -179,23 +182,29 @@ function renderAll(snap, connState = 'WAITING') {
   $('kpi-record').textContent = `${m.wins ?? 0}W / ${m.losses ?? 0}L`;
   $('kpi-fees').textContent = `Total fees: ${fmtUsd(m.fees_usd)}`;
   $('feed-delay').textContent = `Public delay: ${snap.publish_delay_s ?? 60}s`;
-  $('chart-asof').textContent = snap.published_at_utc ? `As of ${snap.published_at_utc}` : 'Awaiting live feed';
-  $('last-verified').textContent = `Last verified update: ${snap.published_at_utc || 'None yet (display standby)'}`;
+  const pubTs = snap.published_ts || (snap.published_at_utc ? Date.parse(snap.published_at_utc) / 1000 : null);
+  const feedAgeS = pubTs ? Math.max(0, Math.round(Date.now() / 1000 - pubTs)) : null;
+  const pubSt = snap.publisher_status || 'DISABLED';
+  const effState = connState === 'OFFLINE' ? 'OFFLINE'
+    : (!pubTs || pubSt === 'DISABLED' || (feedAgeS != null && feedAgeS > 180)) ? 'STALE'
+    : 'ONLINE';
+  $('chart-asof').textContent = snap.published_at_utc ? `As of ${snap.published_at_utc} (${feedAgeS}s ago)` : 'Awaiting live feed';
+  $('last-verified').textContent = `Publisher: ${pubSt} · Last Published: ${fmtEt(snap.last_published_ts || pubTs)} · Source Event: ${fmtEt(snap.source_event_ts)} · Feed Age: ${feedAgeS != null ? feedAgeS + 's' : '–'}`;
 
   const pill = $('conn-pill');
-  if (connState === 'LIVE') { pill.textContent = '● LIVE STREAM'; pill.className = 'pill ok'; }
-  else if (connState === 'OFFLINE') { pill.textContent = '● OFFLINE'; pill.className = 'pill bad'; }
-  else { pill.textContent = '● WAITING FOR FIRST FILL'; pill.className = 'pill warn'; }
+  if (effState === 'ONLINE') { pill.textContent = '● ONLINE'; pill.className = 'pill ok'; }
+  else if (effState === 'STALE') { pill.textContent = '● STALE / SNAPSHOT'; pill.className = 'pill warn'; }
+  else { pill.textContent = '● OFFLINE'; pill.className = 'pill bad'; }
 
   const banner = $('truth-banner');
   if (viewMode === 'first_24h' && !m24) {
-    banner.textContent = 'First 24 Hours milestone has not completed yet — the 24-hour clock starts on the first exchange-confirmed real fill. Showing standby state.';
-  } else if (!RELAY_URL) {
-    banner.textContent = 'Display-only public terminal ready. Outbound live publishing from Barnacle is disabled by default until approved; no demo trades are fabricated.';
+    banner.textContent = 'First 24 Hours milestone has not completed yet — the 24-hour clock starts on the first exchange-confirmed real fill.';
   } else if (connState === 'OFFLINE') {
     banner.textContent = `Barnacle relay offline or unreachable. Showing last verified snapshot (${snap.published_at_utc || 'none'}).`;
+  } else if (pubSt === 'DISABLED') {
+    banner.textContent = `Public publishing is currently DISABLED in Barnacle — displaying last verified snapshot (${snap.published_at_utc || 'standby'}) rather than live updates.`;
   } else {
-    banner.textContent = `Barnacle status: ${snap.barnacle_status || 'STANDBY'} · Public signal delay: ${snap.publish_delay_s ?? 60}s · Real-money results only.`;
+    banner.textContent = `Barnacle status: ${snap.barnacle_status || 'STANDBY'} · Publisher: ${pubSt} · Delay: ${snap.publish_delay_s ?? 60}s · Verified Wallet: ${walletTxt} · Authorized XP Capital: ${fmtUsd(authUsd)}.`;
   }
 
   renderClock(run);
@@ -249,8 +258,27 @@ function renderAll(snap, connState = 'WAITING') {
     : '<tr><td colspan="7" class="muted">No matching real-money trades recorded yet.</td></tr>';
 }
 
+async function pollSnapshot() {
+  if (!RELAY_URL) return;
+  try {
+    const r = await fetch(`${RELAY_URL}/snapshot`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const snap = await r.json();
+    if (snap && snap.published_at_utc) {
+      saveCached(snap);
+      renderAll(snap, 'LIVE');
+    } else {
+      renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
+    }
+  } catch {
+    renderAll(currentSnap || loadCached() || emptySnapshot(), 'OFFLINE');
+  }
+}
+
 function connectStream() {
   if (!RELAY_URL) return;
+  pollSnapshot();
+  setInterval(pollSnapshot, 20000);
   try {
     if (es) es.close();
     es = new EventSource(`${RELAY_URL}/events`);
