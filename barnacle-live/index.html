@@ -55,15 +55,34 @@
       </article>
     </section>
 
+    <!-- 2b. Three-Account Comparison Cards -->
+    <section class="panel" id="three-accounts-panel">
+      <div class="panel-head">
+        <div>
+          <h2>Three-Account Capital Scaling Experiment</h2>
+          <p class="muted">One frozen XP strategy across LIVE $25 (actual) vs. SHADOW $100 &amp; SHADOW $1,000 (simulated order-book fills).</p>
+        </div>
+        <span class="tag info">REAL vs PAPER</span>
+      </div>
+      <div id="three-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"></div>
+    </section>
+
     <!-- 3. Interactive Bankroll Chart + Market Relationship / Geo Visualization -->
     <section class="split-grid">
       <article class="panel">
         <div class="panel-head">
           <div>
-            <h2>Bankroll Progression</h2>
-            <p class="muted">Exchange-confirmed events only. Deposits separated from trading profits.</p>
+            <h2>Three-Account Performance Chart</h2>
+            <p class="muted">Exchange-confirmed Live vs. order-book simulated Shadow accounts. Deposits separated from trading profits.</p>
           </div>
-          <span id="chart-asof" class="mono muted">–</span>
+          <div class="view-toggle" style="flex-wrap:wrap;gap:4px">
+            <button id="unit-usd" class="toggle-btn active" type="button">$</button>
+            <button id="unit-pct" class="toggle-btn" type="button">%</button>
+            <button id="line-live" class="toggle-btn active" type="button">LIVE</button>
+            <button id="line-s100" class="toggle-btn active" type="button">$100</button>
+            <button id="line-s1000" class="toggle-btn active" type="button">$1k</button>
+            <span id="chart-asof" class="mono muted">–</span>
+          </div>
         </div>
         <div id="bankroll-chart" class="chart-box"></div>
       </article>

@@ -6,6 +6,8 @@ const RELAY_URL = (params.get('relay') || '').replace(/\/$/, '');
 const $ = (id) => document.getElementById(id);
 let viewMode = 'lifetime'; // 'first_24h' | 'lifetime'
 let vizMode = 'crypto';    // 'crypto' | 'geo'
+let chartUnit = 'usd';     // 'usd' | 'pct'
+let showLines = { live_25: true, shadow_100: true, shadow_1000: true };
 let currentSnap = null;
 let es = null;
 let retryMs = 2000;
@@ -53,27 +55,68 @@ function renderClock(run) {
   }
 }
 
-function renderBankrollChart(series) {
+function renderBankrollChart(snap) {
   const box = $('bankroll-chart');
-  if (!series || !series.length) {
-    box.innerHTML = '<div class="muted">No exchange-confirmed bankroll events published yet. Chart updates automatically on real fills &amp; deposits.</div>';
-    return;
-  }
-  const w = 520, h = 190, pad = 28;
-  const vals = series.map(p => Number(p.equity_usd || 5));
-  const minV = Math.min(...vals, 4.5), maxV = Math.max(...vals, 5.5);
-  const span = Math.max(0.5, maxV - minV);
-  const pts = vals.map((v, i) => {
-    const x = pad + (series.length === 1 ? (w - 2 * pad) / 2 : (i / (series.length - 1)) * (w - 2 * pad));
-    const y = h - pad - ((v - minV) / span) * (h - 2 * pad);
-    return { x, y, raw: series[i] };
+  const ta = snap?.three_accounts || {};
+  const seriesMap = ta.series || {};
+  const accounts = ta.accounts || [];
+  const lineSpecs = [
+    { key: 'live_25', label: 'LIVE (actual)', color: '#34d399', init: 500 },
+    { key: 'shadow_100', label: 'SHADOW $100 (sim)', color: '#38bdf8', init: 10000 },
+    { key: 'shadow_1000', label: 'SHADOW $1,000 (sim)', color: '#f59e0b', init: 100000 },
+  ];
+  accounts.forEach(a => {
+    const sp = lineSpecs.find(x => x.key === a.account_id);
+    if (sp && a.initial_cents) sp.init = a.initial_cents;
   });
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-  const dots = pts.map(p => {
-    const col = p.raw.event === 'deposit' ? '#38bdf8' : (Number(p.raw.pnl_usd || 0) >= 0 ? '#34d399' : '#f87171');
-    return `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="${col}"><title>${p.raw.event}: $${Number(p.raw.equity_usd).toFixed(2)} (${fmtEt(p.raw.ts)})</title></circle>`;
+  const activeLines = lineSpecs.filter(sp => showLines[sp.key] && Array.isArray(seriesMap[sp.key]) && seriesMap[sp.key].length);
+  if (!activeLines.length) {
+    const series = snap?.bankroll_series || [];
+    if (!series.length) {
+      box.innerHTML = '<div class="muted">No exchange-confirmed or shadow bankroll events published yet. Chart updates automatically on fills &amp; settlements.</div>';
+      return;
+    }
+    activeLines.push({ key: '__legacy__', label: 'LIVE', color: '#34d399', init: 500, ptsRaw: series.map(p => ({ ts: p.ts, equity_cents: Number(p.equity_usd || 5) * 100, pnl_cents: Number(p.pnl_usd || 0) * 100 })) });
+  }
+  const w = 520, h = 195, pad = 30;
+  const allY = [];
+  activeLines.forEach(sp => {
+    const raw = sp.ptsRaw || seriesMap[sp.key] || [];
+    sp.vals = raw.map(p => chartUnit === 'pct' ? ((Number(p.pnl_cents || 0) / Math.max(1, sp.init)) * 100) : (Number(p.equity_cents || sp.init) / 100));
+    allY.push(...sp.vals);
+  });
+  const minV = Math.min(...allY), maxV = Math.max(...allY);
+  const span = Math.max(chartUnit === 'pct' ? 1.0 : 1.0, maxV - minV);
+  const paths = activeLines.map(sp => {
+    const vals = sp.vals;
+    const pts = vals.map((v, i) => ({
+      x: pad + (vals.length === 1 ? (w - 2 * pad) / 2 : (i / (vals.length - 1)) * (w - 2 * pad)),
+      y: h - pad - ((v - minV) / span) * (h - 2 * pad),
+    }));
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const dots = pts.map((p, i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${sp.color}"><title>${sp.label}: ${chartUnit === 'pct' ? vals[i].toFixed(2) + '%' : '$' + vals[i].toFixed(2)}</title></circle>`).join('');
+    return `<path d="${d}" fill="none" stroke="${sp.color}" stroke-width="2.1"/>${dots}`;
   }).join('');
-  box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:190px"><path d="${d}" fill="none" stroke="#34d399" stroke-width="2.2"/>${dots}<text x="${pad}" y="16" fill="#94a3b8" font-size="11">High $${maxV.toFixed(2)} · Low $${minV.toFixed(2)}</text></svg>`;
+  const unitLbl = chartUnit === 'pct' ? '%' : '$';
+  box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:195px">${paths}<text x="${pad}" y="15" fill="#94a3b8" font-size="11">High ${unitLbl === '$' ? '$' : ''}${maxV.toFixed(2)}${unitLbl === '%' ? '%' : ''} · Low ${unitLbl === '$' ? '$' : ''}${minV.toFixed(2)}${unitLbl === '%' ? '%' : ''}</text></svg>`;
+}
+
+function renderThreeAccounts(snap) {
+  const grid = $('three-accounts-grid');
+  if (!grid) return;
+  const accts = snap?.three_accounts?.accounts || [
+    { account_id: 'live_25', label: 'LIVE $25', kind: 'REAL', initial_cents: 500, equity_cents: 500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
+    { account_id: 'shadow_100', label: 'SHADOW $100', kind: 'PAPER', initial_cents: 10000, equity_cents: 10000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
+    { account_id: 'shadow_1000', label: 'SHADOW $1,000', kind: 'PAPER', initial_cents: 100000, equity_cents: 100000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
+  ];
+  grid.innerHTML = accts.map(a => `
+    <div class="kpi-card" style="padding:12px">
+      <div class="kpi-head"><b>${a.label}</b><span class="tag ${a.kind === 'REAL' ? 'real' : 'info'}">${a.kind === 'REAL' ? 'REAL' : 'PAPER SIM'}</span></div>
+      <div class="kpi-val mono">${fmtUsd((a.equity_cents || 0) / 100)}</div>
+      <div class="kpi-sub">P&amp;L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} (${Number(a.return_pct || 0) >= 0 ? '+' : ''}${Number(a.return_pct || 0).toFixed(2)}%)</div>
+      <div class="muted" style="font-size:11px;margin-top:4px">Trades: ${a.trades_count ?? 0} · Fees: ${fmtUsd((a.fees_cents || 0) / 100)} · Cycles: ${a.compounding_cycles ?? 0}</div>
+      <div class="muted" style="font-size:11px">Open: ${a.open_positions ?? 0} · Max DD: ${fmtUsd((a.max_drawdown_cents || 0) / 100)} · Missed Cap: ${a.missed_bankroll_count ?? 0}</div>
+    </div>`).join('');
 }
 
 function renderMarketViz(snap) {
@@ -156,7 +199,8 @@ function renderAll(snap, connState = 'WAITING') {
   }
 
   renderClock(run);
-  renderBankrollChart(snap.bankroll_series);
+  renderThreeAccounts(snap);
+  renderBankrollChart(snap);
   renderMarketViz(snap);
 
   // Bets
@@ -176,12 +220,25 @@ function renderAll(snap, connState = 'WAITING') {
     });
   }
 
-  // Feed
+  // Unified Chronological Feed (REAL vs PAPER) + clickable 3-account signal comparisons
   const feedBox = $('activity-feed');
-  const feed = snap.feed || [];
-  feedBox.innerHTML = feed.length
-    ? feed.map(f => `<div class="feed-item"><div style="display:flex;justify-content:space-between"><b>${f.ticker}</b><span class="muted">${fmtEt(f.ts)}</span></div><div class="muted">${f.kind} · ${f.reason}</div></div>`).join('')
+  const unifiedFeed = (snap.three_accounts?.activity_feed || []).length
+    ? snap.three_accounts.activity_feed
+    : (snap.feed || []).map(f => ({ ...f, account: 'LIVE', kind: 'REAL', outcome: f.kind }));
+  const comps = snap.three_accounts?.signal_comparisons || [];
+  feedBox.innerHTML = unifiedFeed.length
+    ? unifiedFeed.slice(0, 20).map(f => {
+        const tag = `<span class="tag ${f.kind === 'REAL' ? 'real' : 'info'}" style="font-size:10px;margin-right:6px">${f.kind}</span>`;
+        return `<div class="feed-item" style="cursor:pointer" data-sig="${f.ticker || ''}"><div style="display:flex;justify-content:space-between"><span>${tag}<b>${f.account || 'LIVE'} · ${f.ticker}</b></span><span class="muted">${fmtEt(f.ts)}</span></div><div class="muted">${f.outcome || f.kind} · ${f.reason}</div></div>`;
+      }).join('')
     : '<div class="muted">No delayed public events received yet.</div>';
+  feedBox.querySelectorAll('[data-sig]').forEach(el => {
+    el.onclick = () => {
+      const tk = el.getAttribute('data-sig');
+      const cmp = comps.find(c => c.ticker === tk) || { ticker: tk, note: 'Single-account event' };
+      openBetModal({ ticker: `3-Account Comparison: ${tk}`, description: 'Side-by-side LIVE vs SHADOW $100 vs SHADOW $1,000', ...cmp });
+    };
+  });
 
   // Explorer table
   const q = $('filter-q').value.trim().toLowerCase();
@@ -216,6 +273,11 @@ function connectStream() {
 
 $('btn-24h').onclick = () => { viewMode = 'first_24h'; $('btn-24h').classList.add('active'); $('btn-life').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
 $('btn-life').onclick = () => { viewMode = 'lifetime'; $('btn-life').classList.add('active'); $('btn-24h').classList.remove('active'); renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING'); };
+$('unit-usd').onclick = () => { chartUnit = 'usd'; $('unit-usd').classList.add('active'); $('unit-pct').classList.remove('active'); renderBankrollChart(currentSnap); };
+$('unit-pct').onclick = () => { chartUnit = 'pct'; $('unit-pct').classList.add('active'); $('unit-usd').classList.remove('active'); renderBankrollChart(currentSnap); };
+$('line-live').onclick = () => { showLines.live_25 = !showLines.live_25; $('line-live').classList.toggle('active'); renderBankrollChart(currentSnap); };
+$('line-s100').onclick = () => { showLines.shadow_100 = !showLines.shadow_100; $('line-s100').classList.toggle('active'); renderBankrollChart(currentSnap); };
+$('line-s1000').onclick = () => { showLines.shadow_1000 = !showLines.shadow_1000; $('line-s1000').classList.toggle('active'); renderBankrollChart(currentSnap); };
 $('viz-crypto').onclick = () => { vizMode = 'crypto'; $('viz-crypto').classList.add('active'); $('viz-geo').classList.remove('active'); renderMarketViz(currentSnap); };
 $('viz-geo').onclick = () => { vizMode = 'geo'; $('viz-geo').classList.add('active'); $('viz-crypto').classList.remove('active'); renderMarketViz(currentSnap); };
 $('filter-q').oninput = () => renderAll(currentSnap, RELAY_URL ? 'LIVE' : 'WAITING');
