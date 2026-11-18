@@ -153,19 +153,31 @@ function renderThreeAccounts(snap) {
   const grid = $('three-accounts-grid');
   if (!grid) return;
   const accts = snap?.three_accounts?.accounts || [
-    { account_id: 'live_25', label: 'LIVE $25', kind: 'REAL', initial_cents: 2500, equity_cents: 2500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
-    { account_id: 'shadow_25', label: 'SHADOW $25', kind: 'PAPER', initial_cents: 2500, equity_cents: 2500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
-    { account_id: 'shadow_100', label: 'SHADOW $100', kind: 'PAPER', initial_cents: 10000, equity_cents: 10000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
-    { account_id: 'shadow_1000', label: 'SHADOW $1,000', kind: 'PAPER', initial_cents: 100000, equity_cents: 100000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'live_25', label: 'LIVE $25', kind: 'REAL', initial_cents: 2500, available_cents: 2500, invested_cents: 0, position_value_cents: 0, equity_cents: 2500, net_pnl_cents: 0, realized_net_cents: 0, unrealized_pnl_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, closed_trades: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_25', label: 'SHADOW $25', kind: 'PAPER', initial_cents: 2500, available_cents: 2500, invested_cents: 0, position_value_cents: 0, equity_cents: 2500, net_pnl_cents: 0, realized_net_cents: 0, unrealized_pnl_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, closed_trades: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_100', label: 'SHADOW $100', kind: 'PAPER', initial_cents: 10000, available_cents: 10000, invested_cents: 0, position_value_cents: 0, equity_cents: 10000, net_pnl_cents: 0, realized_net_cents: 0, unrealized_pnl_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, closed_trades: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_1000', label: 'SHADOW $1,000', kind: 'PAPER', initial_cents: 100000, available_cents: 100000, invested_cents: 0, position_value_cents: 0, equity_cents: 100000, net_pnl_cents: 0, realized_net_cents: 0, unrealized_pnl_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, closed_trades: 0, max_drawdown_cents: 0, open_positions: 0 },
   ];
-  grid.innerHTML = accts.map(a => `
+  grid.innerHTML = accts.map(a => {
+    const netC = a.net_pnl_cents ?? ((a.equity_cents || 0) - (a.initial_cents || 0));
+    const retPct = Number(a.return_pct || 0);
+    const netColor = netC >= 0 ? 'var(--pos)' : 'var(--neg)';
+    return `
     <div class="kpi-card" style="padding:12px">
       <div class="kpi-head"><b>${a.label}</b><span class="tag ${a.kind === 'REAL' ? 'real' : 'info'}">${a.kind === 'REAL' ? 'REAL' : 'PAPER SIM'}</span></div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px">TOTAL EQUITY</div>
       <div class="kpi-val mono">${fmtUsd((a.equity_cents || 0) / 100)}</div>
-      <div class="kpi-sub">P&amp;L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} (${Number(a.return_pct || 0) >= 0 ? '+' : ''}${Number(a.return_pct || 0).toFixed(2)}%)</div>
-      <div class="muted" style="font-size:11px;margin-top:4px">Trades: ${a.trades_count ?? 0} · Closed: ${a.closed_trades ?? 0} · Fees: ${fmtUsd((a.fees_cents || 0) / 100)}</div>
-      <div class="muted" style="font-size:11px">Open Positions: ${a.open_positions ?? 0} · Max DD: ${fmtUsd((a.max_drawdown_cents || 0) / 100)}</div>
-    </div>`).join('');
+      <div class="kpi-sub" style="color:${netColor}">NET P&amp;L: ${fmtSignedUsd(netC / 100)} (${retPct >= 0 ? '+' : ''}${retPct.toFixed(2)}%)</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:2px 8px;font-size:11px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(148,163,184,0.15)">
+        <span class="muted">Starting Balance</span><span class="mono">${fmtUsd((a.initial_cents || 0) / 100)}</span>
+        <span class="muted">Available Balance</span><span class="mono">${fmtUsd((a.available_cents || 0) / 100)}</span>
+        <span class="muted">Invested Balance</span><span class="mono">${fmtUsd((a.invested_cents || 0) / 100)}</span>
+        <span class="muted">Current Position Value</span><span class="mono">${fmtUsd((a.position_value_cents ?? a.invested_cents ?? 0) / 100)}</span>
+        <span class="muted">Realized / Unrealized</span><span class="mono">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${fmtSignedUsd((a.unrealized_pnl_cents || 0) / 100)}</span>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:6px">Open: ${a.open_positions ?? 0} · Closed: ${a.closed_trades ?? 0} · Trades: ${a.trades_count ?? 0} · Fees: ${fmtUsd((a.fees_cents || 0) / 100)}</div>
+    </div>`;
+  }).join('');
 }
 
 function renderMarketViz(snap) {
@@ -208,19 +220,28 @@ function renderAll(snap, connState = 'WAITING') {
   } : (snap.metrics || {});
 
   $('run-title').textContent = run.title || 'Strategy Discovery — Live Run #001';
-  const authUsd = m.authorized_bankroll_usd ?? 25.0;
-  $('run-subtitle').textContent = `Authorized Live Capital: ${fmtUsd(authUsd)} · Four-Account Controlled Comparison`;
+  const startUsd = m.starting_capital_usd ?? m.authorized_bankroll_usd ?? 25.0;
+  const availUsd = m.available_cash_usd ?? startUsd;
+  const posValUsd = m.open_position_value_usd ?? 0.0;
+  const invUsd = m.invested_balance_usd ?? 0.0;
+  const eqUsd = m.verified_equity_usd ?? (availUsd + posValUsd);
+  const netPnlUsd = m.net_pnl_usd ?? (eqUsd - startUsd);
+  const outsideUsd = m.shard0_outside_usd ?? 0.58;
+  $('run-subtitle').textContent = `Starting Capital: ${fmtUsd(startUsd)} · Four-Account Controlled Comparison`;
   const walletTxt = m.verified_kalshi_wallet_usd != null ? fmtUsd(m.verified_kalshi_wallet_usd) : '–';
-  const propTxt = m.proposed_allocation_usd != null ? `Pending Approval: ${fmtUsd(m.proposed_allocation_usd)}` : `Contributions: ${fmtUsd(m.contributions_usd)}`;
-  $('kpi-init').textContent = fmtUsd(authUsd);
-  $('kpi-contrib').textContent = `Kalshi Wallet: ${walletTxt} · ${propTxt}`;
-  $('kpi-equity').textContent = fmtUsd(m.verified_equity_usd);
-  $('kpi-return').textContent = `Return excl. deposits: ${Number(m.return_pct_excl_deposits || 0) >= 0 ? '+' : ''}${Number(m.return_pct_excl_deposits || 0).toFixed(2)}%`;
-  $('kpi-pnl').textContent = fmtSignedUsd(m.realized_net_usd);
-  $('kpi-pnl').style.color = Number(m.realized_net_usd || 0) >= 0 ? 'var(--pos)' : 'var(--neg)';
-  $('kpi-unrealized').textContent = m.unrealized_pnl_usd == null ? 'Unrealized: Not Recorded' : `Unrealized: ${fmtSignedUsd(m.unrealized_pnl_usd)}`;
+  $('kpi-init').textContent = fmtUsd(startUsd);
+  $('kpi-contrib').textContent = `Original Allocation · Excluded Outside Cash: ${fmtUsd(outsideUsd)}`;
+  if ($('kpi-avail')) $('kpi-avail').textContent = fmtUsd(availUsd);
+  if ($('kpi-wallet')) $('kpi-wallet').textContent = `Kalshi Shard 2 · Combined Wallet: ${walletTxt}`;
+  if ($('kpi-posval')) $('kpi-posval').textContent = fmtUsd(posValUsd);
+  if ($('kpi-invested')) $('kpi-invested').textContent = `Invested Cost: ${fmtUsd(invUsd)} · ${m.open_positions ?? 0} Open`;
+  $('kpi-equity').textContent = fmtUsd(eqUsd);
+  $('kpi-return').textContent = `Cash + Position Value · Return: ${Number(m.return_pct_excl_deposits || 0) >= 0 ? '+' : ''}${Number(m.return_pct_excl_deposits || 0).toFixed(2)}%`;
+  $('kpi-pnl').textContent = fmtSignedUsd(netPnlUsd);
+  $('kpi-pnl').style.color = Number(netPnlUsd || 0) >= 0 ? 'var(--pos)' : 'var(--neg)';
+  $('kpi-unrealized').textContent = `Realized: ${fmtSignedUsd(m.realized_net_usd || 0)} · Unrealized: ${m.unrealized_pnl_usd == null ? '–' : fmtSignedUsd(m.unrealized_pnl_usd)}`;
   $('kpi-record').textContent = `${m.wins ?? 0}W / ${m.losses ?? 0}L`;
-  $('kpi-fees').textContent = `Total fees: ${fmtUsd(m.fees_usd)}`;
+  $('kpi-fees').textContent = `Open: ${m.open_positions ?? 0} · Total fees: ${fmtUsd(m.fees_usd)}`;
   $('feed-delay').textContent = `Public delay: ${snap.publish_delay_s ?? 60}s`;
   const pubTs = snap.published_ts || (snap.published_at_utc ? Date.parse(snap.published_at_utc) / 1000 : null);
   const feedAgeS = pubTs ? Math.max(0, Math.round(Date.now() / 1000 - pubTs)) : null;
@@ -244,7 +265,7 @@ function renderAll(snap, connState = 'WAITING') {
   } else if (pubSt === 'DISABLED') {
     banner.textContent = `Public publishing is currently DISABLED in Barnacle — displaying last verified snapshot (${snap.published_at_utc || 'standby'}) rather than live updates.`;
   } else {
-    banner.textContent = `Barnacle status: ${snap.barnacle_status || 'STANDBY'} · Publisher: ${pubSt} · Delay: ${snap.publish_delay_s ?? 60}s · Verified Wallet: ${walletTxt} · Authorized XP Capital: ${fmtUsd(authUsd)}.`;
+    banner.textContent = `Barnacle status: ${snap.barnacle_status || 'STANDBY'} · Publisher: ${pubSt} · Delay: ${snap.publish_delay_s ?? 60}s · Shard 2 Cash: ${fmtUsd(availUsd)} · Portfolio Value: ${fmtUsd(posValUsd)} · Total Equity: ${fmtUsd(eqUsd)}.`;
   }
 
   renderClock(run);
@@ -252,14 +273,42 @@ function renderAll(snap, connState = 'WAITING') {
   renderBankrollChart(snap);
   renderMarketViz(snap);
 
-  // Bets (settled only)
+  // Actual Open Positions
+  const openBox = $('open-positions-cards');
+  const openList = snap.open_positions_list || (snap.bets || []).filter(b => b.status === 'open');
+  if (openBox) {
+    openBox.innerHTML = '';
+    if (!openList.length) {
+      openBox.innerHTML = '<div class="muted">No open real-money positions right now.</div>';
+    } else {
+      openList.forEach(p => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bet-card';
+        const valTxt = p.current_value_usd != null ? fmtUsd(p.current_value_usd) : 'Quote Pending';
+        const uTxt = p.unrealized_pnl_usd != null ? fmtSignedUsd(p.unrealized_pnl_usd) : '–';
+        btn.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <b>${p.ticker}</b>
+            <span class="tag real">${p.side || 'OPEN'} · ${p.contracts ?? p.count ?? 0}x</span>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:4px">
+            Entry: ${p.entry_price_cents != null ? p.entry_price_cents + '¢' : '–'} · Invested: ${fmtUsd(p.invested_usd)} · Cur Value: ${valTxt} · Unrealized: ${uTxt}
+          </div>`;
+        btn.onclick = () => openBetModal(p);
+        openBox.append(btn);
+      });
+    }
+  }
+
+  // Completed & Settled Trades
   const betsBox = $('bet-cards');
-  const bets = (snap.bets || []).filter(b => b.status === 'settled');
+  const settledBets = (snap.bets || []).filter(b => b.status === 'settled');
   betsBox.innerHTML = '';
-  if (!bets.length) {
-    betsBox.innerHTML = '<div class="muted">No settled real-money trades yet. Active positions are kept private until settlement.</div>';
+  if (!settledBets.length) {
+    betsBox.innerHTML = '<div class="muted">No completed real-money settlements yet.</div>';
   } else {
-    bets.forEach(b => {
+    settledBets.forEach(b => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'bet-card';
@@ -269,23 +318,27 @@ function renderAll(snap, connState = 'WAITING') {
     });
   }
 
-  // Settled Activity Feed (REAL vs PAPER)
-  const feedBox = $('activity-feed');
-  const unifiedFeed = (snap.three_accounts?.activity_feed || []).filter(f => f.outcome === 'settled');
-  feedBox.innerHTML = unifiedFeed.length
-    ? unifiedFeed.slice(0, 20).map(f => {
-        const tag = `<span class="tag ${f.kind === 'REAL' ? 'real' : 'info'}" style="font-size:10px;margin-right:6px">${f.kind}</span>`;
-        return `<div class="feed-item"><div style="display:flex;justify-content:space-between"><span>${tag}<b>${f.account || 'LIVE'} · ${f.ticker}</b></span><span class="muted">${fmtEt(f.ts)}</span></div><div class="muted">${f.reason}</div></div>`;
-      }).join('')
-    : '<div class="muted">No settled public events yet. Active positions are kept private until settlement.</div>';
-
-  // Explorer table (settled only)
+  // Explorer table (actual open + settled trades)
+  const allActual = [...openList, ...settledBets];
   const q = $('filter-q').value.trim().toLowerCase();
   const st = $('filter-status').value;
-  const rows = bets.filter(b => (!q || b.ticker.toLowerCase().includes(q)) && (!st || b.status === st));
+  const rows = allActual.filter(b => (!q || (b.ticker || '').toLowerCase().includes(q)) && (!st || b.status === st));
   $('explorer-body').innerHTML = rows.length
-    ? rows.map(b => `<tr><td>${fmtEt(b.ts)}</td><td class="mono">${b.ticker}</td><td>–</td><td>–</td><td>–</td><td>${b.result || b.status}</td><td>$${Number(b.fee_usd || 0).toFixed(2)}</td></tr>`).join('')
-    : '<tr><td colspan="7" class="muted">No settled real-money trades recorded yet.</td></tr>';
+    ? rows.map(b => {
+        const valOrPnl = b.status === 'open'
+          ? `${b.current_value_usd != null ? fmtUsd(b.current_value_usd) : '–'} (${b.unrealized_pnl_usd != null ? fmtSignedUsd(b.unrealized_pnl_usd) : '–'})`
+          : fmtSignedUsd(b.net_pnl_usd);
+        return `<tr>
+          <td>${fmtEt(b.ts)}</td>
+          <td class="mono">${b.ticker}</td>
+          <td>${b.side || '–'}</td>
+          <td>${b.contracts ?? b.count ?? '–'}</td>
+          <td>${b.entry_price_cents != null ? b.entry_price_cents + '¢' : '–'}</td>
+          <td class="mono">${valOrPnl}</td>
+          <td>${b.status === 'open' ? 'OPEN' : (b.result || 'SETTLED')} · $${Number(b.fee_usd || 0).toFixed(2)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="7" class="muted">No actual open or settled real-money trades recorded yet.</td></tr>';
 }
 
 let lastPollOk = false;

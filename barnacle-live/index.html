@@ -34,19 +34,29 @@
     <!-- 2. Live Experiment KPIs -->
     <section class="kpi-grid" aria-label="Strategy Equity and Performance">
       <article class="kpi-card">
-        <div class="kpi-head"><span>Authorized XP Bankroll</span><span class="tag real">REAL</span></div>
+        <div class="kpi-head"><span>Starting Capital</span><span class="tag real">ALLOCATION</span></div>
         <div id="kpi-init" class="kpi-val mono">$25.00</div>
-        <div id="kpi-contrib" class="kpi-sub">Kalshi Wallet: – · Pending: –</div>
-      </article>
-      <article class="kpi-card highlight">
-        <div class="kpi-head"><span>Verified Equity</span><span class="tag real">REAL</span></div>
-        <div id="kpi-equity" class="kpi-val mono">$25.00</div>
-        <div id="kpi-return" class="kpi-sub">Return excl. deposits: +0.00%</div>
+        <div id="kpi-contrib" class="kpi-sub">Original Allocation · Excluded Cash: $0.58</div>
       </article>
       <article class="kpi-card">
-        <div class="kpi-head"><span>Realized Net P&amp;L</span><span class="tag real">REAL</span></div>
+        <div class="kpi-head"><span>Available Balance</span><span class="tag real">CASH</span></div>
+        <div id="kpi-avail" class="kpi-val mono">$25.00</div>
+        <div id="kpi-wallet" class="kpi-sub">Kalshi Shard 2 · Wallet: –</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-head"><span>Open Position Value</span><span class="tag real">PORTFOLIO</span></div>
+        <div id="kpi-posval" class="kpi-val mono">$0.00</div>
+        <div id="kpi-invested" class="kpi-sub">Invested Cost: $0.00 · 0 Open</div>
+      </article>
+      <article class="kpi-card highlight">
+        <div class="kpi-head"><span>Total Equity</span><span class="tag real">REAL</span></div>
+        <div id="kpi-equity" class="kpi-val mono">$25.00</div>
+        <div id="kpi-return" class="kpi-sub">Cash + Portfolio · Return: +0.00%</div>
+      </article>
+      <article class="kpi-card">
+        <div class="kpi-head"><span>Net Profit / Loss</span><span class="tag real">REAL</span></div>
         <div id="kpi-pnl" class="kpi-val mono">$0.00</div>
-        <div id="kpi-unrealized" class="kpi-sub">Unrealized: Not Recorded</div>
+        <div id="kpi-unrealized" class="kpi-sub">Realized: $0.00 · Unrealized: $0.00</div>
       </article>
       <article class="kpi-card">
         <div class="kpi-head"><span>Record &amp; Fees</span><span class="tag real">EXCHANGE</span></div>
@@ -55,16 +65,16 @@
       </article>
     </section>
 
-    <!-- 2b. Three-Account Comparison Cards -->
+    <!-- 2b. Four-Account Comparison Cards -->
     <section class="panel" id="three-accounts-panel">
       <div class="panel-head">
         <div>
-          <h2>Three-Account Capital Scaling Experiment</h2>
-          <p class="muted">One frozen XP strategy across LIVE $25 (actual) vs. SHADOW $100 &amp; SHADOW $1,000 (simulated order-book fills).</p>
+          <h2>Four-Account Balance &amp; Performance Comparison</h2>
+          <p class="muted">Consistent accounting across LIVE $25 (reconciled Kalshi shard 2) and SHADOW $25, $100, $1,000 (independent paper ledgers).</p>
         </div>
         <span class="tag info">REAL vs PAPER</span>
       </div>
-      <div id="three-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"></div>
+      <div id="three-accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px"></div>
     </section>
 
     <!-- 3. Interactive Bankroll Chart + Market Relationship / Geo Visualization -->
@@ -100,36 +110,37 @@
       </article>
     </section>
 
-    <!-- 4. Clickable Settled Trades & Settled Activity Feed -->
+    <!-- 4. Actual Open Positions & Completed Trades -->
     <section class="split-grid">
       <article class="panel">
         <div class="panel-head">
-          <h2>Completed &amp; Settled Real Trades</h2>
-          <span class="muted">Displayed only after settlement (open positions kept private)</span>
+          <h2>Actual Open Positions</h2>
+          <span class="muted">Live exchange-confirmed holdings</span>
         </div>
-        <div id="bet-cards" class="bet-list"></div>
+        <div id="open-positions-cards" class="bet-list"></div>
       </article>
 
       <article class="panel">
         <div class="panel-head">
-          <h2>Settled Activity Feed</h2>
+          <h2>Completed &amp; Settled Trades</h2>
           <span id="feed-delay" class="muted">Public delay: 60s</span>
         </div>
-        <div id="activity-feed" class="feed-list"></div>
+        <div id="bet-cards" class="bet-list"></div>
       </article>
     </section>
 
-    <!-- 5. Complete Trade-History Explorer -->
+    <!-- 5. Complete Trade & Position Explorer -->
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2>Settled Trade Explorer</h2>
-          <p class="muted">Completed &amp; settled real-money results (P&amp;L and fees).</p>
+          <h2>Trade &amp; Position Explorer</h2>
+          <p class="muted">Actual open holdings and completed real-money settlements (skipped/declined signals excluded).</p>
         </div>
         <div class="filters">
           <input id="filter-q" type="search" placeholder="Filter ticker…" aria-label="Filter ticker">
           <select id="filter-status" aria-label="Filter status">
-            <option value="">All results</option>
+            <option value="">All actual positions</option>
+            <option value="open">Open</option>
             <option value="settled">Settled</option>
           </select>
         </div>
@@ -138,7 +149,7 @@
         <table>
           <thead>
             <tr>
-              <th>Time</th><th>Ticker</th><th>Side</th><th>Entry</th><th>Implied Odds</th><th>Status</th><th>Fee</th>
+              <th>Time</th><th>Market</th><th>Side</th><th>Contracts</th><th>Entry</th><th>Value / P&amp;L</th><th>Status / Fee</th>
             </tr>
           </thead>
           <tbody id="explorer-body"></tbody>
