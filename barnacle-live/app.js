@@ -31,8 +31,8 @@ function emptySnapshot() {
     published_at_utc: null,
     publish_delay_s: 60,
     barnacle_status: 'STANDBY',
-    run: { run_number: 1, run_label: '#001', title: 'Strategy Discovery — Live Run #001', subtitle: 'From $5 to wherever discovery takes us.', first_fill_ts: null, milestone_24h_snapshot: null },
-    metrics: { initial_capital_usd: 5.0, contributions_usd: 5.0, verified_equity_usd: 5.0, realized_net_usd: 0.0, unrealized_pnl_usd: null, return_pct_excl_deposits: 0.0, fees_usd: 0.0, closed_trades: 0, wins: 0, losses: 0, open_positions: 0 },
+    run: { run_number: 1, run_label: '#001', title: 'Strategy Discovery — Live Run #001', subtitle: 'Authorized Live Capital: $25.00 · Four-Account Controlled Comparison', first_fill_ts: null, milestone_24h_snapshot: null },
+    metrics: { initial_capital_usd: 25.0, contributions_usd: 25.0, verified_equity_usd: 25.0, realized_net_usd: 0.0, unrealized_pnl_usd: null, return_pct_excl_deposits: 0.0, fees_usd: 0.0, closed_trades: 0, wins: 0, losses: 0, open_positions: 0 },
     bankroll_series: [], bets: [], feed: [], crypto_markets: [], geo_markets: [],
   };
 }
@@ -153,9 +153,10 @@ function renderThreeAccounts(snap) {
   const grid = $('three-accounts-grid');
   if (!grid) return;
   const accts = snap?.three_accounts?.accounts || [
-    { account_id: 'live_25', label: 'LIVE $25', kind: 'REAL', initial_cents: 500, equity_cents: 500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
-    { account_id: 'shadow_100', label: 'SHADOW $100', kind: 'PAPER', initial_cents: 10000, equity_cents: 10000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
-    { account_id: 'shadow_1000', label: 'SHADOW $1,000', kind: 'PAPER', initial_cents: 100000, equity_cents: 100000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0, missed_bankroll_count: 0 },
+    { account_id: 'live_25', label: 'LIVE $25', kind: 'REAL', initial_cents: 2500, equity_cents: 2500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_25', label: 'SHADOW $25', kind: 'PAPER', initial_cents: 2500, equity_cents: 2500, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_100', label: 'SHADOW $100', kind: 'PAPER', initial_cents: 10000, equity_cents: 10000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
+    { account_id: 'shadow_1000', label: 'SHADOW $1,000', kind: 'PAPER', initial_cents: 100000, equity_cents: 100000, realized_net_cents: 0, return_pct: 0, fees_cents: 0, trades_count: 0, compounding_cycles: 0, max_drawdown_cents: 0, open_positions: 0 },
   ];
   grid.innerHTML = accts.map(a => `
     <div class="kpi-card" style="padding:12px">
@@ -177,7 +178,7 @@ function renderMarketViz(snap) {
   box.innerHTML = `<div style="width:100%;display:grid;gap:8px;font-size:13px">
     <div><b>Experiment Status:</b> ${snap?.barnacle_status || 'STANDBY'} · <b>24h Clock:</b> ${run.first_fill_ts ? fmtEt(run.first_fill_ts) : 'Awaiting first settled checkpoint'}</div>
     <div><b>Total Trades Across 4 Accounts:</b> ${totalTrades} · <b>Total Open Positions:</b> ${totalOpen} (details kept private until settlement)</div>
-    <div class="muted">Strategy thresholds, scoring formulas, open market selections, and rejected/missed opportunities are intentionally omitted from the public feed.</div>
+    <div class="muted">Public feed reports aggregate 4-account performance and settled trade outcomes only.</div>
   </div>`;
 }
 
