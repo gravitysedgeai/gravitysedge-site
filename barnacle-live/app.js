@@ -10,47 +10,33 @@ let chartUnit = 'pct';   // 'pct' | 'usd' | 'pnl'
 let chartRange = 'all';  // '1h' | '6h' | '24h' | 'all'
 const showLines = {};
 const ACCOUNT_COLORS = {
-  live_25: '#34d399',
-  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s25': '#38bdf8',
-  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s100': '#60a5fa',
-  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s1000': '#22d3ee',
-  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s25': '#a78bfa',
-  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s100': '#c084fc',
-  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s1000': '#e879f9',
-  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s25': '#2dd4bf',
-  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s100': '#14b8a6',
-  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s1000': '#0d9488',
-  shadow_25: '#f59e0b',
-  shadow_100: '#fb923c',
-  shadow_1000: '#f87171',
+  'ares-005-25': '#34d399',
+  'apollo-002-25': '#38bdf8',
+  'apollo-002-100': '#60a5fa',
+  'apollo-002-1000': '#22d3ee',
+  'athena-003-25': '#a78bfa',
+  'athena-003-100': '#c084fc',
+  'athena-003-1000': '#e879f9',
+  'hermes-004-25': '#2dd4bf',
+  'hermes-004-100': '#14b8a6',
+  'hermes-004-1000': '#0d9488',
+  'poseidon-006-25': '#f59e0b',
+  'poseidon-006-100': '#fb923c',
+  'poseidon-006-1000': '#f87171',
 };
 const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', '#fb7185'];
 
 function accountGroupOf(a) {
   if (a.group) return a.group;
-  if (a.kind === 'REAL' || a.account_id === 'live_25') return 'live';
-  if (String(a.account_id || '').includes('succ_v1')) return 'successor_query_discovery';
-  if (String(a.account_id || '').includes('fin_v1')) return 'expanded_financial_validation';
-  if (String(a.account_id || '').includes('risk-cp_f10_s')) return 'original_validation';
+  if (a.kind === 'REAL' || String(a.account_id || '').startsWith('ares-')) return 'live';
+  if (String(a.account_id || '').startsWith('hermes-')) return 'successor_query_discovery';
+  if (String(a.account_id || '').startsWith('athena-')) return 'expanded_financial_validation';
+  if (String(a.account_id || '').startsWith('apollo-')) return 'original_validation';
   return 'previous_shadow';
 }
 
 function shortLabelOf(a) {
-  const id = a.account_id || '';
-  if (id === 'live_25') return 'LIVE $25';
-  if (id.includes('succ_v1') && id.endsWith('_s25')) return 'Succ $25';
-  if (id.includes('succ_v1') && id.endsWith('_s100')) return 'Succ $100';
-  if (id.includes('succ_v1') && id.endsWith('_s1000')) return 'Succ $1,000';
-  if (id.includes('fin_v1') && id.endsWith('_s25')) return 'Fin Exp $25';
-  if (id.includes('fin_v1') && id.endsWith('_s100')) return 'Fin Exp $100';
-  if (id.includes('fin_v1') && id.endsWith('_s1000')) return 'Fin Exp $1,000';
-  if (id.endsWith('_s25')) return 'XP Val $25';
-  if (id.endsWith('_s100')) return 'XP Val $100';
-  if (id.endsWith('_s1000')) return 'XP Val $1,000';
-  if (id === 'shadow_25') return 'Legacy WS $25';
-  if (id === 'shadow_100') return 'Legacy WS $100';
-  if (id === 'shadow_1000') return 'Legacy WS $1,000';
-  return (a.label || id).replace(' (Control)', '');
+  return (a.label || a.account_id || '').replace(' (Control)', '');
 }
 
 function fmtCountdown(closeTs) {
@@ -266,20 +252,18 @@ function renderScoreboard(snap) {
     const isSucc = grp === 'successor_query_discovery';
     const cardCls = isReal ? 'real-card' : (isVal || isSucc) ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
-      ? '<span class="tag real">REAL MONEY · PAUSED</span>'
-      : isVal
-      ? '<span class="tag validation">ORIGINAL XP ENGINE · SIMULATED</span>'
-      : isSucc
-      ? '<span class="tag validation" style="background:#2dd4bf;border-color:#2dd4bf">EXP #1 SUCCESSOR · SIMULATED</span>'
-      : isFin
-      ? '<span class="tag validation" style="background:#a78bfa;border-color:#a78bfa">FINANCIAL EXPANSION · SIMULATED</span>'
-      : '<span class="tag legacy">LEGACY WS REWRITE · SIMULATED</span>';
+      ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
+      : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${a.codename || 'PAPER'} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
 
     const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
     const posDetailsHtml = acctHoldings.length === 0
       ? '<div class="muted" style="font-size:11px;margin-top:4px">No open positions.</div>'
       : acctHoldings.map(h => {
-          const entryLvls = (h.entry_levels || []).map(l => `<span class="depth-chip">${l.qty}x @ ${l.price_cents}¢</span>`).join('');
+          const entryLvls = (h.entry_levels || []).map(l => {
+            const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
+            const costStr = l.total_cost_usd != null ? ` · ${fmtUsd(l.total_cost_usd)}` : '';
+            return `<span class="depth-chip" title="${tsStr}">${l.qty}x @ ${l.price_cents}¢${costStr}${tsStr ? ' (' + tsStr + ')' : ''}</span>`;
+          }).join('');
           const sellLvls = (h.sell_levels || []).length
             ? h.sell_levels.map(l => `<span class="depth-chip">${l.price_cents}¢: ${l.available_qty} avail (sell ${l.sell_qty})</span>`).join('')
             : '<span class="muted">UNAVAILABLE</span>';
@@ -319,8 +303,8 @@ function renderScoreboard(snap) {
         ${badgeHtml}
       </div>
       <div class="muted" style="font-size:11px;display:flex;flex-wrap:wrap;gap:6px">
-        <span>Strategy: <span class="mono">${a.strategy_id || '–'}</span></span>
-        <span>· Source: <span class="mono">${a.data_source || '–'}</span></span>
+        <span>Codename: <b class="mono">${a.codename || '–'}</b></span>
+        <span>· Mode: <b>${isReal ? 'REAL MONEY' : 'PAPER SIM'}</b></span>
         <span>· Status: <b>${a.runtime_status || 'ACTIVE'}</b></span>
       </div>
       <div class="eq-row">
@@ -355,32 +339,32 @@ function renderScoreboard(snap) {
   const groups = [
     {
       key: 'successor_query_discovery',
-      title: 'EXPERIMENT #1 SUCCESSOR · QUERY DISCOVERY (SIMULATED)',
-      sub: 'Original CustomStrategy + Engine fed by parameter-driven market_catalog.db discovery across Crypto, Metals, Energy, FX, Indices, and Rates.',
+      title: 'HERMES-004 (SIMULATED)',
+      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
       items: accts.filter(a => accountGroupOf(a) === 'successor_query_discovery'),
     },
     {
       key: 'original_validation',
-      title: 'ORIGINAL XP CRYPTO VALIDATION (SIMULATED)',
-      sub: 'Fresh $25 / $100 / $1,000 paper accounts running the exact original CustomStrategy + Engine (forward.db).',
+      title: 'APOLLO-002 (SIMULATED)',
+      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
       items: accts.filter(a => accountGroupOf(a) === 'original_validation'),
     },
     {
       key: 'expanded_financial_validation',
-      title: 'EXPANDED FINANCIAL VALIDATION (SIMULATED)',
-      sub: 'Original CustomStrategy + Engine expanded to Crypto, Gold, Silver, Energy, Indices, FX, and Rates (forward.db).',
+      title: 'ATHENA-003 (SIMULATED)',
+      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
       items: accts.filter(a => accountGroupOf(a) === 'expanded_financial_validation'),
     },
     {
       key: 'live',
-      title: 'PAUSED REAL-MONEY ACCOUNT',
-      sub: 'Kalshi Shard 2 real-money ledger (new orders paused).',
+      title: 'ARES-005 (REAL MONEY · PAUSED)',
+      sub: 'Real-money exchange ledger (new orders paused).',
       items: accts.filter(a => accountGroupOf(a) === 'live'),
     },
     {
       key: 'previous_shadow',
-      title: 'LEGACY WS REWRITE (SIMULATED)',
-      sub: 'Older Experiment #1 using rewritten 1-second WebSocket logic (preserved separately for comparison).',
+      title: 'POSEIDON-006 (SIMULATED · LEGACY)',
+      sub: 'Preserved historical paper accounts.',
       items: accts.filter(a => accountGroupOf(a) === 'previous_shadow'),
     },
   ].filter(g => g.items.length > 0);
