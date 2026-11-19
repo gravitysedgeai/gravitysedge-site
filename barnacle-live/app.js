@@ -3,12 +3,32 @@ const RELAY_URL = 'https://barnacle-live-relay.gravitysedge.workers.dev';
 const CACHE_KEY = 'barnacle_live_snapshot_v2';
 const PREV_KEY = 'barnacle_live_prev_snap_v1';
 const HIST_KEY = 'barnacle_eq_hist_v1';
+const COMPLETED_PAGE_SIZE = 50;
 
 let currentSnap = null;
 let prevSnap = null;
+let memoryHist = null;
+let lastPersistedTs = 0;
+let lastScoreboardEventId = null;
+
 let chartUnit = 'pct';   // 'pct' | 'usd' | 'pnl'
 let chartRange = 'all';  // '1h' | '6h' | '24h' | 'all'
 const showLines = {};
+let chartInstance = null;
+let chartResizeObserver = null;
+let chartZoomState = null; // { startValue, endValue } preserved across live updates
+let lastChartSeries = [];
+
+let holdingsAcct = '';
+let completedAcct = '';
+let completedPage = 0;
+const sectionOpenOverrides = {}; // key: `${account_id}:${sec}` -> boolean
+let lastPollOk = false;
+let es = null;
+let retryMs = 2000;
+let sseRetryTimer = null;
+let pollInFlight = false;
+
 const ACCOUNT_COLORS = {
   'ares-005-25': '#34d399',
   'apollo-002-25': '#38bdf8',
@@ -32,6 +52,8 @@ const ACCOUNT_COLORS = {
 };
 const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', '#fb7185'];
 
+const $ = (id) => document.getElementById(id);
+
 function accountGroupOf(a) {
   if (a.group) return a.group;
   if (a.kind === 'REAL' || String(a.account_id || '').startsWith('ares-')) return 'live';
@@ -47,6 +69,11 @@ function shortLabelOf(a) {
   return (a.label || a.account_id || '').replace(' (Control)', '');
 }
 
+function fmtBankrollShort(initCents) {
+  const usd = Math.round(Number(initCents || 0) / 100);
+  return usd >= 1000 ? '$1k' : `$${usd}`;
+}
+
 function fmtCountdown(closeTs) {
   if (!closeTs) return 'UNAVAILABLE';
   const diff = Math.round(Number(closeTs) - Date.now() / 1000);
@@ -56,14 +83,7 @@ function fmtCountdown(closeTs) {
   const s = diff % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
 }
-let holdingsAcct = '';
-let completedAcct = '';
-const sectionOpenOverrides = {}; // key: `${account_id}:${sec}` -> boolean
-let lastPollOk = false;
-let es = null;
-let retryMs = 2000;
 
-const $ = (id) => document.getElementById(id);
 const fmtUsd = (v) => (v == null || Number.isNaN(Number(v))) ? 'Unavailable' : `$${Number(v).toFixed(2)}`;
 const fmtSignedUsd = (v) => {
   if (v == null || Number.isNaN(Number(v))) return 'Unavailable';
@@ -100,48 +120,60 @@ function saveJson(key, val) {
   try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
 }
 
+function getMemoryHist() {
+  if (!memoryHist) memoryHist = loadJson(HIST_KEY, {});
+  return memoryHist;
+}
+
+function persistStateIfDue(force = false) {
+  const now = Date.now();
+  if (!force && now - lastPersistedTs < 60000) return;
+  lastPersistedTs = now;
+  if (currentSnap) saveJson(CACHE_KEY, currentSnap);
+  if (prevSnap) saveJson(PREV_KEY, prevSnap);
+  if (memoryHist) saveJson(HIST_KEY, memoryHist);
+}
+
 function recordEquityObservation(snap) {
   if (!snap || !snap.published_ts) return;
   const ts = Number(snap.published_ts);
   const accts = snap.three_accounts?.accounts || [];
   if (!accts.length) return;
-  const hist = loadJson(HIST_KEY, {});
+  const hist = getMemoryHist();
   accts.forEach(a => {
     const aid = a.account_id;
     const arr = Array.isArray(hist[aid]) ? hist[aid] : [];
     const last = arr[arr.length - 1];
-    if (!last || (ts > Number(last.ts) + 10)) {
+    if (!last || (ts > Number(last.ts) + 15)) {
       arr.push({
         ts,
         equity_cents: Number(a.equity_cents ?? a.initial_cents ?? 0),
-        pnl_cents: Number(a.net_pnl_cents ?? ((a.equity_cents || 0) - (a.initial_cents || 0))),
       });
-      if (arr.length > 400) arr.splice(0, arr.length - 400);
+      if (arr.length > 250) arr.splice(0, arr.length - 250);
       hist[aid] = arr;
     }
   });
-  saveJson(HIST_KEY, hist);
 }
 
 function acceptSnapshot(snap) {
-  if (!snap || !snap.published_at_utc) return;
-  const cached = loadJson(CACHE_KEY, null);
-  if (cached && cached.event_id && snap.event_id && Number(snap.event_id) !== Number(cached.event_id)) {
-    prevSnap = cached;
-    saveJson(PREV_KEY, cached);
-  } else if (!prevSnap) {
-    prevSnap = loadJson(PREV_KEY, null);
+  if (!snap || !snap.published_at_utc) return false;
+  const isNewEvent = !currentSnap || !currentSnap.event_id || Number(snap.event_id) !== Number(currentSnap.event_id);
+  if (isNewEvent && currentSnap) {
+    prevSnap = currentSnap;
   }
   currentSnap = snap;
-  saveJson(CACHE_KEY, snap);
-  recordEquityObservation(snap);
+  if (isNewEvent) {
+    recordEquityObservation(snap);
+    persistStateIfDue(false);
+  }
+  return isNewEvent;
 }
 
 function emptySnapshot() {
   return {
     published_at_utc: null,
     publish_delay_s: 60,
-    barnacle_status: 'STANDBY',
+    barnacle_status: 'PAUSED',
     publisher_status: 'DISABLED',
     run: { first_fill_ts: null },
     metrics: {},
@@ -160,20 +192,39 @@ function renderStatusHeader(snap, connState) {
     : 'ONLINE';
 
   const connPill = $('conn-pill');
-  if (effState === 'ONLINE') { connPill.textContent = '● ONLINE'; connPill.className = 'pill ok'; }
-  else if (effState === 'STALE') { connPill.textContent = '● STALE'; connPill.className = 'pill warn'; }
-  else { connPill.textContent = '● OFFLINE'; connPill.className = 'pill bad'; }
+  if (effState === 'ONLINE') { connPill.textContent = '● SYSTEM ONLINE'; connPill.className = 'pill ok'; }
+  else if (effState === 'STALE') { connPill.textContent = '● SYSTEM STALE'; connPill.className = 'pill warn'; }
+  else { connPill.textContent = '● SYSTEM OFFLINE'; connPill.className = 'pill bad'; }
 
+  const accts = snap?.three_accounts?.accounts || [];
+  const paperAccts = accts.filter(a => accountGroupOf(a) !== 'live');
+  const paperRunning = paperAccts.some(a => String(a.runtime_status || 'ACTIVE').toUpperCase().includes('ACTIVE'));
+  const paperPill = $('paper-pill');
+  if (paperPill) {
+    if (!paperAccts.length) {
+      paperPill.textContent = 'PAPER EXPERIMENTS: –';
+      paperPill.className = 'pill warn';
+    } else if (paperRunning) {
+      paperPill.textContent = 'PAPER EXPERIMENTS RUNNING';
+      paperPill.className = 'pill ok';
+    } else {
+      paperPill.textContent = 'PAPER EXPERIMENTS PAUSED';
+      paperPill.className = 'pill warn';
+    }
+  }
+
+  const realAcct = accts.find(a => accountGroupOf(a) === 'live');
+  const realActive = snap.barnacle_status === 'ACTIVE' || String(realAcct?.runtime_status || '').toUpperCase() === 'ACTIVE';
   const armedPill = $('armed-pill');
-  if (effState !== 'ONLINE') {
-    armedPill.textContent = `LIVE TRADING: UNVERIFIED (${effState})`;
+  if (effState !== 'ONLINE' && !pubTs) {
+    armedPill.textContent = 'REAL CASH: UNVERIFIED';
     armedPill.className = 'pill warn';
-  } else if (snap.barnacle_status === 'ACTIVE') {
-    armedPill.textContent = 'LIVE TRADING: ARMED (ACTIVE)';
+  } else if (realActive) {
+    armedPill.textContent = 'REAL CASH ACTIVE';
     armedPill.className = 'pill ok';
   } else {
-    armedPill.textContent = `LIVE TRADING: ${snap.barnacle_status || 'DISARMED'}`;
-    armedPill.className = 'pill bad';
+    armedPill.textContent = 'REAL CASH PAUSED';
+    armedPill.className = 'pill warn';
   }
 
   const run = snap.run || {};
@@ -191,22 +242,121 @@ function renderStatusHeader(snap, connState) {
   $('last-verified').textContent = `Last update: ${fmtEt(pubTs)} (${feedAgeS != null ? feedAgeS + 's ago' : '–'}) · Publisher: ${pubSt} · Delay: ${snap.publish_delay_s ?? 60}s`;
 
   const banner = $('truth-banner');
-  const m = snap.metrics || {};
-  if (effState !== 'ONLINE') {
-    banner.className = effState === 'OFFLINE' ? 'banner bad' : 'banner warn';
-    banner.textContent = `${effState} DATA — Feed is ${feedAgeS != null ? feedAgeS + 's' : 'unknown'} old (last published ${fmtEt(pubTs)}). Live trading status cannot be verified from a stale snapshot.`;
-  } else {
-    banner.className = 'banner';
-    const outside = m.shard0_outside_usd ?? 0.58;
-    banner.textContent = `LIVE & RECONCILED — Shard 2 Experiment Cash: ${fmtUsd(m.available_cash_usd)} · Open Portfolio Value: ${fmtUsd(m.open_position_value_usd)} · Total Live Equity: ${fmtUsd(m.verified_equity_usd)} (Shard 0 ${fmtUsd(outside)} excluded).`;
+  if (banner) {
+    if (effState !== 'ONLINE') {
+      banner.style.display = 'block';
+      banner.className = effState === 'OFFLINE' ? 'banner bad' : 'banner warn';
+      banner.textContent = `${effState} DATA — Feed is ${feedAgeS != null ? feedAgeS + 's' : 'unknown'} old (last published ${fmtEt(pubTs)}).`;
+    } else {
+      banner.style.display = 'none';
+    }
   }
 }
 
-function renderScoreboard(snap) {
+function renderAccountDetailsBody(type, items) {
+  const renderEntryLvls = (h) => (h.entry_levels || []).map(l => {
+    const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
+    const costStr = l.total_cost_usd != null ? ` · ${fmtUsd(l.total_cost_usd)}` : '';
+    return `<span class="depth-chip" title="${tsStr}">${l.qty}x @ ${l.price_cents}¢${costStr}${tsStr ? ' (' + tsStr + ')' : ''}</span>`;
+  }).join('');
+
+  if (type === 'active') {
+    if (!items.length) return '<div class="muted" style="font-size:11px;margin-top:4px">No active open positions.</div>';
+    return items.map(h => {
+      const entryLvls = renderEntryLvls(h);
+      const sellLvls = (h.sell_levels || []).length
+        ? h.sell_levels.map(l => `<span class="depth-chip">${l.price_cents}¢: ${l.available_qty} avail (sell ${l.sell_qty})</span>`).join('')
+        : '<span class="muted">UNAVAILABLE</span>';
+      const bestBidTxt = h.best_bid_cents != null ? `${h.best_bid_cents}¢` : 'UNAVAILABLE';
+      const estSellTxt = h.estimated_net_sell_usd != null ? fmtUsd(h.estimated_net_sell_usd) : 'UNAVAILABLE';
+      const sellPnlTxt = h.sell_pnl_usd != null ? fmtSignedUsd(h.sell_pnl_usd) : 'UNAVAILABLE';
+      const sellPnlCls = h.sell_pnl_usd == null ? '' : (h.sell_pnl_usd >= 0 ? 'pos' : 'neg');
+      const liqWarn = h.partial_liquidity ? ` (Partial: ${h.fillable_qty}/${h.contracts})` : '';
+      const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'Exchange Order Book'})` : 'UNAVAILABLE';
+      const sizingRow = h.alloc_pct != null
+        ? `<span class="k">Position Sizing</span><span class="v">Allocation: ${h.alloc_pct}% | Confidence: ${h.confidence_status || 'n/a'} | Mode: ${h.allocation_mode || 'n/a'}${h.limiting_factor ? ' | Limit: ' + h.limiting_factor : ''}</span>`
+        : '';
+      return `
+      <div class="pos-item">
+        <div class="pos-item-head">
+          <span class="mono">${h.ticker}</span>
+          <span class="tag ${h.side === 'YES' ? 'win' : 'paper'}">${h.side} · ${h.contracts}x</span>
+        </div>
+        <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
+        <div class="pos-kv">
+          <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
+          <span class="k">Closes / Countdown</span><span class="v">${fmtEt(h.close_ts)} (${fmtCountdown(h.close_ts)})</span>
+          <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
+          <span class="k">Pre-Fee Avg / Break-Even (Fee-Incl)</span><span class="v">${h.entry_price_cents}¢ / ${h.fee_inclusive_avg_cents ?? h.entry_price_cents}¢</span>
+          <span class="k">Cost + Fees = Cost Basis</span><span class="v">${fmtUsd(h.purchase_cost_usd)} + ${fmtUsd(h.fee_usd)} = ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
+          <span class="k">Best Selling Bid</span><span class="v">${bestBidTxt}</span>
+          <span class="k">Book Freshness</span><span class="v">${bookFresh}</span>
+          <span class="k">Est. Net Liquidation${liqWarn}</span><span class="v">${estSellTxt}</span>
+          <span class="k">Executable P&amp;L (Sell Now)</span><span class="v ${sellPnlCls}">${sellPnlTxt}</span>
+          <span class="k">Max Settlement / Rem. Profit</span><span class="v">${fmtUsd(h.max_payout_usd)} / ${fmtSignedUsd(h.remaining_profit_usd)}</span>
+          ${sizingRow}
+        </div>
+        <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  if (type === 'awaiting') {
+    if (!items.length) return '<div class="muted" style="font-size:11px;margin-top:4px">No positions awaiting settlement.</div>';
+    return items.map(h => {
+      const entryLvls = renderEntryLvls(h);
+      return `
+      <div class="pos-item">
+        <div class="pos-item-head">
+          <span class="mono">${h.ticker}</span>
+          <span class="tag legacy">PENDING SETTLEMENT · ${h.side} · ${h.contracts}x</span>
+        </div>
+        <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
+        <div class="pos-kv">
+          <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
+          <span class="k">Trading Closed (ET)</span><span class="v">${fmtEt(h.close_ts)}</span>
+          <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
+          <span class="k">Cost Basis (Invested)</span><span class="v">${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
+          <span class="k">Executable Resale</span><span class="v muted">CLOSED (AWAITING SETTLEMENT)</span>
+          <span class="k">Status</span><span class="v">PENDING OUTCOME</span>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  if (!items.length) return '<div class="muted" style="font-size:11px;margin-top:4px">No completed positions yet.</div>';
+  return items.slice(0, 60).map(t => {
+    const net = Number(t.realized_net_usd ?? t.net_pnl_usd ?? 0);
+    const proceeds = t.proceeds_usd != null ? fmtUsd(t.proceeds_usd) : (t.result === 'WIN' ? fmtUsd(Number(t.contracts || 0)) : '$0.00');
+    const resBadge = t.result === 'WIN' ? 'win' : t.result === 'SOLD' ? 'paper' : 'loss';
+    return `
+    <div class="pos-item">
+      <div class="pos-item-head">
+        <span class="mono">${t.ticker}</span>
+        <span class="tag ${resBadge}">${t.result || t.status || 'SETTLED'} · ${t.side} · ${t.contracts}x</span>
+      </div>
+      <div class="pos-kv">
+        <span class="k">Entry Cost / Fees</span><span class="v">${fmtUsd(t.invested_usd)} / ${fmtUsd(t.fee_usd || 0)}</span>
+        <span class="k">${t.result === 'SOLD' ? 'Sale Proceeds' : 'Settlement Payout'}</span><span class="v">${proceeds}</span>
+        <span class="k">Realized Net P&amp;L</span><span class="v ${net >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(net)}</span>
+        <span class="k">Completed (ET)</span><span class="v">${fmtEt(t.closed_ts || t.ts)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderScoreboard(snap, force = false) {
   const grid = $('scoreboard-grid');
   if (!grid) return;
+  const evId = snap?.event_id ?? null;
+  if (!force && evId != null && evId === lastScoreboardEventId && grid.children.length > 0) {
+    return;
+  }
+  lastScoreboardEventId = evId;
+
   const accts = snap?.three_accounts?.accounts || [];
   const holdings = snap?.holdings || [];
+  const completedAll = snap?.completed_trades || [];
   const prevMap = {};
   (prevSnap?.three_accounts?.accounts || []).forEach(pa => { prevMap[pa.account_id] = pa; });
 
@@ -215,14 +365,17 @@ function renderScoreboard(snap) {
     return;
   }
 
+  const nowSec = Date.now() / 1000;
+  const secDataMap = {};
+
   const renderCard = (a) => {
     const grp = accountGroupOf(a);
     const isReal = grp === 'live';
     const isVal = grp === 'original_validation';
+    const isFin = grp === 'expanded_financial_validation';
+    const isSucc = grp === 'successor_query_discovery' || grp === 'clean_slate_hermes' || grp === 'clean_slate_hestia';
     const initC = Number(a.initial_cents || 0);
     const eqC = Number(a.equity_cents ?? initC);
-    const netC = Number(a.net_pnl_cents ?? (eqC - initC));
-    const retPct = initC > 0 ? (netC / initC) * 100 : 0;
     const contractsHeld = holdings
       .filter(h => h.account_id === a.account_id)
       .reduce((s, h) => s + Number(h.contracts || 0), 0);
@@ -237,7 +390,6 @@ function renderScoreboard(snap) {
       const dC = eqC - Number(prevEqC);
       if (dC > 0) deltaHtml = `<span class="delta-pill up">▲ +$${(dC / 100).toFixed(2)}</span>`;
       else if (dC < 0) deltaHtml = `<span class="delta-pill down">▼ -$${(Math.abs(dC) / 100).toFixed(2)}</span>`;
-      else deltaHtml = '<span class="delta-pill flat">— $0.00</span>';
     }
 
     const posValTxt = a.position_value_cents == null
@@ -252,11 +404,14 @@ function renderScoreboard(snap) {
       : fmtUsd(a.net_sell_value_cents / 100);
     const unrealTxt = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
 
-    const nowSec = Date.now() / 1000;
     const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
     const activeHoldings = acctHoldings.filter(h => !h.trading_closed && (!h.close_ts || Number(h.close_ts) > nowSec));
     const awaitingHoldings = acctHoldings.filter(h => h.trading_closed || (h.close_ts && Number(h.close_ts) <= nowSec));
-    const acctCompleted = (snap?.completed_trades || []).filter(t => t.account_id === a.account_id);
+    const acctCompleted = completedAll.filter(t => t.account_id === a.account_id);
+
+    secDataMap[`${a.account_id}:active`] = { type: 'active', items: activeHoldings };
+    secDataMap[`${a.account_id}:awaiting`] = { type: 'awaiting', items: awaitingHoldings };
+    secDataMap[`${a.account_id}:completed`] = { type: 'completed', items: acctCompleted };
 
     const realizedC = Number(a.realized_net_cents ?? 0);
     const realCls = realizedC > 0 ? 'pos' : realizedC < 0 ? 'neg' : '';
@@ -265,112 +420,15 @@ function renderScoreboard(snap) {
     const maxRemPayoutC = Number(a.max_remaining_payout_cents ?? (contractsHeld * 100));
     const actCount = a.active_open_positions ?? activeHoldings.length;
     const setCount = a.settling_positions ?? awaitingHoldings.length;
-    const titleLabel = isReal
-      ? `${a.label} — REAL MONEY`
-      : `${a.label.replace(' (Control)', '')} — SIMULATED`;
-    const isFin = grp === 'expanded_financial_validation';
-    const isSucc = grp === 'successor_query_discovery' || grp === 'clean_slate_hermes' || grp === 'clean_slate_hestia';
+    const titleLabel = isReal ? `${a.label} — REAL MONEY` : `${shortLabelOf(a)} — SIMULATED`;
     const cardCls = isReal ? 'real-card' : (isVal || isSucc) ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
       ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
       : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${a.codename || 'PAPER'} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
 
-    const renderEntryLvls = (h) => (h.entry_levels || []).map(l => {
-      const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
-      const costStr = l.total_cost_usd != null ? ` · ${fmtUsd(l.total_cost_usd)}` : '';
-      return `<span class="depth-chip" title="${tsStr}">${l.qty}x @ ${l.price_cents}¢${costStr}${tsStr ? ' (' + tsStr + ')' : ''}</span>`;
-    }).join('');
-
-    const activeHtml = activeHoldings.length === 0
-      ? '<div class="muted" style="font-size:11px;margin-top:4px">No active open positions.</div>'
-      : activeHoldings.map(h => {
-          const entryLvls = renderEntryLvls(h);
-          const sellLvls = (h.sell_levels || []).length
-            ? h.sell_levels.map(l => `<span class="depth-chip">${l.price_cents}¢: ${l.available_qty} avail (sell ${l.sell_qty})</span>`).join('')
-            : '<span class="muted">UNAVAILABLE</span>';
-          const bestBidTxt = h.best_bid_cents != null ? `${h.best_bid_cents}¢` : 'UNAVAILABLE';
-          const estSellTxt = h.estimated_net_sell_usd != null ? fmtUsd(h.estimated_net_sell_usd) : 'UNAVAILABLE';
-          const sellPnlTxt = h.sell_pnl_usd != null ? fmtSignedUsd(h.sell_pnl_usd) : 'UNAVAILABLE';
-          const sellPnlCls = h.sell_pnl_usd == null ? '' : (h.sell_pnl_usd >= 0 ? 'pos' : 'neg');
-          const liqWarn = h.partial_liquidity ? ` (Partial: ${h.fillable_qty}/${h.contracts})` : '';
-          const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'Exchange Order Book'})` : 'UNAVAILABLE';
-          const sizingRow = h.alloc_pct != null
-            ? `<span class="k">Position Sizing</span><span class="v">Allocation: ${h.alloc_pct}% | Confidence: ${h.confidence_status || 'n/a'} | Mode: ${h.allocation_mode || 'n/a'}${h.limiting_factor ? ' | Limit: ' + h.limiting_factor : ''}</span>`
-            : '';
-          return `
-          <div class="pos-item">
-            <div class="pos-item-head">
-              <span class="mono">${h.ticker}</span>
-              <span class="tag ${h.side === 'YES' ? 'win' : 'paper'}">${h.side} · ${h.contracts}x</span>
-            </div>
-            <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
-            <div class="pos-kv">
-              <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
-              <span class="k">Closes / Countdown</span><span class="v">${fmtEt(h.close_ts)} (${fmtCountdown(h.close_ts)})</span>
-              <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
-              <span class="k">Pre-Fee Avg / Break-Even (Fee-Incl)</span><span class="v">${h.entry_price_cents}¢ / ${h.fee_inclusive_avg_cents ?? h.entry_price_cents}¢</span>
-              <span class="k">Cost + Fees = Cost Basis</span><span class="v">${fmtUsd(h.purchase_cost_usd)} + ${fmtUsd(h.fee_usd)} = ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
-              <span class="k">Best Selling Bid</span><span class="v">${bestBidTxt}</span>
-              <span class="k">Book Freshness</span><span class="v">${bookFresh}</span>
-              <span class="k">Est. Net Liquidation${liqWarn}</span><span class="v">${estSellTxt}</span>
-              <span class="k">Executable P&amp;L (Sell Now)</span><span class="v ${sellPnlCls}">${sellPnlTxt}</span>
-              <span class="k">Max Settlement / Rem. Profit</span><span class="v">${fmtUsd(h.max_payout_usd)} / ${fmtSignedUsd(h.remaining_profit_usd)}</span>
-              ${sizingRow}
-            </div>
-            <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
-          </div>`;
-        }).join('');
-
-    const awaitingHtml = awaitingHoldings.length === 0
-      ? '<div class="muted" style="font-size:11px;margin-top:4px">No positions awaiting settlement.</div>'
-      : awaitingHoldings.map(h => {
-          const entryLvls = renderEntryLvls(h);
-          return `
-          <div class="pos-item">
-            <div class="pos-item-head">
-              <span class="mono">${h.ticker}</span>
-              <span class="tag legacy">PENDING SETTLEMENT · ${h.side} · ${h.contracts}x</span>
-            </div>
-            <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
-            <div class="pos-kv">
-              <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
-              <span class="k">Trading Closed (ET)</span><span class="v">${fmtEt(h.close_ts)}</span>
-              <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
-              <span class="k">Cost Basis (Invested)</span><span class="v">${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
-              <span class="k">Executable Resale</span><span class="v muted">CLOSED (AWAITING SETTLEMENT)</span>
-              <span class="k">Status</span><span class="v">PENDING OUTCOME</span>
-            </div>
-          </div>`;
-        }).join('');
-
-    const completedHtml = acctCompleted.length === 0
-      ? '<div class="muted" style="font-size:11px;margin-top:4px">No completed positions yet.</div>'
-      : acctCompleted.map(t => {
-          const net = Number(t.realized_net_usd ?? t.net_pnl_usd ?? 0);
-          const proceeds = t.proceeds_usd != null ? fmtUsd(t.proceeds_usd) : (t.result === 'WIN' ? fmtUsd(Number(t.contracts || 0)) : '$0.00');
-          const resBadge = t.result === 'WIN' ? 'win' : t.result === 'SOLD' ? 'paper' : 'loss';
-          return `
-          <div class="pos-item">
-            <div class="pos-item-head">
-              <span class="mono">${t.ticker}</span>
-              <span class="tag ${resBadge}">${t.result || t.status || 'SETTLED'} · ${t.side} · ${t.contracts}x</span>
-            </div>
-            <div class="pos-kv">
-              <span class="k">Entry Cost / Fees</span><span class="v">${fmtUsd(t.invested_usd)} / ${fmtUsd(t.fee_usd || 0)}</span>
-              <span class="k">${t.result === 'SOLD' ? 'Sale Proceeds' : 'Settlement Payout'}</span><span class="v">${proceeds}</span>
-              <span class="k">Realized Net P&amp;L</span><span class="v ${net >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(net)}</span>
-              <span class="k">Completed (ET)</span><span class="v">${fmtEt(t.closed_ts || t.ts)}</span>
-            </div>
-          </div>`;
-        }).join('');
-
-    const isSecOpen = (sec, defOpen) => {
-      const k = `${a.account_id}:${sec}`;
-      return (k in sectionOpenOverrides) ? sectionOpenOverrides[k] : defOpen;
-    };
-    const actOpen = isSecOpen('active', false);
-    const awtOpen = isSecOpen('awaiting', false);
-    const cmpOpen = isSecOpen('completed', false);
+    const actOpen = Boolean(sectionOpenOverrides[`${a.account_id}:active`]);
+    const awtOpen = Boolean(sectionOpenOverrides[`${a.account_id}:awaiting`]);
+    const cmpOpen = Boolean(sectionOpenOverrides[`${a.account_id}:completed`]);
 
     return `
     <article class="acct-card ${cardCls}">
@@ -417,16 +475,16 @@ function renderScoreboard(snap) {
         <span class="k">Fees Paid</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
       <details class="pos-details" data-sec="${a.account_id}:active" ${actOpen ? 'open' : ''}>
-        <summary><span>1. Active Positions (${activeHoldings.length})</span><span>${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
-        ${activeHtml}
+        <summary><span>1. Active Positions (${activeHoldings.length})</span><span class="sec-lbl">${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <div class="sec-body">${actOpen ? renderAccountDetailsBody('active', activeHoldings) : ''}</div>
       </details>
       <details class="pos-details" data-sec="${a.account_id}:awaiting" ${awtOpen ? 'open' : ''}>
-        <summary><span>2. Awaiting Settlement (${awaitingHoldings.length})</span><span>${awtOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
-        ${awaitingHtml}
+        <summary><span>2. Awaiting Settlement (${awaitingHoldings.length})</span><span class="sec-lbl">${awtOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <div class="sec-body">${awtOpen ? renderAccountDetailsBody('awaiting', awaitingHoldings) : ''}</div>
       </details>
       <details class="pos-details" data-sec="${a.account_id}:completed" ${cmpOpen ? 'open' : ''}>
-        <summary><span>3. Completed Positions (${acctCompleted.length})</span><span>${cmpOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
-        ${completedHtml}
+        <summary><span>3. Completed Positions (${acctCompleted.length})</span><span class="sec-lbl">${cmpOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <div class="sec-body">${cmpOpen ? renderAccountDetailsBody('completed', acctCompleted) : ''}</div>
       </details>
     </article>`;
   };
@@ -435,13 +493,13 @@ function renderScoreboard(snap) {
     {
       key: 'clean_slate_hestia',
       title: 'HESTIA-008 (SIMULATED · ADAPTIVE SIZING)',
-      sub: 'NEW synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, <=10% baseline fallback).',
+      sub: 'Synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, <=10% baseline fallback).',
       items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hestia'),
     },
     {
       key: 'clean_slate_hermes',
       title: 'HERMES-008B (SIMULATED · CLEAN-SLATE 10% BASELINE)',
-      sub: 'NEW synchronized clean-slate control arm paired with HESTIA-008 (fixed 10% sizing, identical entry feed).',
+      sub: 'Synchronized clean-slate control arm paired with HESTIA-008 (fixed 10% sizing, identical entry feed).',
       items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hermes'),
     },
     {
@@ -479,89 +537,169 @@ function renderScoreboard(snap) {
   grid.innerHTML = groups.map(g => `
     <div class="group-section">
       <div class="group-head">
-        <span class="group-title">${g.title}</span>
-        <span class="group-sub">${g.sub}</span>
+        <div>
+          <h2 class="group-title">${g.title}</h2>
+          <div class="muted" style="font-size:12px">${g.sub}</div>
+        </div>
       </div>
       <div class="scoreboard-grid">${g.items.map(renderCard).join('')}</div>
-    </div>
-  `).join('');
+    </div>`).join('');
 
   grid.querySelectorAll('details.pos-details').forEach(det => {
-    const sk = det.dataset.sec;
-    const sum = det.querySelector('summary');
-    if (sum && sk) {
-      sum.addEventListener('click', () => {
-        sectionOpenOverrides[sk] = !det.open;
-      });
-    }
+    const key = det.dataset.sec;
+    const lbl = det.querySelector('.sec-lbl');
+    const body = det.querySelector('.sec-body');
     det.addEventListener('toggle', () => {
-      if (!sk) return;
-      sectionOpenOverrides[sk] = det.open;
-      const sumSpan = det.querySelector('summary span:last-child');
-      if (sumSpan) sumSpan.textContent = det.open ? '▾ Collapse' : '▸ Expand';
+      sectionOpenOverrides[key] = det.open;
+      if (lbl) lbl.textContent = det.open ? '▾ Collapse' : '▸ Expand';
+      if (det.open && body && !body.innerHTML && secDataMap[key]) {
+        body.innerHTML = renderAccountDetailsBody(secDataMap[key].type, secDataMap[key].items);
+      }
     });
   });
 }
 
-function renderChart(snap) {
-  const box = $('bankroll-chart');
-  const legendBox = $('chart-legend');
-  const tip = $('chart-tooltip');
-  const seriesMap = snap?.three_accounts?.series || {};
-  const accounts = snap?.three_accounts?.accounts || [];
-  const localHist = loadJson(HIST_KEY, {});
-
-  const specs = accounts.map((a, idx) => {
+function buildChartSpecs(accounts) {
+  return accounts.map((a, idx) => {
     const aid = a.account_id;
     if (!(aid in showLines)) showLines[aid] = true;
     const isReal = accountGroupOf(a) === 'live';
     return {
       key: aid,
-      label: shortLabelOf(a) + (isReal ? ' (REAL)' : ' (SIM)'),
+      codename: a.codename || shortLabelOf(a),
+      bankrollShort: fmtBankrollShort(a.initial_cents),
+      label: `${a.codename || shortLabelOf(a)} · ${fmtBankrollShort(a.initial_cents)}`,
       shortLabel: shortLabelOf(a),
+      isReal,
       color: ACCOUNT_COLORS[aid] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
-      dashed: !isReal,
       init: Number(a.initial_cents || 2500),
     };
   });
+}
 
+function renderSeriesToggles(specs) {
   const toggleBox = $('line-toggles');
-  if (toggleBox) {
-    toggleBox.innerHTML = specs.map(sp => `<button class="toggle-btn ${showLines[sp.key] ? 'active' : ''}" data-line="${sp.key}" type="button">${sp.shortLabel}</button>`).join('');
-    toggleBox.querySelectorAll('button').forEach(btn => {
-      btn.onclick = () => {
-        const k = btn.dataset.line;
-        showLines[k] = !showLines[k];
-        renderChart(currentSnap);
-      };
+  if (!toggleBox) return;
+  const byCodename = [];
+  const seen = {};
+  specs.forEach(sp => {
+    if (!seen[sp.codename]) {
+      seen[sp.codename] = { codename: sp.codename, items: [] };
+      byCodename.push(seen[sp.codename]);
+    }
+    seen[sp.codename].items.push(sp);
+  });
+
+  const groupsHtml = byCodename.map(g => {
+    const chips = g.items.map(sp => `
+      <button class="series-chip ${showLines[sp.key] ? 'active' : ''}" data-line="${sp.key}" type="button" title="Toggle ${sp.label}">
+        <span class="series-dot" style="background:${sp.color}"></span>
+        <span>${sp.bankrollShort}</span>
+      </button>`).join('');
+    return `<div class="series-group">
+      <span class="series-group-lbl" data-group="${g.codename}" title="Toggle all ${g.codename}">${g.codename}</span>
+      ${chips}
+    </div>`;
+  }).join('');
+
+  toggleBox.innerHTML = `
+    <div style="display:flex;gap:4px;margin-right:4px">
+      <button id="series-all-btn" class="toggle-btn" type="button">All</button>
+      <button id="series-none-btn" class="toggle-btn" type="button">None</button>
+    </div>
+    ${groupsHtml}`;
+
+  toggleBox.querySelectorAll('.series-chip').forEach(btn => {
+    btn.onclick = () => {
+      const k = btn.dataset.line;
+      showLines[k] = !showLines[k];
+      if (currentSnap) renderChart(currentSnap, true);
+    };
+  });
+  toggleBox.querySelectorAll('.series-group-lbl').forEach(lbl => {
+    lbl.onclick = () => {
+      const gName = lbl.dataset.group;
+      const items = specs.filter(s => s.codename === gName);
+      const anyOff = items.some(s => !showLines[s.key]);
+      items.forEach(s => { showLines[s.key] = anyOff; });
+      if (currentSnap) renderChart(currentSnap, true);
+    };
+  });
+  const allBtn = $('series-all-btn');
+  const noneBtn = $('series-none-btn');
+  if (allBtn) allBtn.onclick = () => { specs.forEach(s => { showLines[s.key] = true; }); if (currentSnap) renderChart(currentSnap, true); };
+  if (noneBtn) noneBtn.onclick = () => { specs.forEach(s => { showLines[s.key] = false; }); if (currentSnap) renderChart(currentSnap, true); };
+}
+
+function ensureChartInstance() {
+  const el = $('bankroll-chart');
+  if (!el || typeof echarts === 'undefined') return null;
+  if (!chartInstance) {
+    chartInstance = echarts.init(el, null, { renderer: 'canvas' });
+    chartInstance.on('datazoom', () => {
+      const opt = chartInstance.getOption();
+      const dz = opt?.dataZoom?.[0];
+      if (dz && (dz.startValue != null || dz.endValue != null)) {
+        chartZoomState = { startValue: dz.startValue, endValue: dz.endValue };
+      }
+    });
+    if (typeof ResizeObserver !== 'undefined' && !chartResizeObserver) {
+      chartResizeObserver = new ResizeObserver(() => {
+        if (chartInstance) chartInstance.resize();
+      });
+      chartResizeObserver.observe(el);
+    }
+  }
+  return chartInstance;
+}
+
+function renderChart(snap, forceToggleRebuild = false) {
+  const el = $('bankroll-chart');
+  if (!el) return;
+  const seriesMap = snap?.three_accounts?.series || {};
+  const accounts = snap?.three_accounts?.accounts || [];
+  const specs = buildChartSpecs(accounts);
+
+  if (forceToggleRebuild || !$('line-toggles')?.children.length) {
+    renderSeriesToggles(specs);
+  } else {
+    $('line-toggles')?.querySelectorAll('.series-chip').forEach(btn => {
+      btn.classList.toggle('active', Boolean(showLines[btn.dataset.line]));
     });
   }
 
+  if (typeof echarts === 'undefined') {
+    el.innerHTML = '<div class="muted" style="padding:24px;text-align:center">Chart library loading…</div>';
+    return;
+  }
+
+  const chart = ensureChartInstance();
+  if (!chart) return;
+
+  const localHist = getMemoryHist();
   const nowSec = Math.floor(Date.now() / 1000);
   const cutoff = chartRange === '1h' ? nowSec - 3600
     : chartRange === '6h' ? nowSec - 21600
     : chartRange === '24h' ? nowSec - 86400
     : 0;
 
-  const active = specs.filter(s => showLines[s.key]);
-  const prepared = [];
-  const allTs = [];
-  const allVals = [];
-
-  const valOf = (pt, init) => {
-    const eqC = Number(pt.equity_cents ?? init);
+  const valOf = (eqC, init) => {
     const pnlC = eqC - init;
-    if (chartUnit === 'pct') return (pnlC / Math.max(1, init)) * 100;
-    if (chartUnit === 'pnl') return pnlC / 100;
-    return eqC / 100;
+    if (chartUnit === 'pct') return Number(((pnlC / Math.max(1, init)) * 100).toFixed(4));
+    if (chartUnit === 'pnl') return Number((pnlC / 100).toFixed(2));
+    return Number((eqC / 100).toFixed(2));
   };
+
+  const active = specs.filter(s => showLines[s.key]);
+  const echartsSeries = [];
+  const metaByName = {};
 
   active.forEach(sp => {
     const merged = [...(seriesMap[sp.key] || []), ...(localHist[sp.key] || [])]
       .filter(p => p && p.ts != null)
       .map(p => ({ ts: Number(p.ts), equity_cents: Number(p.equity_cents ?? sp.init) }))
       .sort((a, b) => a.ts - b.ts);
-    // Deduplicate close timestamps (<15s) keeping latest
+
     const dedup = [];
     for (const p of merged) {
       if (dedup.length && p.ts - dedup[dedup.length - 1].ts < 15) {
@@ -573,132 +711,137 @@ function renderChart(snap) {
     const filtered = cutoff > 0 ? dedup.filter(p => p.ts >= cutoff) : dedup;
     const pts = filtered.length ? filtered : dedup.slice(-1);
     if (!pts.length) return;
-    prepared.push({ ...sp, pts });
-    pts.forEach(p => {
-      allTs.push(p.ts);
-      allVals.push(valOf(p, sp.init));
+
+    // Preserve genuine gaps in dense series (> 1800s gap between recorded points)
+    const data = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (i > 0 && pts.length > 6 && (p.ts - pts[i - 1].ts) > 1800) {
+        data.push([Math.round((pts[i - 1].ts + p.ts) * 500), null]);
+      }
+      data.push({
+        value: [Math.round(p.ts * 1000), valOf(p.equity_cents, sp.init)],
+        eqUsd: p.equity_cents / 100,
+        pnlUsd: (p.equity_cents - sp.init) / 100,
+        pct: ((p.equity_cents - sp.init) / Math.max(1, sp.init)) * 100,
+      });
+    }
+
+    metaByName[sp.label] = sp;
+    echartsSeries.push({
+      name: sp.label,
+      type: 'line',
+      data,
+      smooth: false,
+      connectNulls: false,
+      sampling: 'lttb',
+      showSymbol: pts.length <= 4,
+      symbolSize: 6,
+      lineStyle: {
+        width: sp.isReal ? 2.8 : 1.9,
+        type: sp.isReal ? 'solid' : 'dashed',
+        color: sp.color,
+      },
+      itemStyle: { color: sp.color },
+      emphasis: { focus: 'series' },
     });
   });
 
-  legendBox.innerHTML = prepared.map(sp => `
-    <span class="legend-item" style="color:${sp.color}">
-      <span class="legend-line ${sp.dashed ? 'dashed' : ''}"></span>
-      <span>${sp.label} (${sp.pts.length} pts)</span>
-    </span>`).join('');
+  lastChartSeries = echartsSeries;
 
-  if (!prepared.length || !allTs.length) {
-    box.innerHTML = '<div class="muted" style="padding:24px;text-align:center">No historical equity observations available yet for this range.</div>';
-    return;
-  }
-
-  const w = 780, h = 240, padL = 58, padR = 18, padT = 16, padB = 28;
-  const minT = Math.min(...allTs);
-  const maxT = Math.max(...allTs);
-  const spanT = Math.max(1, maxT - minT);
-  let minV = Math.min(...allVals);
-  let maxV = Math.max(...allVals);
-  if (chartUnit !== 'usd') {
-    minV = Math.min(minV, 0);
-    maxV = Math.max(maxV, 0);
-  }
-  const padV = Math.max(chartUnit === 'pct' ? 0.5 : 0.25, (maxV - minV) * 0.12);
-  minV -= padV;
-  maxV += padV;
-  const spanV = Math.max(0.01, maxV - minV);
-
-  const xOf = (t) => padL + ((t - minT) / spanT) * (w - padL - padR);
-  const yOf = (v) => h - padB - ((v - minV) / spanV) * (h - padT - padB);
-  const fmtY = (v) => chartUnit === 'pct' ? `${v.toFixed(1)}%` : `$${v.toFixed(2)}`;
-
-  // Horizontal grid + Y labels
-  let gridSvg = '';
-  for (let i = 0; i <= 4; i++) {
-    const v = minV + (spanV * i) / 4;
-    const y = yOf(v);
-    gridSvg += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}" stroke="rgba(148,163,184,0.14)" stroke-width="1"/>`;
-    gridSvg += `<text x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end" fill="#94a3b8" font-size="10">${fmtY(v)}</text>`;
-  }
-  // Zero reference line in % / $ P&L modes
-  if (chartUnit !== 'usd' && minV <= 0 && maxV >= 0) {
-    const zy = yOf(0);
-    gridSvg += `<line x1="${padL}" y1="${zy.toFixed(1)}" x2="${w - padR}" y2="${zy.toFixed(1)}" stroke="rgba(148,163,184,0.4)" stroke-dasharray="3 3" stroke-width="1"/>`;
-  }
-  // X-axis time ticks
-  for (let i = 0; i <= 4; i++) {
-    const t = minT + (spanT * i) / 4;
-    const x = xOf(t);
-    gridSvg += `<text x="${x.toFixed(1)}" y="${h - 8}" text-anchor="middle" fill="#94a3b8" font-size="10">${fmtTimeShort(t)}</text>`;
-  }
-
-  const linesSvg = prepared.map(sp => {
-    if (sp.pts.length === 1) {
-      const p = sp.pts[0];
-      const cx = xOf(p.ts).toFixed(1);
-      const cy = yOf(valOf(p, sp.init)).toFixed(1);
-      return `<circle cx="${cx}" cy="${cy}" r="4.5" fill="${sp.color}" stroke="#060a12" stroke-width="1.5"/>`;
-    }
-    const d = sp.pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(p.ts).toFixed(1)} ${yOf(valOf(p, sp.init)).toFixed(1)}`).join(' ');
-    const dash = sp.dashed ? 'stroke-dasharray="6 4"' : '';
-    const sw = sp.dashed ? '1.9' : '2.7';
-    const last = sp.pts[sp.pts.length - 1];
-    const lx = xOf(last.ts).toFixed(1);
-    const ly = yOf(valOf(last, sp.init)).toFixed(1);
-    return `<path d="${d}" fill="none" stroke="${sp.color}" stroke-width="${sw}" ${dash}/><circle cx="${lx}" cy="${ly}" r="3.5" fill="${sp.color}"/>`;
-  }).join('');
-
-  box.innerHTML = `
-    <svg id="chart-svg" viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;display:block;touch-action:none">
-      ${gridSvg}
-      ${linesSvg}
-      <line id="chart-hover-line" x1="0" y1="${padT}" x2="0" y2="${h - padB}" stroke="rgba(226,232,240,0.4)" stroke-width="1" style="display:none"/>
-    </svg>`;
-
-  const svg = $('chart-svg');
-  const hLine = $('chart-hover-line');
-  const showHover = (clientX, clientY) => {
-    const rect = svg.getBoundingClientRect();
-    const relX = ((clientX - rect.left) / Math.max(1, rect.width)) * w;
-    const clampedX = Math.max(padL, Math.min(w - padR, relX));
-    const targetTs = minT + ((clampedX - padL) / Math.max(1, w - padL - padR)) * spanT;
-    hLine.setAttribute('x1', clampedX.toFixed(1));
-    hLine.setAttribute('x2', clampedX.toFixed(1));
-    hLine.style.display = 'block';
-
-    const rowsHtml = prepared.map(sp => {
-      let best = sp.pts[0];
-      let bestDist = Math.abs(best.ts - targetTs);
-      for (const p of sp.pts) {
-        const dist = Math.abs(p.ts - targetTs);
-        if (dist < bestDist) { best = p; bestDist = dist; }
-      }
-      const eq = best.equity_cents / 100;
-      const pnl = (best.equity_cents - sp.init) / 100;
-      const pct = ((best.equity_cents - sp.init) / Math.max(1, sp.init)) * 100;
-      return `<div style="display:flex;justify-content:space-between;gap:10px;color:${sp.color}">
-        <span>${sp.shortLabel}</span>
-        <span class="mono">${fmtUsd(eq)} (${fmtSignedPct(pct)} / ${fmtSignedUsd(pnl)})</span>
-      </div>`;
-    }).join('');
-    tip.innerHTML = `<div class="muted" style="margin-bottom:4px">${fmtEt(targetTs)}</div>${rowsHtml}`;
-    tip.style.display = 'block';
-    const leftPx = Math.min(rect.width - 210, Math.max(8, clientX - rect.left + 12));
-    tip.style.left = `${leftPx}px`;
-    tip.style.top = '34px';
+  const dzInside = { type: 'inside', xAxisIndex: 0, filterMode: 'none' };
+  const dzSlider = {
+    type: 'slider',
+    xAxisIndex: 0,
+    height: 24,
+    bottom: 8,
+    borderColor: 'rgba(148,163,184,0.22)',
+    backgroundColor: 'rgba(5,9,20,0.7)',
+    fillerColor: 'rgba(56,189,248,0.16)',
+    handleStyle: { color: '#38bdf8', borderColor: '#060a12' },
+    textStyle: { color: '#94a3b8', fontSize: 10 },
+    filterMode: 'none',
   };
-  svg.onmousemove = (e) => showHover(e.clientX, e.clientY);
-  svg.ontouchmove = (e) => { if (e.touches[0]) showHover(e.touches[0].clientX, e.touches[0].clientY); };
-  svg.onmouseleave = () => { hLine.style.display = 'none'; tip.style.display = 'none'; };
+  if (chartZoomState && chartZoomState.startValue != null && chartZoomState.endValue != null) {
+    dzInside.startValue = chartZoomState.startValue;
+    dzInside.endValue = chartZoomState.endValue;
+    dzSlider.startValue = chartZoomState.startValue;
+    dzSlider.endValue = chartZoomState.endValue;
+  }
+
+  const option = {
+    animation: false,
+    backgroundColor: 'transparent',
+    grid: { left: 62, right: 20, top: 18, bottom: 62 },
+    tooltip: {
+      trigger: 'axis',
+      appendToBody: true,
+      confine: true,
+      enterable: false,
+      axisPointer: {
+        type: 'cross',
+        lineStyle: { color: 'rgba(56,189,248,0.45)', width: 1, type: 'dashed' },
+        crossStyle: { color: 'rgba(148,163,184,0.35)' },
+        label: { backgroundColor: '#0f172a', borderColor: '#38bdf8', borderWidth: 1, fontSize: 10 },
+      },
+      extraCssText: 'z-index:99999;max-height:290px;overflow-y:auto;background:rgba(9,14,28,0.96);border:1px solid rgba(56,189,248,0.38);border-radius:10px;padding:10px 12px;box-shadow:0 14px 36px rgba(0,0,0,0.75);pointer-events:none;',
+      formatter: (params) => {
+        if (!params || !params.length) return '';
+        const tsMs = params[0].axisValue;
+        const rows = params
+          .filter(p => p.data && p.data.value && p.data.value[1] != null)
+          .sort((a, b) => (b.data.pct ?? 0) - (a.data.pct ?? 0))
+          .map(p => {
+            const d = p.data;
+            const pctStr = fmtSignedPct(d.pct);
+            const pnlStr = fmtSignedUsd(d.pnlUsd);
+            const eqStr = fmtUsd(d.eqUsd);
+            return `<div style="display:flex;justify-content:space-between;align-items:center;gap:14px;font-size:11px;line-height:1.45;color:#e2e8f0">
+              <span style="display:inline-flex;align-items:center;gap:6px">
+                <span style="width:7px;height:7px;border-radius:50%;background:${p.color};display:inline-block"></span>
+                <span>${p.seriesName}</span>
+              </span>
+              <span style="font-family:ui-monospace,monospace;white-space:nowrap">${eqStr} · <b>${pctStr}</b> (${pnlStr})</span>
+            </div>`;
+          }).join('');
+        return `<div style="font-size:11px;color:#38bdf8;font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(148,163,184,0.2);padding-bottom:4px">${fmtEt(tsMs / 1000)}</div>${rows || '<div class="muted">No observations</div>'}`;
+      },
+    },
+    xAxis: {
+      type: 'time',
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.25)' } },
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+      splitLine: { show: true, lineStyle: { color: 'rgba(148,163,184,0.08)' } },
+    },
+    yAxis: {
+      type: 'value',
+      scale: true,
+      axisLine: { show: false },
+      axisLabel: {
+        color: '#94a3b8',
+        fontSize: 10,
+        formatter: (v) => chartUnit === 'pct' ? `${v.toFixed(1)}%` : `$${v.toFixed(2)}`,
+      },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } },
+    },
+    dataZoom: [dzInside, dzSlider],
+    series: echartsSeries,
+  };
+
+  chart.setOption(option, { notMerge: true, lazyUpdate: true });
 }
 
 function renderAccountFilterTabs(containerId, accts, items, activeAcct, onSelect) {
-  const box = $(containerId);
-  if (!box) return;
-  const defs = [{ aid: '', label: 'All' }, ...accts.map(a => ({ aid: a.account_id, label: shortLabelOf(a) }))];
-  box.innerHTML = defs.map(d => {
-    const cnt = d.aid ? items.filter(x => x.account_id === d.aid).length : items.length;
-    return `<button class="tab-btn ${activeAcct === d.aid ? 'active' : ''}" data-acct="${d.aid}" type="button">${d.label} (${cnt})</button>`;
-  }).join('');
-  box.querySelectorAll('.tab-btn').forEach(btn => {
+  const el = $(containerId);
+  if (!el) return;
+  const counts = {};
+  items.forEach(x => { counts[x.account_id] = (counts[x.account_id] || 0) + 1; });
+  const btns = [{ account_id: '', label: `All (${items.length})` }].concat(
+    accts.map(a => ({ account_id: a.account_id, label: `${shortLabelOf(a)} (${counts[a.account_id] || 0})` }))
+  );
+  el.innerHTML = btns.map(b => `<button class="tab-btn ${activeAcct === b.account_id ? 'active' : ''}" data-acct="${b.account_id}" type="button">${b.label}</button>`).join('');
+  el.querySelectorAll('button').forEach(btn => {
     btn.onclick = () => onSelect(btn.dataset.acct || '');
   });
 }
@@ -707,7 +850,12 @@ function renderHoldings(snap) {
   const all = snap?.holdings || [];
   const accts = snap?.three_accounts?.accounts || [];
   const totalContracts = all.reduce((s, h) => s + Number(h.contracts || 0), 0);
+  const badge = $('holdings-count-badge');
+  if (badge) badge.textContent = `${all.length} positions`;
   $('holdings-summary').textContent = `${all.length} Open Positions · ${totalContracts} Contracts Held Across All ${accts.length} Accounts`;
+
+  const det = $('holdings-panel-details');
+  if (det && !det.open) return; // Skip heavy DOM table render while collapsed
 
   renderAccountFilterTabs('holdings-tabs', accts, all, holdingsAcct, (aid) => {
     holdingsAcct = aid;
@@ -755,8 +903,12 @@ function renderHoldings(snap) {
 function renderCompleted(snap) {
   const all = snap?.completed_trades || [];
   const accts = snap?.three_accounts?.accounts || [];
+  const badge = $('completed-count-badge');
+  if (badge) badge.textContent = `${all.length} transactions`;
 
-  // Cumulative W/L/WinRate/Realized summary strip per account
+  const det = $('completed-panel-details');
+  if (det && !det.open) return; // Skip heavy DOM table render while collapsed
+
   $('completed-summary').innerHTML = accts.map(a => {
     const w = Number(a.wins || 0);
     const l = Number(a.losses || 0);
@@ -766,7 +918,7 @@ function renderCompleted(snap) {
     const isReal = a.kind === 'REAL' || a.account_id === 'live_25';
     return `<div class="cum-box">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <b>${a.label.replace(' (Control)', '')}</b>
+        <b>${shortLabelOf(a)}</b>
         <span class="tag ${isReal ? 'real' : 'paper'}">${isReal ? 'REAL' : 'PAPER'}</span>
       </div>
       <div class="mono" style="margin-top:4px">${w}W / ${l}L (${wr}) · <span class="${net >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(net)}</span></div>
@@ -775,6 +927,7 @@ function renderCompleted(snap) {
 
   renderAccountFilterTabs('completed-tabs', accts, all, completedAcct, (aid) => {
     completedAcct = aid;
+    completedPage = 0;
     if (currentSnap) renderCompleted(currentSnap);
   });
 
@@ -786,11 +939,19 @@ function renderCompleted(snap) {
   });
 
   const body = $('completed-body');
+  const pager = $('completed-pager');
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="10" class="muted">No completed trades match the current filter.</td></tr>';
+    if (pager) pager.innerHTML = '';
     return;
   }
-  body.innerHTML = rows.map(t => {
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / COMPLETED_PAGE_SIZE));
+  if (completedPage >= totalPages) completedPage = totalPages - 1;
+  const start = completedPage * COMPLETED_PAGE_SIZE;
+  const pageRows = rows.slice(start, start + COMPLETED_PAGE_SIZE);
+
+  body.innerHTML = pageRows.map(t => {
     const isReal = t.kind === 'REAL' || t.account_id === 'live_25';
     const net = Number(t.realized_net_usd ?? t.net_pnl_usd ?? 0);
     const payout = t.result === 'WIN' ? Number(t.contracts || 1) * 1.0 : 0.0;
@@ -811,10 +972,24 @@ function renderCompleted(snap) {
 
   body.querySelectorAll('tr.clickable').forEach(tr => {
     tr.onclick = () => {
-      const item = rows.find(x => x.id === tr.dataset.cid);
+      const item = pageRows.find(x => x.id === tr.dataset.cid);
       if (item) openModal(item);
     };
   });
+
+  if (pager) {
+    pager.innerHTML = `
+      <span>Showing ${start + 1}–${Math.min(start + pageRows.length, rows.length)} of ${rows.length}</span>
+      <div style="display:flex;gap:6px">
+        <button id="cmp-prev" class="toggle-btn" type="button" ${completedPage <= 0 ? 'disabled' : ''}>← Prev</button>
+        <span class="mono" style="padding:4px 8px">Page ${completedPage + 1} / ${totalPages}</span>
+        <button id="cmp-next" class="toggle-btn" type="button" ${completedPage >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+      </div>`;
+    const prevBtn = $('cmp-prev');
+    const nextBtn = $('cmp-next');
+    if (prevBtn) prevBtn.onclick = () => { if (completedPage > 0) { completedPage--; renderCompleted(currentSnap); } };
+    if (nextBtn) nextBtn.onclick = () => { if (completedPage < totalPages - 1) { completedPage++; renderCompleted(currentSnap); } };
+  }
 }
 
 function openModal(item) {
@@ -823,84 +998,69 @@ function openModal(item) {
   $('trace-modal').showModal();
 }
 
-function renderAll(snap, connState = 'WAITING') {
+function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
-  renderScoreboard(snap);
-  renderChart(snap);
+  renderScoreboard(snap, force);
+  renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
 }
 
 async function pollSnapshot() {
+  if (pollInFlight) return;
+  pollInFlight = true;
   try {
     const r = await fetch(`${RELAY_URL}/snapshot`, { cache: 'no-store' });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const snap = await r.json();
     if (snap && snap.published_at_utc) {
       lastPollOk = true;
-      acceptSnapshot(snap);
-      renderAll(snap, 'LIVE');
+      const changed = acceptSnapshot(snap);
+      if (changed) renderAll(snap, 'LIVE');
+      else renderStatusHeader(snap, 'LIVE');
     } else {
       lastPollOk = false;
-      renderAll(currentSnap || loadJson(CACHE_KEY, null) || emptySnapshot(), 'OFFLINE');
+      renderStatusHeader(currentSnap || emptySnapshot(), 'OFFLINE');
     }
   } catch {
     lastPollOk = false;
-    renderAll(currentSnap || loadJson(CACHE_KEY, null) || emptySnapshot(), 'OFFLINE');
+    renderStatusHeader(currentSnap || emptySnapshot(), 'OFFLINE');
+  } finally {
+    pollInFlight = false;
   }
 }
 
+function scheduleSseReconnect() {
+  if (sseRetryTimer) return;
+  sseRetryTimer = setTimeout(() => {
+    sseRetryTimer = null;
+    connectStream();
+  }, retryMs);
+  retryMs = Math.min(30000, retryMs * 2);
+}
+
 function connectStream() {
-  pollSnapshot();
-  setInterval(pollSnapshot, 15000);
-  setInterval(() => { if (currentSnap) renderStatusHeader(currentSnap, lastPollOk ? 'LIVE' : 'OFFLINE'); }, 5000);
   try {
-    if (es) es.close();
+    if (es) { es.close(); es = null; }
     es = new EventSource(`${RELAY_URL}/events`);
     es.onmessage = (ev) => {
       retryMs = 2000;
       lastPollOk = true;
       const snap = JSON.parse(ev.data);
-      acceptSnapshot(snap);
-      renderAll(snap, 'LIVE');
+      const changed = acceptSnapshot(snap);
+      if (changed) renderAll(snap, 'LIVE');
+      else renderStatusHeader(snap, 'LIVE');
     };
     es.onerror = () => {
-      if (!lastPollOk) renderAll(currentSnap || loadJson(CACHE_KEY, null) || emptySnapshot(), 'OFFLINE');
-      es.close();
-      setTimeout(connectStream, retryMs);
-      retryMs = Math.min(30000, retryMs * 2);
+      if (es) { es.close(); es = null; }
+      if (!lastPollOk && currentSnap) renderStatusHeader(currentSnap, 'OFFLINE');
+      scheduleSseReconnect();
     };
   } catch {
-    if (!lastPollOk) renderAll(currentSnap || loadJson(CACHE_KEY, null) || emptySnapshot(), 'OFFLINE');
+    scheduleSseReconnect();
   }
 }
-
-// Wire controls
-const setUnit = (u, btn) => {
-  chartUnit = u;
-  ['unit-pct', 'unit-usd', 'unit-pnl'].forEach(id => $(id).classList.remove('active'));
-  btn.classList.add('active');
-  if (currentSnap) renderChart(currentSnap);
-};
-$('unit-pct').onclick = () => setUnit('pct', $('unit-pct'));
-$('unit-usd').onclick = () => setUnit('usd', $('unit-usd'));
-$('unit-pnl').onclick = () => setUnit('pnl', $('unit-pnl'));
-
-const setRange = (r, btn) => {
-  chartRange = r;
-  ['range-1h', 'range-6h', 'range-24h', 'range-all'].forEach(id => $(id).classList.remove('active'));
-  btn.classList.add('active');
-  if (currentSnap) renderChart(currentSnap);
-};
-$('range-1h').onclick = () => setRange('1h', $('range-1h'));
-$('range-6h').onclick = () => setRange('6h', $('range-6h'));
-$('range-24h').onclick = () => setRange('24h', $('range-24h'));
-$('range-all').onclick = () => setRange('all', $('range-all'));
-
-$('holdings-q').oninput = () => { if (currentSnap) renderHoldings(currentSnap); };
-$('completed-q').oninput = () => { if (currentSnap) renderCompleted(currentSnap); };
-$('modal-close').onclick = () => $('trace-modal').close();
 
 function buildStatusReportText(snap) {
   if (!snap) return 'No snapshot loaded yet.';
@@ -953,31 +1113,100 @@ function buildStatusReportText(snap) {
   return lines.join('\n');
 }
 
-const copyBtn = $('copy-report-btn');
-if (copyBtn) {
-  copyBtn.onclick = async () => {
-    const txt = buildStatusReportText(currentSnap);
-    let ok = false;
-    try {
-      await navigator.clipboard.writeText(txt);
-      ok = true;
-    } catch {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = txt;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch {}
-    }
-    copyBtn.textContent = ok ? '✓ Copied!' : '✗ Copy Failed';
-    setTimeout(() => { copyBtn.textContent = '📋 Copy Status Report'; }, 2500);
+function wireControls() {
+  const setUnit = (u, btn) => {
+    chartUnit = u;
+    ['unit-pct', 'unit-usd', 'unit-pnl'].forEach(id => $(id)?.classList.remove('active'));
+    btn.classList.add('active');
+    if (currentSnap) renderChart(currentSnap);
   };
+  $('unit-pct').onclick = () => setUnit('pct', $('unit-pct'));
+  $('unit-usd').onclick = () => setUnit('usd', $('unit-usd'));
+  $('unit-pnl').onclick = () => setUnit('pnl', $('unit-pnl'));
+
+  const setRange = (r, btn) => {
+    chartRange = r;
+    chartZoomState = null;
+    ['range-1h', 'range-6h', 'range-24h', 'range-all'].forEach(id => $(id)?.classList.remove('active'));
+    btn.classList.add('active');
+    if (currentSnap) renderChart(currentSnap);
+  };
+  $('range-1h').onclick = () => setRange('1h', $('range-1h'));
+  $('range-6h').onclick = () => setRange('6h', $('range-6h'));
+  $('range-24h').onclick = () => setRange('24h', $('range-24h'));
+  $('range-all').onclick = () => setRange('all', $('range-all'));
+
+  $('chart-reset').onclick = () => {
+    chartZoomState = null;
+    if (currentSnap) renderChart(currentSnap);
+  };
+  $('chart-fit').onclick = () => {
+    chartRange = 'all';
+    chartZoomState = null;
+    ['range-1h', 'range-6h', 'range-24h', 'range-all'].forEach(id => $(id)?.classList.remove('active'));
+    $('range-all')?.classList.add('active');
+    if (currentSnap) renderChart(currentSnap);
+  };
+  $('chart-fullscreen').onclick = () => {
+    const panel = $('chart-panel');
+    if (!panel) return;
+    panel.classList.toggle('fullscreen');
+    $('chart-fullscreen').textContent = panel.classList.contains('fullscreen') ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
+    if (chartInstance) setTimeout(() => chartInstance.resize(), 60);
+  };
+
+  $('holdings-panel-details')?.addEventListener('toggle', (e) => {
+    const open = e.target.open;
+    const lbl = $('holdings-toggle-lbl');
+    if (lbl) lbl.textContent = open ? '▾ Collapse' : '▸ Expand';
+    if (open && currentSnap) renderHoldings(currentSnap);
+  });
+  $('completed-panel-details')?.addEventListener('toggle', (e) => {
+    const open = e.target.open;
+    const lbl = $('completed-toggle-lbl');
+    if (lbl) lbl.textContent = open ? '▾ Collapse' : '▸ Expand';
+    if (open && currentSnap) renderCompleted(currentSnap);
+  });
+
+  $('holdings-q').oninput = () => { if (currentSnap) renderHoldings(currentSnap); };
+  $('completed-q').oninput = () => { completedPage = 0; if (currentSnap) renderCompleted(currentSnap); };
+  $('modal-close').onclick = () => $('trace-modal').close();
+
+  const copyBtn = $('copy-report-btn');
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      const txt = buildStatusReportText(currentSnap);
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(txt);
+        ok = true;
+      } catch {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = txt;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch {}
+      }
+      copyBtn.textContent = ok ? '✓ Copied!' : '✗ Copy Failed';
+      setTimeout(() => { copyBtn.textContent = '📋 Copy Status Report'; }, 2500);
+    };
+  }
 }
 
+// Init once
+wireControls();
 prevSnap = loadJson(PREV_KEY, null);
-renderAll(loadJson(CACHE_KEY, null) || emptySnapshot(), 'WAITING');
+const initialSnap = loadJson(CACHE_KEY, null) || emptySnapshot();
+renderAll(initialSnap, 'WAITING', true);
+
+// Single set of background timers (never duplicated on SSE reconnect)
+pollSnapshot();
+setInterval(pollSnapshot, 15000);
+setInterval(() => { if (currentSnap) renderStatusHeader(currentSnap, lastPollOk ? 'LIVE' : 'OFFLINE'); }, 5000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persistStateIfDue(true); });
 connectStream();

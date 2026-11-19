@@ -4,10 +4,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Barnacle Live Run #001 — Real vs. Shadow Portfolio Dashboard</title>
+  <title>Barnacle Live Run #001 — Portfolio Analytics</title>
   <meta name="description"
-    content="Live read-only portfolio scoreboard, equity graphs, open holdings, and settled trades for Barnacle Live Run #001.">
-  <link rel="stylesheet" href="styles.css?v=20261118e">
+    content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
+  <link rel="stylesheet" href="styles.css?v=20261118g">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
+  <script src="app.js?v=20261118g" defer></script>
 </head>
 
 <body>
@@ -18,36 +20,36 @@
       <div class="brand-badge">LIVE RUN #001</div>
       <div>
         <h1 id="run-title">Barnacle Live Portfolio Monitor</h1>
-        <p id="run-subtitle" class="subtitle">Independent Simulated Paper Experiments (HERMES-004 / APOLLO-002 /
-          ATHENA-003 / POSEIDON-006) &amp; Paused Real-Money Account (ARES-005)</p>
+        <p id="run-subtitle" class="subtitle">Independent Simulated Paper Experiments (HESTIA-008 · HERMES-008B ·
+          HERMES-004 · APOLLO-002 · ATHENA-003 · POSEIDON-006) &amp; Real-Money Account (ARES-005)</p>
       </div>
     </div>
     <div class="status-cluster">
       <button id="copy-report-btn" class="pill ok" type="button" style="cursor:pointer">📋 Copy Status Report</button>
       <span id="conn-pill" class="pill warn">● CONNECTING</span>
-      <span id="armed-pill" class="pill warn">LIVE TRADING: –</span>
+      <span id="paper-pill" class="pill warn">PAPER EXPERIMENTS: –</span>
+      <span id="armed-pill" class="pill warn">REAL CASH PAUSED</span>
       <span id="clock-pill" class="pill mono">24H CLOCK: –</span>
       <span id="age-pill" class="pill mono">AGE: –</span>
     </div>
   </header>
 
   <main class="container">
-    <section id="truth-banner" class="banner" role="status">Connecting to Barnacle live relay…</section>
+    <section id="truth-banner" class="banner warn" role="status" style="display:none">Connecting to Barnacle live relay…</section>
 
-    <!-- 1. GROUPED SCOREBOARD AT THE TOP -->
+    <!-- 1. GROUPED SCOREBOARD -->
     <section aria-label="Portfolio Scoreboard">
       <div id="scoreboard-grid"></div>
     </section>
 
-    <!-- 2. MULTI-ACCOUNT PERFORMANCE GRAPH -->
-    <section class="panel" aria-label="Portfolio Performance Graph">
+    <!-- 2. MODERN INTERACTIVE PERFORMANCE GRAPH -->
+    <section id="chart-panel" class="panel" aria-label="Portfolio Performance Graph">
       <div class="panel-head">
         <div>
-          <h2>Portfolio Performance Graph</h2>
-          <p class="muted">Solid line = REAL money · Dashed lines = SIMULATED paper. Percentage mode normalizes every
-            account to its own starting bankroll.</p>
+          <h2>Portfolio Performance Analytics</h2>
+          <p class="muted">Solid line = REAL cash · Dashed lines = SIMULATED paper. Drag to zoom, scroll wheel to zoom/pan, or use the bottom navigator.</p>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <div class="chart-controls">
           <div class="view-toggle" role="group" aria-label="Chart Metric">
             <button id="unit-pct" class="toggle-btn active" type="button">% Return</button>
             <button id="unit-usd" class="toggle-btn" type="button">$ Equity</button>
@@ -59,27 +61,31 @@
             <button id="range-24h" class="toggle-btn" type="button">24H</button>
             <button id="range-all" class="toggle-btn active" type="button">ALL</button>
           </div>
-          <div id="line-toggles" class="view-toggle" role="group" aria-label="Toggle Accounts"></div>
+          <div class="view-toggle" role="group" aria-label="Chart Actions">
+            <button id="chart-reset" class="toggle-btn" type="button" title="Reset zoom to selected range">Reset Zoom</button>
+            <button id="chart-fit" class="toggle-btn" type="button" title="Fit all visible data">Fit Data</button>
+            <button id="chart-fullscreen" class="toggle-btn" type="button" title="Toggle fullscreen">⛶ Fullscreen</button>
+          </div>
         </div>
       </div>
+
+      <div id="line-toggles" class="series-filter-bar" role="group" aria-label="Toggle Experiment Series"></div>
       <div class="chart-wrap">
-        <div id="chart-legend" class="chart-legend"></div>
-        <div id="bankroll-chart" style="position:relative;min-height:220px"></div>
-        <div id="chart-tooltip" class="chart-tooltip"></div>
+        <div id="bankroll-chart" class="echarts-box"></div>
       </div>
     </section>
 
-    <!-- 3. CURRENT HOLDINGS — ACTUAL PURCHASED TICKETS -->
+    <!-- 3. CURRENT HOLDINGS — COLLAPSED BY DEFAULT -->
     <section class="panel" aria-label="Current Holdings">
-      <details id="holdings-panel-details" class="pos-details" style="border-top:0;padding-top:0;margin-top:0">
-        <summary style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+      <details id="holdings-panel-details" class="pos-details panel-details">
+        <summary class="panel-summary">
           <div>
-            <h2>Current Holdings — Actual Purchased Tickets</h2>
+            <h2>Current Holdings — Actual Purchased Tickets <span id="holdings-count-badge" class="count-pill">0 positions</span></h2>
             <p id="holdings-summary" class="muted" style="margin:2px 0 0 0">Loading open positions…</p>
           </div>
-          <span style="font-size:12px;color:var(--info)">▸ Expand / Collapse</span>
+          <span id="holdings-toggle-lbl" class="expand-lbl">▸ Expand</span>
         </summary>
-        <div class="filters" style="margin-top:10px">
+        <div class="filters" style="margin-top:12px">
           <div id="holdings-tabs" class="tabs-row" role="tablist">
             <button class="tab-btn active" data-acct="" type="button">All</button>
           </div>
@@ -108,41 +114,44 @@
       </details>
     </section>
 
-    <!-- 4. COMPLETED TRANSACTIONS LEDGER -->
+    <!-- 4. COMPLETED TRANSACTIONS LEDGER — COLLAPSED BY DEFAULT -->
     <section class="panel" aria-label="Completed Transactions">
-      <div class="panel-head">
-        <div>
-          <h2>Completed Transactions Ledger</h2>
-          <p class="muted">Actual settled outcomes with entry cost, gross settlement payout, fees, and true NET
-            profit/loss.</p>
-        </div>
-        <div class="filters">
+      <details id="completed-panel-details" class="pos-details panel-details">
+        <summary class="panel-summary">
+          <div>
+            <h2>Completed Transactions Ledger <span id="completed-count-badge" class="count-pill">0 transactions</span></h2>
+            <p class="muted" style="margin:2px 0 0 0">Actual settled outcomes with entry cost, gross settlement payout, fees, and true NET profit/loss.</p>
+          </div>
+          <span id="completed-toggle-lbl" class="expand-lbl">▸ Expand</span>
+        </summary>
+        <div class="filters" style="margin-top:12px">
           <div id="completed-tabs" class="tabs-row" role="tablist">
             <button class="tab-btn active" data-acct="" type="button">All</button>
           </div>
           <input id="completed-q" type="search" placeholder="Filter ticket…" aria-label="Filter completed trades">
         </div>
-      </div>
-      <div id="completed-summary" class="cum-strip"></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Ticket Purchased</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Entry Cost</th>
-              <th>Payout</th>
-              <th>Fees</th>
-              <th>NET P&amp;L</th>
-              <th>Result</th>
-              <th>Settled</th>
-            </tr>
-          </thead>
-          <tbody id="completed-body"></tbody>
-        </table>
-      </div>
+        <div id="completed-summary" class="cum-strip" style="margin-top:10px"></div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Ticket Purchased</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Entry Cost</th>
+                <th>Payout</th>
+                <th>Fees</th>
+                <th>NET P&amp;L</th>
+                <th>Result</th>
+                <th>Settled</th>
+              </tr>
+            </thead>
+            <tbody id="completed-body"></tbody>
+          </table>
+        </div>
+        <div id="completed-pager" class="pager-bar"></div>
+      </details>
     </section>
 
     <!-- 5. TRANSPARENCY FOOTER NOTE -->
@@ -150,9 +159,8 @@
       <div class="explainer-grid">
         <div>
           <h3>Real vs. Simulated</h3>
-          <p><b>LIVE $25 (REAL)</b> reflects reconciled Kalshi shard 2 cash (`$0.58` on shard 0 is excluded), actual
-            fills, and exchange settlements. <b>SHADOW</b> accounts simulate order-book fills on independent ledgers.
-          </p>
+          <p><b>ARES-005 (REAL)</b> reflects reconciled Kalshi shard 2 cash, actual fills, and exchange settlements.
+            <b>SIMULATED</b> accounts model order-book fills on independent ledgers.</p>
         </div>
         <div>
           <h3>Hypothetical Sell-Now Estimates</h3>
@@ -180,8 +188,6 @@
     <span id="last-verified">Last update: –</span>
     <span class="mono">Barnacle Live Run #001 · Display-Only</span>
   </footer>
-
-  <script src="app.js?v=20261118f"></script>
 </body>
 
 </html>
