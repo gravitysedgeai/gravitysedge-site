@@ -14,15 +14,19 @@ const ACCOUNT_COLORS = {
   'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s25': '#38bdf8',
   'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s100': '#60a5fa',
   'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s1000': '#22d3ee',
-  shadow_25: '#a78bfa',
-  shadow_100: '#c084fc',
-  shadow_1000: '#f59e0b',
+  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s25': '#a78bfa',
+  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s100': '#c084fc',
+  'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s1000': '#e879f9',
+  shadow_25: '#f59e0b',
+  shadow_100: '#fb923c',
+  shadow_1000: '#f87171',
 };
 const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', '#fb7185'];
 
 function accountGroupOf(a) {
   if (a.group) return a.group;
   if (a.kind === 'REAL' || a.account_id === 'live_25') return 'live';
+  if (String(a.account_id || '').includes('fin_v1')) return 'expanded_financial_validation';
   if (String(a.account_id || '').includes('risk-cp_f10_s')) return 'original_validation';
   return 'previous_shadow';
 }
@@ -30,6 +34,9 @@ function accountGroupOf(a) {
 function shortLabelOf(a) {
   const id = a.account_id || '';
   if (id === 'live_25') return 'LIVE $25';
+  if (id.includes('fin_v1') && id.endsWith('_s25')) return 'Fin Exp $25';
+  if (id.includes('fin_v1') && id.endsWith('_s100')) return 'Fin Exp $100';
+  if (id.includes('fin_v1') && id.endsWith('_s1000')) return 'Fin Exp $1,000';
   if (id.endsWith('_s25')) return 'XP Val $25';
   if (id.endsWith('_s100')) return 'XP Val $100';
   if (id.endsWith('_s1000')) return 'XP Val $1,000';
@@ -37,6 +44,16 @@ function shortLabelOf(a) {
   if (id === 'shadow_100') return 'Old Shadow $100';
   if (id === 'shadow_1000') return 'Old Shadow $1,000';
   return (a.label || id).replace(' (Control)', '');
+}
+
+function fmtCountdown(closeTs) {
+  if (!closeTs) return 'UNAVAILABLE';
+  const diff = Math.round(Number(closeTs) - Date.now() / 1000);
+  if (diff <= 0) return 'SETTLING / CLOSED';
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
 }
 let holdingsAcct = '';
 let completedAcct = '';
@@ -221,23 +238,68 @@ function renderScoreboard(snap) {
       else deltaHtml = '<span class="delta-pill flat">— $0.00</span>';
     }
 
-    const posValTxt = (a.open_positions > 0 && a.mark_reliable === false)
-      ? `${fmtUsd((a.position_value_cents ?? a.invested_cents ?? 0) / 100)} *`
-      : fmtUsd((a.position_value_cents ?? 0) / 100);
-    const sellTxt = (a.open_positions > 0 && a.mark_reliable === false && !a.net_sell_value_cents)
-      ? 'Unavailable'
-      : fmtUsd((a.net_sell_value_cents ?? 0) / 100);
+    const posValTxt = a.position_value_cents == null
+      ? 'UNAVAILABLE'
+      : (a.open_positions > 0 && a.mark_reliable === false)
+      ? `${fmtUsd(a.position_value_cents / 100)} *`
+      : fmtUsd(a.position_value_cents / 100);
+    const sellTxt = a.net_sell_value_cents == null
+      ? 'UNAVAILABLE'
+      : (a.open_positions > 0 && a.mark_reliable === false && !a.net_sell_value_cents)
+      ? 'UNAVAILABLE'
+      : fmtUsd(a.net_sell_value_cents / 100);
+    const unrealTxt = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
 
     const netCls = netC > 0 ? 'pos' : netC < 0 ? 'neg' : '';
     const titleLabel = isReal
       ? `${a.label} — REAL MONEY`
       : `${a.label.replace(' (Control)', '')} — SIMULATED`;
-    const cardCls = isReal ? 'real-card' : isVal ? 'validation-card' : 'paper-card';
+    const isFin = grp === 'expanded_financial_validation';
+    const cardCls = isReal ? 'real-card' : isVal ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
       ? '<span class="tag real">REAL MONEY · PAUSED</span>'
       : isVal
       ? '<span class="tag validation">ORIGINAL XP ENGINE · SIMULATED</span>'
+      : isFin
+      ? '<span class="tag validation" style="background:#a78bfa;border-color:#a78bfa">FINANCIAL EXPANSION · SIMULATED</span>'
       : '<span class="tag legacy">PREVIOUS REWRITTEN · SIMULATED</span>';
+
+    const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
+    const posDetailsHtml = acctHoldings.length === 0
+      ? '<div class="muted" style="font-size:11px;margin-top:4px">No open positions.</div>'
+      : acctHoldings.map(h => {
+          const entryLvls = (h.entry_levels || []).map(l => `<span class="depth-chip">${l.qty}x @ ${l.price_cents}¢</span>`).join('');
+          const sellLvls = (h.sell_levels || []).length
+            ? h.sell_levels.map(l => `<span class="depth-chip">${l.price_cents}¢: ${l.available_qty} avail (sell ${l.sell_qty})</span>`).join('')
+            : '<span class="muted">UNAVAILABLE</span>';
+          const bestBidTxt = h.best_bid_cents != null ? `${h.best_bid_cents}¢` : 'UNAVAILABLE';
+          const estSellTxt = h.estimated_net_sell_usd != null ? fmtUsd(h.estimated_net_sell_usd) : 'UNAVAILABLE';
+          const sellPnlTxt = h.sell_pnl_usd != null ? fmtSignedUsd(h.sell_pnl_usd) : 'UNAVAILABLE';
+          const sellPnlCls = h.sell_pnl_usd == null ? '' : (h.sell_pnl_usd >= 0 ? 'pos' : 'neg');
+          const liqWarn = h.partial_liquidity ? ` (Partial: ${h.fillable_qty}/${h.contracts})` : '';
+          const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'book'})` : 'UNAVAILABLE';
+          return `
+          <div class="pos-item">
+            <div class="pos-item-head">
+              <span class="mono">${h.ticker}</span>
+              <span class="tag ${h.side === 'YES' ? 'win' : 'paper'}">${h.side} · ${h.contracts}x</span>
+            </div>
+            <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
+            <div class="pos-kv">
+              <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
+              <span class="k">Closes / Countdown</span><span class="v">${fmtEt(h.close_ts)} (${fmtCountdown(h.close_ts)})</span>
+              <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
+              <span class="k">Pre-Fee Avg / Fee-Incl Avg</span><span class="v">${h.entry_price_cents}¢ / ${h.fee_inclusive_avg_cents ?? h.entry_price_cents}¢</span>
+              <span class="k">Cost + Fees = Cost Basis</span><span class="v">${fmtUsd(h.purchase_cost_usd)} + ${fmtUsd(h.fee_usd)} = ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
+              <span class="k">Best Selling Bid</span><span class="v">${bestBidTxt}</span>
+              <span class="k">Book Freshness</span><span class="v">${bookFresh}</span>
+              <span class="k">Est. Net Liquidation${liqWarn}</span><span class="v">${estSellTxt}</span>
+              <span class="k">Executable P&amp;L (Sell Now)</span><span class="v ${sellPnlCls}">${sellPnlTxt}</span>
+              <span class="k">Max Settlement / Rem. Profit</span><span class="v">${fmtUsd(h.max_payout_usd)} / ${fmtSignedUsd(h.remaining_profit_usd)}</span>
+            </div>
+            <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
+          </div>`;
+        }).join('');
 
     return `
     <article class="acct-card ${cardCls}">
@@ -264,18 +326,28 @@ function renderScoreboard(snap) {
         <span class="k">Invested Cost Basis</span><span class="v">${fmtUsd((a.invested_cents || 0) / 100)}</span>
         <span class="k">Position Market Value</span><span class="v">${posValTxt}</span>
         <span class="k">Est. Net Sell Value</span><span class="v">${sellTxt}</span>
-        <span class="k">Realized / Unrealized</span><span class="v">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${fmtSignedUsd((a.unrealized_pnl_cents || 0) / 100)}</span>
+        <span class="k">Realized / Unrealized</span><span class="v">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${unrealTxt}</span>
         <span class="k">Total Fees</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
+      <details class="pos-details">
+        <summary><span>Open Position Details (${acctHoldings.length})</span><span>▸ Expand</span></summary>
+        ${posDetailsHtml}
+      </details>
     </article>`;
   };
 
   const groups = [
     {
       key: 'original_validation',
-      title: 'ORIGINAL XP ENGINE VALIDATION (SIMULATED)',
+      title: 'ORIGINAL XP CRYPTO VALIDATION (SIMULATED)',
       sub: 'Fresh $25 / $100 / $1,000 paper accounts running the exact original CustomStrategy + Engine (forward.db).',
       items: accts.filter(a => accountGroupOf(a) === 'original_validation'),
+    },
+    {
+      key: 'expanded_financial_validation',
+      title: 'EXPANDED FINANCIAL VALIDATION (SIMULATED)',
+      sub: 'Original CustomStrategy + Engine expanded to Crypto, Gold, Silver, Energy, Indices, FX, and Rates (forward.db).',
+      items: accts.filter(a => accountGroupOf(a) === 'expanded_financial_validation'),
     },
     {
       key: 'live',
