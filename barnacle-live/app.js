@@ -1393,7 +1393,8 @@ function renderTrainingCmos(snap) {
     const nowS = Date.now() / 1000;
     const recAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(nowS - cs.heartbeat_ts)) : cs.heartbeat_age_s;
     const trAge = al.heartbeat_ts != null ? Math.max(0, Math.round(nowS - al.heartbeat_ts)) : al.heartbeat_age_s;
-    const pubAge = snap?.generated_ts != null ? Math.max(0, Math.round(nowS - snap.generated_ts)) : null;
+    const pubTs = snap?.published_ts ?? snap?.generated_ts;
+    const pubAge = pubTs != null ? Math.max(0, Math.round(nowS - pubTs)) : null;
     const recAlive = (cs.status === 'ACTIVE' || cs.status === 'COMPLETED') && (recAge == null || recAge <= 60);
     const trStateTxt = (al.status === 'IDLE' && recAlive) ? 'IDLE (Waiting for 250-event batch)' : (al.status || 'IDLE');
     healthEl.innerHTML = `
@@ -1658,7 +1659,8 @@ function renderSystemActivityStrip(snap) {
   if (!strip || !snap) return;
   strip.style.display = 'block';
   const nowS = Date.now() / 1000;
-  const pubAge = snap.generated_ts != null ? Math.max(0, Math.round(nowS - snap.generated_ts)) : null;
+  const pubTs = snap.published_ts ?? snap.generated_ts;
+  const pubAge = pubTs != null ? Math.max(0, Math.round(nowS - pubTs)) : null;
   const pubStale = pubAge == null || pubAge > 90;
   const cs = snap.cmos_sync || {};
   const al = cs.adaptive_learning || {};
