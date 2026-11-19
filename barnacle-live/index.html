@@ -342,7 +342,7 @@
 
     <!-- TRAINING -> CMOS VIEW -->
     <div id="view-training-cmos" style="display:none">
-      <section class="panel" aria-label="CMOS Live Training Performance">
+      <section class="panel" aria-label="Strategy Comparison">
         <div class="panel-head">
           <div>
             <h2>Training → CMOS — <span class="count-pill">CONTINUOUS ADAPTIVE LEARNING — EXPERIMENTAL</span></h2>
@@ -356,46 +356,78 @@
           </div>
         </div>
         <div id="tcmos-no-model-banner" class="banner warn" style="display:none;margin-top:8px">No validated adaptive model available — research and recovery continuing.</div>
-        <div id="tcmos-health-bar" class="scoreboard-grid" style="margin-top:8px"></div>
-        <div id="tcmos-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
-        <div id="tcmos-splits" class="scoreboard-grid" style="margin-top:10px"></div>
-      </section>
 
-      <section class="panel" aria-label="Visual Learning History">
-        <div class="panel-head">
-          <div>
-            <h2>Visual Learning History (Historical OOS vs Model Versions)</h2>
-            <p class="muted">Training, validation, historical out-of-sample, and prospective paper results are strictly separated. Same-dataset comparison distinguishes model quality from market regime shifts.</p>
-          </div>
+        <h3 style="margin-top:12px">1. Strategy Comparison</h3>
+        <p class="muted" style="font-size:12px">Direct comparisons require the same historical period, $100 bankroll, candidate universe, and execution rules. Ongoing live paper accounts are marked <b>NOT COMPARABLE</b>.</p>
+        <div class="table-wrap" style="margin-top:6px">
+          <table>
+            <thead>
+              <tr>
+                <th>Strategy</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win %</th><th>Net P&amp;L</th>
+                <th title="Largest decline from a previous account-equity peak">Max Drawdown ⓘ</th><th>Scope / Comparability</th>
+              </tr>
+            </thead>
+            <tbody id="tcmos-strategy-body"></tbody>
+          </table>
         </div>
-        <div id="tcmos-charts" class="scoreboard-grid" style="margin-top:10px"></div>
       </section>
 
-      <section class="panel" aria-label="Immutable Checkpoints and Rollback">
+      <section class="panel" aria-label="Latest CMOS Test">
+        <div class="panel-head"><div><h2>2. Latest CMOS Test</h2></div></div>
+        <div id="tcmos-latest-test" class="scoreboard-grid" style="margin-top:8px"></div>
+        <div id="tcmos-slippage-wrap" class="table-wrap" style="margin-top:10px"></div>
+      </section>
+
+      <section class="panel" aria-label="Simple Monthly Learning Report">
         <div class="panel-head">
           <div>
-            <h2>Immutable Model Checkpoints (D: NVMe) &amp; Safe Rollback</h2>
-            <p class="muted">Restoring a checkpoint verifies SHA-256 integrity and feature compatibility, applies only to CMOS paper research, preserves all ledgers, and never alters real-money settings.</p>
+            <h2>3. Monthly Learning Report</h2>
+            <p class="muted">Shows whether adding each completed historical month improved or hurt CMOS out-of-sample performance.</p>
           </div>
         </div>
         <div class="table-wrap" style="margin-top:8px">
           <table>
             <thead>
-              <tr>
-                <th>Version</th><th>Created</th><th>Period</th><th>Mode</th><th>Events</th>
-                <th>OOS Brier</th><th>OOS Net P&amp;L</th><th>Max DD</th><th>Validation</th><th>Deployment</th><th>SHA-256</th><th>Action</th>
-              </tr>
+              <tr><th>Month</th><th>Model</th><th>Trades</th><th>W / L</th><th>Win %</th><th>Net P&amp;L</th><th>Change vs Previous</th></tr>
             </thead>
-            <tbody id="tcmos-checkpoints-body"></tbody>
+            <tbody id="tcmos-monthly-body"></tbody>
           </table>
         </div>
-        <div id="tcmos-checkpoints-pager" class="pager-bar" style="margin-top:8px"></div>
-        <details class="pos-details panel-details" style="margin-top:10px">
+      </section>
+
+      <section class="panel" aria-label="Model Splits">
+        <div class="panel-head">
+          <div>
+            <h2>4. Model Splits (Same Model) vs Prospective Paper</h2>
+            <p id="tcmos-splits-sub" class="muted">Training, Validation, and Historical OOS evaluate the same challenger model; Prospective Paper is separate.</p>
+          </div>
+        </div>
+        <div id="tcmos-splits" class="scoreboard-grid" style="margin-top:8px"></div>
+      </section>
+
+      <section class="panel" aria-label="Secondary Technical Diagnostics">
+        <details class="pos-details panel-details">
           <summary class="panel-summary">
-            <div><h2>Checkpoint Rollback Audit Log <span id="tcmos-rollback-count" class="count-pill">0</span></h2></div>
+            <div><h2>5. Technical Diagnostics, Learning Charts &amp; Checkpoints <span id="tcmos-ckpt-count-pill" class="count-pill">0</span></h2></div>
             <span class="expand-lbl">▸ Expand</span>
           </summary>
-          <div class="table-wrap" style="margin-top:8px">
+          <div id="tcmos-health-bar" class="scoreboard-grid" style="margin-top:10px"></div>
+          <div id="tcmos-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
+          <div id="tcmos-charts" class="scoreboard-grid" style="margin-top:10px"></div>
+          <div class="table-wrap" style="margin-top:10px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Version</th><th>Created</th><th>Period</th><th>Mode</th><th>Events</th>
+                  <th>OOS Brier</th><th>OOS Net P&amp;L</th><th>Max DD</th><th>Validation</th><th>Deployment</th><th>SHA-256</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="tcmos-checkpoints-body"></tbody>
+            </table>
+          </div>
+          <div id="tcmos-checkpoints-pager" class="pager-bar" style="margin-top:8px"></div>
+          <div class="table-wrap" style="margin-top:12px">
+            <h3>Checkpoint Rollback Audit Log <span id="tcmos-rollback-count" class="count-pill">0</span></h3>
             <table>
               <thead><tr><th>Time (ET)</th><th>Actor</th><th>Replaced</th><th>Restored</th><th>SHA-256</th><th>Reason</th></tr></thead>
               <tbody id="tcmos-rollback-body"></tbody>

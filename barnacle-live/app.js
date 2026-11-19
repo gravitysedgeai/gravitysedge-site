@@ -1427,15 +1427,96 @@ function renderTrainingCmos(snap) {
       <div class="mono" style="font-size:13px">ΔBrier: <b>${dlt.brier_delta ?? '–'}</b> · ΔPnL: <b>${dlt.net_pnl_delta_usd != null ? (dlt.net_pnl_delta_usd >= 0 ? '+' : '') + '$' + dlt.net_pnl_delta_usd.toFixed(2) : '–'}</b></div>
       <div class="muted mono" style="font-size:12px">Tested: ${al.models_tested || 0} · Promoted: ${al.models_promoted || 0} · Rejected: ${al.models_rejected || 0}</div></div>`;
 
+  if ($('tcmos-ckpt-count-pill')) $('tcmos-ckpt-count-pill').textContent = `${(cs.checkpoints || []).length} checkpoints`;
+
+  const allCkptsList = cs.checkpoints || [];
+  const latestCkpt = allCkptsList[0] || null;
+  const prevValidCkpt = allCkptsList.find(c => c.validation_status === 'PROMOTED' && c.version !== latestCkpt?.version) || null;
+
+  const stratBody = $('tcmos-strategy-body');
+  if (stratBody) {
+    const h100 = (snap?.three_accounts?.accounts || []).find(a => a.account_id === 'hermes-clean-100');
+    const zeusT = snap?.zeus_execution_comparison?.taker;
+    const mkRow = (name, trd, w, l, wr, pnl, dd, scope) => `<tr>
+      <td><b>${esc(name)}</b></td>
+      <td class="mono">${trd ?? '–'}</td><td class="mono">${w ?? '–'}</td><td class="mono">${l ?? '–'}</td>
+      <td class="mono">${wr != null ? (Number(wr) * 100).toFixed(2) + '%' : '–'}</td>
+      <td class="mono ${Number(pnl || 0) >= 0 ? 'pos' : 'neg'}">${pnl != null ? (Number(pnl) >= 0 ? '+' : '') + '$' + Number(pnl).toFixed(2) : '–'}</td>
+      <td class="mono" title="Largest decline from a previous account-equity peak">${dd != null ? '$' + Number(dd).toFixed(2) : '–'}</td>
+      <td class="muted">${scope}</td>
+    </tr>`;
+    const zW = Number(zeusT?.wins || 0), zL = Number(zeusT?.losses || 0), zT = zW + zL;
+    const hW = Number(h100?.wins || 0), hL = Number(h100?.losses || 0), hT = hW + hL;
+    const prevOos = prevValidCkpt?.eval?.historical_oos || {};
+    stratBody.innerHTML =
+      mkRow('CMOS — Latest Trained Challenger', oos.trades, oos.wins, oos.losses, oos.win_rate, oos.realized_net_pnl_usd, oos.max_drawdown_usd,
+        `<span class="tag ${latestCkpt?.validation_status === 'PROMOTED' ? 'ok' : 'bad'}">${esc(latestCkpt?.validation_status || '–')}</span> ${esc(latestCkpt?.training_period || cs.current_month || '2026-02')} OOS ($100, +1¢ slip)`) +
+      (prevValidCkpt
+        ? mkRow(`CMOS — Previous Valid (${prevValidCkpt.version})`, prevOos.trades, prevOos.wins, prevOos.losses, prevOos.win_rate, prevOos.realized_net_pnl_usd, prevOos.max_drawdown_usd, 'Prior Valid Checkpoint')
+        : '<tr><td><b>CMOS — Previous Valid Checkpoint</b></td><td colspan="7" class="muted">None available (no prior checkpoint passed validation).</td></tr>') +
+      mkRow('Original ZEUS — Reference Strategy', zT, zW, zL, zT ? zW / zT : null, zeusT?.realized_net_pnl_usd, null, '<span class="tag warn">NOT COMPARABLE</span> Ongoing live paper ($100)') +
+      mkRow('HERMES-008B — Fixed 10% Baseline', hT, hW, hL, hT ? hW / hT : null, h100 ? (h100.realized_net_cents || 0) / 100 : null, null, '<span class="tag warn">NOT COMPARABLE</span> Ongoing live paper ($100)');
+  }
+
+  const latestEl = $('tcmos-latest-test');
+  if (latestEl) {
+    const dtFmt = ts => ts ? new Date(ts * 1000).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' }) : 'NOT AVAILABLE';
+    const tsFmt = ts => ts ? new Date(ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'NOT AVAILABLE';
+    const dr = latestCkpt?.eval?.date_ranges || {};
+    const endBankroll = 100.0 + Number(oos.realized_net_pnl_usd || 0);
+    const valPassed = latestCkpt?.validation_status === 'PROMOTED';
+    latestEl.innerHTML = `
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">${esc(latestCkpt?.version || al.latest_challenger_version || '–')}</span><span class="tag ${valPassed ? 'ok' : 'bad'}">${valPassed ? 'VALIDATION PASSED' : 'VALIDATION FAILED'}</span></div>
+        <div class="mono" style="font-size:12px">Trained: <b>${tsFmt(latestCkpt?.created_ts || al.last_cycle_ts)}</b></div>
+        <div class="muted mono" style="font-size:11px">Train range: ${dr.train_start_ts ? `${dtFmt(dr.train_start_ts)} → ${dtFmt(dr.train_end_ts)}` : esc(latestCkpt?.training_period || '2026-02')}</div>
+        <div class="muted mono" style="font-size:11px">Test (OOS) range: ${dr.oos_start_ts ? `${dtFmt(dr.oos_start_ts)} → ${dtFmt(dr.oos_end_ts)}` : esc(latestCkpt?.training_period || '2026-02')}</div></div>
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">$100 Bankroll Outcome</span><span class="tag">$100 Start</span></div>
+        <div class="mono" style="font-size:13px">Ending Bankroll: <b>$${endBankroll.toFixed(2)}</b> · Net P&amp;L: <b class="${Number(oos.realized_net_pnl_usd || 0) >= 0 ? 'pos' : 'neg'}">${Number(oos.realized_net_pnl_usd || 0) >= 0 ? '+' : ''}$${Number(oos.realized_net_pnl_usd || 0).toFixed(2)}</b></div>
+        <div class="muted mono" style="font-size:12px" title="Largest decline from a previous account-equity peak">Max Drawdown: <b>$${Number(oos.max_drawdown_usd || 0).toFixed(2)}</b> · vs Prev Valid: ${prevValidCkpt ? `${dlt.net_pnl_delta_usd >= 0 ? '+' : ''}$${Number(dlt.net_pnl_delta_usd || 0).toFixed(2)}` : 'No prior valid model'}</div></div>
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">Trade Record (After Fees)</span><span class="tag">OOS</span></div>
+        <div class="mono" style="font-size:13px">Trades: <b>${oos.trades ?? 0}</b> · <b>${oos.wins ?? 0}W / ${oos.losses ?? 0}L</b> · Win Rate: <b>${oos.win_rate != null ? (oos.win_rate * 100).toFixed(2) + '%' : '–'}</b></div>
+        <div class="muted mono" style="font-size:12px">Gate: ${esc(al.status_reason || '–')}</div></div>`;
+  }
+
+  const slipWrap = $('tcmos-slippage-wrap');
+  if (slipWrap) {
+    const slipRows = latestCkpt?.eval?.slippage_table || [
+      { slippage_cents: 1, trades: oos.trades, wins: oos.wins, losses: oos.losses, win_rate: oos.win_rate, net_pnl_usd: oos.realized_net_pnl_usd, max_drawdown_usd: oos.max_drawdown_usd },
+    ];
+    slipWrap.innerHTML = `<table><thead><tr><th>Slippage</th><th>Trades</th><th>W / L</th><th>Win %</th><th>Net P&amp;L</th><th>Max Drawdown</th></tr></thead><tbody>` +
+      slipRows.map(s => `<tr>
+        <td class="mono">+${s.slippage_cents}¢</td><td class="mono">${s.trades ?? '–'}</td><td class="mono">${s.wins ?? 0} / ${s.losses ?? 0}</td>
+        <td class="mono">${s.win_rate != null ? (s.win_rate * 100).toFixed(2) + '%' : '–'}</td>
+        <td class="mono ${Number(s.net_pnl_usd || 0) >= 0 ? 'pos' : 'neg'}">${s.net_pnl_usd != null ? (Number(s.net_pnl_usd) >= 0 ? '+' : '') + '$' + Number(s.net_pnl_usd).toFixed(2) : '–'}</td>
+        <td class="mono">${s.max_drawdown_usd != null ? '$' + Number(s.max_drawdown_usd).toFixed(2) : '–'}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  }
+
+  const monthlyBody = $('tcmos-monthly-body');
+  if (monthlyBody) {
+    const validMonths = (cs.months || []).filter(m => m.net_pnl_usd != null || m.month === cs.current_month);
+    monthlyBody.innerHTML = validMonths.map(m => {
+      const hasRes = m.month === cs.current_month && oos.trades != null;
+      const mdl = m.checkpoint_version || (hasRes ? (latestCkpt?.version || '–') : 'Pending');
+      const trd = hasRes ? oos.trades : '–';
+      const wl = hasRes ? `${oos.wins} / ${oos.losses}` : '–';
+      const wr = hasRes && oos.win_rate != null ? `${(oos.win_rate * 100).toFixed(2)}%` : '–';
+      const pnl = m.net_pnl_usd != null ? `$${Number(m.net_pnl_usd).toFixed(2)}` : (hasRes ? `$${Number(oos.realized_net_pnl_usd || 0).toFixed(2)} (in-progress)` : 'Recovering…');
+      const chg = m.delta_vs_prev_usd != null ? `${Number(m.delta_vs_prev_usd) >= 0 ? '+' : ''}$${Number(m.delta_vs_prev_usd).toFixed(2)}` : 'Baseline / In-Progress';
+      return `<tr><td class="mono">${esc(m.month)}</td><td class="mono">${esc(mdl)}</td><td class="mono">${trd}</td><td class="mono">${wl}</td><td class="mono">${wr}</td><td class="mono">${pnl}</td><td class="mono">${chg}</td></tr>`;
+    }).join('') || '<tr><td colspan="7" class="muted">No monthly evaluations completed yet.</td></tr>';
+  }
+
   const splitsEl = $('tcmos-splits');
   if (splitsEl) {
+    const mdlName = latestCkpt?.version || al.latest_challenger_version || 'Latest Challenger';
     const mkSplit = (title, tag, d) => `<div class="acct-card"><div class="acct-head"><span class="acct-title">${title}</span><span class="tag">${tag}</span></div>
-      <div class="mono" style="font-size:12px">Events: <b>${d.n_events ?? d.trades ?? 0}</b> · Brier: <b>${d.brier_score ?? '–'}</b> · LogLoss: <b>${d.log_loss ?? '–'}</b></div>
-      <div class="muted mono" style="font-size:12px">Net P&amp;L: $${(d.realized_net_pnl_usd ?? d.net_pnl_usd ?? 0).toFixed(2)} · DD: $${(d.max_drawdown_usd ?? 0).toFixed(2)} · WinRate: ${d.win_rate != null ? (d.win_rate * 100).toFixed(1) + '%' : '–'}</div></div>`;
-    splitsEl.innerHTML = mkSplit('1. Training Split', 'In-Sample', tr)
-      + mkSplit('2. Validation Split', 'Model Selection', va)
-      + mkSplit('3. Historical OOS', 'Unseen History', oos)
-      + mkSplit('4. Prospective Paper', 'Live Research', pp);
+      <div class="mono" style="font-size:12px">Trades: <b>${d.trades ?? 0}</b> (${d.wins ?? 0}W/${d.losses ?? 0}L) · Win%: <b>${d.win_rate != null ? (d.win_rate * 100).toFixed(2) + '%' : '–'}</b></div>
+      <div class="muted mono" style="font-size:12px">Net P&amp;L: $${(d.realized_net_pnl_usd ?? d.net_pnl_usd ?? 0).toFixed(2)} · Max DD: $${(d.max_drawdown_usd ?? 0).toFixed(2)}</div></div>`;
+    splitsEl.innerHTML = mkSplit(`1. Training (${mdlName})`, 'SAME MODEL · In-Sample', tr)
+      + mkSplit(`2. Validation (${mdlName})`, 'SAME MODEL · Selection', va)
+      + mkSplit(`3. Historical OOS (${mdlName})`, 'SAME MODEL · Unseen', oos)
+      + mkSplit(`4. Prospective Paper (${al.deployed_paper_model_version || 'CMOS-V1'})`, 'SEPARATE · Live Research', pp);
   }
 
   const chartsEl = $('tcmos-charts');
