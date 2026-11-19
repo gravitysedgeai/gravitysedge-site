@@ -489,52 +489,58 @@ function renderScoreboard(snap, force = false) {
     </article>`;
   };
 
-  const groups = [
+  const activeAccts = accts.filter(a => !a.archived);
+  const archivedAccts = accts.filter(a => Boolean(a.archived));
+
+  const activeGroups = [
     {
       key: 'clean_slate_hestia',
       title: 'HESTIA-008 (SIMULATED · ADAPTIVE SIZING)',
-      sub: 'Synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, <=10% baseline fallback).',
-      items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hestia'),
+      sub: 'Synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, skipping unvalidated probabilities).',
+      items: activeAccts.filter(a => accountGroupOf(a) === 'clean_slate_hestia'),
     },
     {
       key: 'clean_slate_hermes',
       title: 'HERMES-008B (SIMULATED · CLEAN-SLATE 10% BASELINE)',
       sub: 'Synchronized clean-slate control arm paired with HESTIA-008 (fixed 10% sizing, identical entry feed).',
-      items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hermes'),
-    },
-    {
-      key: 'successor_query_discovery',
-      title: 'HERMES-004 (SIMULATED)',
-      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
-      items: accts.filter(a => accountGroupOf(a) === 'successor_query_discovery'),
-    },
-    {
-      key: 'original_validation',
-      title: 'APOLLO-002 (SIMULATED)',
-      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
-      items: accts.filter(a => accountGroupOf(a) === 'original_validation'),
-    },
-    {
-      key: 'expanded_financial_validation',
-      title: 'ATHENA-003 (SIMULATED)',
-      sub: 'Independent $25 / $100 / $1,000 paper accounts.',
-      items: accts.filter(a => accountGroupOf(a) === 'expanded_financial_validation'),
+      items: activeAccts.filter(a => accountGroupOf(a) === 'clean_slate_hermes'),
     },
     {
       key: 'live',
       title: 'ARES-005 (REAL MONEY · PAUSED)',
       sub: 'Real-money exchange ledger (new orders paused).',
-      items: accts.filter(a => accountGroupOf(a) === 'live'),
-    },
-    {
-      key: 'previous_shadow',
-      title: 'POSEIDON-006 (SIMULATED · LEGACY)',
-      sub: 'Preserved historical paper accounts.',
-      items: accts.filter(a => accountGroupOf(a) === 'previous_shadow'),
+      items: activeAccts.filter(a => accountGroupOf(a) === 'live'),
     },
   ].filter(g => g.items.length > 0);
 
-  grid.innerHTML = groups.map(g => `
+  const archivedGroups = [
+    {
+      key: 'successor_query_discovery',
+      title: 'HERMES-004 (RETIRED)',
+      sub: 'Halted paper run; existing positions settle normally.',
+      items: archivedAccts.filter(a => accountGroupOf(a) === 'successor_query_discovery'),
+    },
+    {
+      key: 'original_validation',
+      title: 'APOLLO-002 (RETIRED)',
+      sub: 'Halted paper run; existing positions settle normally.',
+      items: archivedAccts.filter(a => accountGroupOf(a) === 'original_validation'),
+    },
+    {
+      key: 'expanded_financial_validation',
+      title: 'ATHENA-003 (RETIRED)',
+      sub: 'Halted paper run; existing positions settle normally.',
+      items: archivedAccts.filter(a => accountGroupOf(a) === 'expanded_financial_validation'),
+    },
+    {
+      key: 'previous_shadow',
+      title: 'POSEIDON-006 (RETIRED · LEGACY)',
+      sub: 'Halted legacy WS paper run; existing positions settle normally.',
+      items: archivedAccts.filter(a => accountGroupOf(a) === 'previous_shadow'),
+    },
+  ].filter(g => g.items.length > 0);
+
+  const renderGroupHtml = (groupsList) => groupsList.map(g => `
     <div class="group-section">
       <div class="group-head">
         <div>
@@ -545,24 +551,103 @@ function renderScoreboard(snap, force = false) {
       <div class="scoreboard-grid">${g.items.map(renderCard).join('')}</div>
     </div>`).join('');
 
-  grid.querySelectorAll('details.pos-details').forEach(det => {
-    const key = det.dataset.sec;
-    const lbl = det.querySelector('.sec-lbl');
-    const body = det.querySelector('.sec-body');
-    det.addEventListener('toggle', () => {
-      sectionOpenOverrides[key] = det.open;
-      if (lbl) lbl.textContent = det.open ? '▾ Collapse' : '▸ Expand';
-      if (det.open && body && !body.innerHTML && secDataMap[key]) {
-        body.innerHTML = renderAccountDetailsBody(secDataMap[key].type, secDataMap[key].items);
-      }
+  const bindDetails = (container) => {
+    if (!container) return;
+    container.querySelectorAll('details.pos-details').forEach(det => {
+      const key = det.dataset.sec;
+      const lbl = det.querySelector('.sec-lbl');
+      const body = det.querySelector('.sec-body');
+      det.addEventListener('toggle', () => {
+        sectionOpenOverrides[key] = det.open;
+        if (lbl) lbl.textContent = det.open ? '▾ Collapse' : '▸ Expand';
+        if (det.open && body && !body.innerHTML && secDataMap[key]) {
+          body.innerHTML = renderAccountDetailsBody(secDataMap[key].type, secDataMap[key].items);
+        }
+      });
     });
-  });
+  };
+
+  grid.innerHTML = renderGroupHtml(activeGroups);
+  bindDetails(grid);
+
+  const archPanel = $('archived-panel');
+  const archDet = $('archived-panel-details');
+  const archGrid = $('archived-grid');
+  const archBadge = $('archived-count-badge');
+  if (archPanel && archGrid && archBadge) {
+    if (!archivedGroups.length) {
+      archPanel.style.display = 'none';
+    } else {
+      archPanel.style.display = 'block';
+      archBadge.textContent = `${archivedAccts.length} accounts`;
+      if (archDet && archDet.open) {
+        archGrid.innerHTML = renderGroupHtml(archivedGroups);
+        bindDetails(archGrid);
+      } else {
+        archGrid.innerHTML = '';
+        if (archDet && !archDet.dataset.wired) {
+          archDet.dataset.wired = '1';
+          archDet.addEventListener('toggle', () => {
+            const lbl = $('archived-toggle-lbl');
+            if (lbl) lbl.textContent = archDet.open ? '▾ Collapse' : '▸ Expand';
+            if (archDet.open && !archGrid.innerHTML) {
+              archGrid.innerHTML = renderGroupHtml(archivedGroups);
+              bindDetails(archGrid);
+            }
+          });
+        }
+      }
+    }
+  }
+}
+
+function renderWalkForwardResearch(snap) {
+  const panel = $('wf-research-panel');
+  const body = $('wf-research-body');
+  if (!panel || !body) return;
+  const wf = snap?.walk_forward_research;
+  if (!wf || (!wf.KXBTCD && !wf.KXBTC)) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  const cards = ['KXBTCD', 'KXBTC'].filter(k => wf[k]).map(ser => {
+    const d = wf[ser];
+    const oos = d.oos_weeks_2_to_5 || {};
+    const rows = (d.weekly || []).map(w => {
+      const b = w.baseline || {};
+      const l = w.learned;
+      const lHtml = l
+        ? `<span class="${l.realized_pnl >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(l.realized_pnl)}</span> (${l.wins}W/${l.losses}L, DD $${Number(l.max_drawdown || 0).toFixed(2)})`
+        : '<span class="muted">Train V1</span>';
+      return `<tr>
+        <td>${w.label}</td>
+        <td class="mono">${w.checkpoint_created || w.mode}</td>
+        <td class="mono"><span class="${b.realized_pnl >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(b.realized_pnl)}</span> (${b.wins}W/${b.losses}L)</td>
+        <td class="mono">${lHtml}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="acct-card validation-card" style="margin-bottom:10px">
+        <div class="acct-head">
+          <span class="acct-title">${ser} · Dec 2025 Walk-Forward ($100 Start)</span>
+          <span class="tag validation">OOS Weeks 2–5: Learned ${fmtSignedUsd(oos.learned_net_pnl)} vs Base ${fmtSignedUsd(oos.baseline_net_pnl)}</span>
+        </div>
+        <div class="table-wrap" style="margin-top:8px">
+          <table>
+            <thead><tr><th>Week</th><th>Checkpoint / Mode</th><th>Unchanged Baseline</th><th>Learned Walk-Forward</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+  body.innerHTML = `<div class="scoreboard-grid">${cards}</div>`;
 }
 
 function buildChartSpecs(accounts) {
   return accounts.map((a, idx) => {
     const aid = a.account_id;
-    if (!(aid in showLines)) showLines[aid] = true;
+    if (!(aid in showLines)) showLines[aid] = !Boolean(a.archived);
     const isReal = accountGroupOf(a) === 'live';
     return {
       key: aid,
@@ -1002,6 +1087,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
   renderScoreboard(snap, force);
+  renderWalkForwardResearch(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);

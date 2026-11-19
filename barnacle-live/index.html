@@ -7,9 +7,9 @@
   <title>Barnacle Live Run #001 — Portfolio Analytics</title>
   <meta name="description"
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
-  <link rel="stylesheet" href="styles.css?v=20261118g">
+  <link rel="stylesheet" href="styles.css?v=20261119a">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261118g" defer></script>
+  <script src="app.js?v=20261119a" defer></script>
 </head>
 
 <body>
@@ -37,9 +37,34 @@
   <main class="container">
     <section id="truth-banner" class="banner warn" role="status" style="display:none">Connecting to Barnacle live relay…</section>
 
-    <!-- 1. GROUPED SCOREBOARD -->
+    <!-- 1. ACTIVE SCOREBOARD -->
     <section aria-label="Portfolio Scoreboard">
       <div id="scoreboard-grid"></div>
+    </section>
+
+    <!-- 1B. DECEMBER 2025 BTC WALK-FORWARD LEARNING RUN -->
+    <section id="wf-research-panel" class="panel" aria-label="December 2025 BTC Walk-Forward Learning" style="display:none">
+      <div class="panel-head">
+        <div>
+          <h2>BTC Dec 2025 Walk-Forward Learning <span class="count-pill">RESEARCH-ONLY · TRADE-TAPE MODEL</span></h2>
+          <p class="muted">Chronological 5-week walk-forward ($100 start, Week 5 Dec 29–31 frozen holdout). Separated by family (KXBTCD vs KXBTC); no L2 order-book depth.</p>
+        </div>
+      </div>
+      <div id="wf-research-body"></div>
+    </section>
+
+    <!-- 1C. ARCHIVED / RETIRED EXPERIMENTS — COLLAPSED BY DEFAULT -->
+    <section id="archived-panel" class="panel" aria-label="Archived Experiments" style="display:none">
+      <details id="archived-panel-details" class="pos-details panel-details">
+        <summary class="panel-summary">
+          <div>
+            <h2>Archived Experiments <span id="archived-count-badge" class="count-pill">0 accounts</span></h2>
+            <p class="muted" style="margin:2px 0 0 0">Halted / retired historical paper runs (HERMES-004, APOLLO-002, ATHENA-003, POSEIDON-006). Existing positions settle normally.</p>
+          </div>
+          <span id="archived-toggle-lbl" class="expand-lbl">▸ Expand</span>
+        </summary>
+        <div id="archived-grid" style="margin-top:12px"></div>
+      </details>
     </section>
 
     <!-- 2. MODERN INTERACTIVE PERFORMANCE GRAPH -->
