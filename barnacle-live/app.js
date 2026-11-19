@@ -4,6 +4,7 @@ const CACHE_KEY = 'barnacle_live_snapshot_v2';
 const PREV_KEY = 'barnacle_live_prev_snap_v1';
 const HIST_KEY = 'barnacle_eq_hist_v1';
 const COMPLETED_PAGE_SIZE = 50;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
 let currentSnap = null;
 let prevSnap = null;
@@ -1358,6 +1359,8 @@ function renderAdaptiveTrackB(cs) {
 }
 
 let _pendingRestoreVersion = null;
+let _tcmosCkptPage = 0;
+const TCMOS_CKPT_PAGE_SIZE = 20;
 
 function renderTrainingCmos(snap) {
   const cs = snap?.cmos_sync;
@@ -1369,6 +1372,27 @@ function renderTrainingCmos(snap) {
   const oos = al.eval?.historical_oos || {};
   const pp = al.prospective_paper || {};
   const dlt = al.delta_vs_previous || {};
+
+  const noModelEl = $('tcmos-no-model-banner');
+  if (noModelEl) {
+    noModelEl.style.display = !al.active_model_version ? 'block' : 'none';
+  }
+  const healthEl = $('tcmos-health-bar');
+  if (healthEl) {
+    const nowS = Date.now() / 1000;
+    const recAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(nowS - cs.heartbeat_ts)) : cs.heartbeat_age_s;
+    const trAge = al.heartbeat_ts != null ? Math.max(0, Math.round(nowS - al.heartbeat_ts)) : al.heartbeat_age_s;
+    const pubAge = snap?.generated_ts != null ? Math.max(0, Math.round(nowS - snap.generated_ts)) : null;
+    const recAlive = (cs.status === 'ACTIVE' || cs.status === 'COMPLETED') && (recAge == null || recAge <= 60);
+    const trStateTxt = (al.status === 'IDLE' && recAlive) ? 'IDLE (Waiting for 250-event batch)' : (al.status || 'IDLE');
+    healthEl.innerHTML = `
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">1. Historical Recovery Worker</span><span class="tag ${recAlive ? 'ok' : 'bad'}">${esc(cs.status || 'PAUSED')}</span></div>
+        <div class="mono" style="font-size:12px">Op: <b>${esc(cs.operation || '–')}</b> · Heartbeat: <b>${recAge != null ? recAge + 's ago' : '–'}</b></div></div>
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">2. Adaptive Training Worker</span><span class="tag ${al.status === 'ERROR' || al.status === 'STALLED' ? 'bad' : (al.status === 'TRAINING' ? 'ok' : 'warn')}">${esc(trStateTxt)}</span></div>
+        <div class="mono" style="font-size:12px">Op: <b>${esc(al.operation || 'idle')}</b> · Last cycle/hb: <b>${trAge != null ? trAge + 's ago' : '–'}</b></div></div>
+      <div class="acct-card"><div class="acct-head"><span class="acct-title">3. Publisher / Relay</span><span class="tag ${pubAge != null && pubAge <= 90 ? 'ok' : 'warn'}">${pubAge != null && pubAge <= 90 ? 'LIVE' : 'STALE'}</span></div>
+        <div class="mono" style="font-size:12px">Snapshot age: <b>${pubAge != null ? pubAge + 's ago' : '–'}</b> · Checkpoints: <b>${(cs.checkpoints || []).length}</b></div></div>`;
+  }
 
   if ($('tcmos-reason')) $('tcmos-reason').textContent = `${al.status_reason || 'Idle'} · Heartbeat age: ${al.heartbeat_age_s ?? '–'}s · Op: ${al.operation || 'idle'}`;
   if ($('tcmos-status-pill')) {
@@ -1416,39 +1440,62 @@ function renderTrainingCmos(snap) {
     const famRows = Object.entries(oos.by_family || {}).map(([ser, f]) =>
       `<div class="mono" style="font-size:12px">${esc(ser)}: ${f.trades} trades · Net $${Number(f.net_pnl_usd || 0).toFixed(2)} · Brier ${f.brier_score ?? '–'}</div>`
     ).join('') || '<div class="muted mono" style="font-size:12px">No family OOS breakdown yet</div>';
+    const hasInvalid = ckptsAsc.some(c => c.validation_status === 'MODEL_INVALIDATED');
+    const pnlTitle = hasInvalid ? 'OOS Net P&L ($) — *includes invalidated 2c-bug history' : 'OOS Net P&L ($)';
     chartsEl.innerHTML = `
       <div class="acct-card">${_svgSparkline(briers, '#38bdf8', 'OOS Brier Score (Lower=Better)', v => v.toFixed(4))}</div>
-      <div class="acct-card">${_svgSparkline(pnls, '#22c55e', 'OOS Net P&L ($)', v => '$' + v.toFixed(2))}</div>
+      <div class="acct-card">${_svgSparkline(pnls, '#22c55e', pnlTitle, v => '$' + v.toFixed(2))}</div>
       <div class="acct-card">${_svgSparkline(dds, '#f59e0b', 'OOS Max Drawdown ($)', v => '$' + v.toFixed(2))}</div>
       <div class="acct-card">${_svgSparkline(evs, '#a78bfa', 'Verified Independent Events', v => String(Math.round(v)))}
         <div style="margin-top:6px;border-top:1px solid #1f2937;padding-top:6px">${famRows}</div></div>`;
   }
 
+  const allCkpts = cs.checkpoints || [];
+  const totalPages = Math.max(1, Math.ceil(allCkpts.length / TCMOS_CKPT_PAGE_SIZE));
+  if (_tcmosCkptPage >= totalPages) _tcmosCkptPage = totalPages - 1;
+  const pageStart = _tcmosCkptPage * TCMOS_CKPT_PAGE_SIZE;
+  const pageCkpts = allCkpts.slice(pageStart, pageStart + TCMOS_CKPT_PAGE_SIZE);
+
   const cBody = $('tcmos-checkpoints-body');
   if (cBody) {
-    cBody.innerHTML = (cs.checkpoints || []).slice(0, 40).map(c => {
+    cBody.innerHTML = pageCkpts.map(c => {
       const ts = c.created_ts ? new Date(c.created_ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '–';
       const sha = c.checkpoint_sha256 ? esc(String(c.checkpoint_sha256).slice(0, 12)) : '–';
       const isAct = c.deployment_status === 'ACTIVE_PAPER';
       const vs = String(c.validation_status || '–');
-      const vBadge = vs === 'MODEL_INVALIDATED'
+      const isInv = vs === 'MODEL_INVALIDATED';
+      const vBadge = isInv
         ? '<span class="tag bad">MODEL INVALIDATED</span>'
         : (vs === 'VALIDATION_FAILED' ? '<span class="tag bad">VALIDATION FAILED</span>'
           : (vs === 'PROMOTION_BLOCKED' ? '<span class="tag warn">PROMOTION BLOCKED</span>' : esc(vs)));
+      const pnlCell = c.oos_net_pnl_usd != null
+        ? (isInv
+          ? `<span class="muted" style="text-decoration:line-through" title="Invalidated 2c scaling artifact — not verified profit">$${Number(c.oos_net_pnl_usd).toFixed(2)}</span> <span class="tag bad">INVALID</span>`
+          : `$${Number(c.oos_net_pnl_usd).toFixed(2)}`)
+        : '–';
       const btn = isAct
         ? '<span class="tag ok">ACTIVE</span>'
-        : (vs === 'MODEL_INVALIDATED' || vs === 'VALIDATION_FAILED'
+        : (isInv || vs === 'VALIDATION_FAILED'
           ? '<span class="muted mono" style="font-size:11px">Blocked</span>'
           : `<button class="toggle-btn tcmos-restore-btn" data-version="${esc(c.version)}" type="button">Restore Checkpoint</button>`);
       return `<tr>
         <td class="mono">${esc(c.version)}</td><td class="mono">${ts}</td><td class="mono">${esc(c.training_period || c.month || '–')}</td>
         <td class="mono">${esc(c.training_mode || '–')}</td><td class="mono">${c.independent_events ?? '–'}</td>
-        <td class="mono">${c.oos_brier ?? '–'}</td><td class="mono">${c.oos_net_pnl_usd != null ? '$' + Number(c.oos_net_pnl_usd).toFixed(2) : '–'}</td>
+        <td class="mono">${c.oos_brier ?? '–'}</td><td class="mono">${pnlCell}</td>
         <td class="mono">${c.max_drawdown_usd != null ? '$' + Number(c.max_drawdown_usd).toFixed(2) : '–'}</td>
         <td class="mono">${vBadge}</td><td class="mono">${esc(c.deployment_status || '–')}</td>
         <td class="mono">${sha}</td><td>${btn}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="12" class="muted">No checkpoints created yet.</td></tr>';
+
+    const cPager = $('tcmos-checkpoints-pager');
+    if (cPager) {
+      cPager.innerHTML = allCkpts.length > 0
+        ? `<button id="tcmos-ckpt-prev" class="toggle-btn" type="button">Prev</button> <span class="muted mono">Page ${_tcmosCkptPage + 1}/${totalPages} · ${allCkpts.length} checkpoints</span> <button id="tcmos-ckpt-next" class="toggle-btn" type="button">Next</button>`
+        : '';
+      if ($('tcmos-ckpt-prev')) $('tcmos-ckpt-prev').onclick = () => { if (_tcmosCkptPage > 0) { _tcmosCkptPage--; renderTrainingCmos(currentSnap); } };
+      if ($('tcmos-ckpt-next')) $('tcmos-ckpt-next').onclick = () => { if (_tcmosCkptPage < totalPages - 1) { _tcmosCkptPage++; renderTrainingCmos(currentSnap); } };
+    }
 
     document.querySelectorAll('.tcmos-restore-btn').forEach(btn => {
       btn.onclick = () => {
