@@ -41,13 +41,20 @@ h3 { margin: 0 0 6px 0; font-size: 14px; color: var(--info); }
 .banner.bad { border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.10); color: #fecaca; }
 
 .scoreboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(275px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.group-section { margin-bottom: 18px; }
+.group-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.group-title { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+.group-sub { font-size: 12px; color: var(--mut); }
 .acct-card { background: var(--panel); border-radius: 14px; padding: 14px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
 .acct-card.real-card { border: 2px solid rgba(52,211,153,.65); background: linear-gradient(180deg, rgba(16,185,129,.11) 0%, rgba(15,23,42,.92) 48%); box-shadow: 0 0 28px rgba(52,211,153,.10); }
+.acct-card.validation-card { border: 2px solid rgba(56,189,248,.60); background: linear-gradient(180deg, rgba(56,189,248,.10) 0%, rgba(15,23,42,.92) 48%); box-shadow: 0 0 24px rgba(56,189,248,.08); }
 .acct-card.paper-card { border: 1px dashed rgba(148,163,184,.38); background: rgba(15,23,42,.78); }
-.acct-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.acct-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .acct-title { font-size: 14px; font-weight: 800; letter-spacing: .01em; }
 .tag { font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--line); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 .tag.real { color: #04101c; background: var(--pos); border-color: var(--pos); }
+.tag.validation { color: #04101c; background: var(--info); border-color: var(--info); }
+.tag.legacy { color: #fde68a; background: rgba(245,158,11,.14); border: 1px dashed rgba(245,158,11,.45); }
 .tag.paper { color: #cbd5e1; background: rgba(148,163,184,.12); border: 1px dashed rgba(148,163,184,.45); }
 .tag.win { color: var(--pos); border-color: rgba(52,211,153,.45); background: rgba(16,185,129,.12); }
 .tag.loss { color: var(--neg); border-color: rgba(248,113,113,.45); background: rgba(239,68,68,.12); }

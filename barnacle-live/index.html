@@ -15,7 +15,7 @@
       <div class="brand-badge">LIVE RUN #001</div>
       <div>
         <h1 id="run-title">Barnacle Live Portfolio Monitor</h1>
-        <p id="run-subtitle" class="subtitle">Real Kalshi Shard 2 ($25.00) vs. Three Independent Shadow Controls ($25 / $100 / $1,000)</p>
+        <p id="run-subtitle" class="subtitle">Original XP Engine Paper Validation ($25 / $100 / $1,000) · Paused Real Kalshi ($25) · Previous Rewritten Shadow Controls</p>
       </div>
     </div>
     <div class="status-cluster">
@@ -29,16 +29,16 @@
   <main class="container">
     <section id="truth-banner" class="banner" role="status">Connecting to Barnacle live relay…</section>
 
-    <!-- 1. FOUR-ACCOUNT SCOREBOARD AT THE TOP -->
-    <section aria-label="Four-Account Scoreboard">
-      <div id="scoreboard-grid" class="scoreboard-grid"></div>
+    <!-- 1. GROUPED SCOREBOARD AT THE TOP -->
+    <section aria-label="Portfolio Scoreboard">
+      <div id="scoreboard-grid"></div>
     </section>
 
-    <!-- 2. FOUR-ACCOUNT PERFORMANCE GRAPH -->
-    <section class="panel" aria-label="Four-Account Performance Graph">
+    <!-- 2. MULTI-ACCOUNT PERFORMANCE GRAPH -->
+    <section class="panel" aria-label="Portfolio Performance Graph">
       <div class="panel-head">
         <div>
-          <h2>Four-Account Performance Graph</h2>
+          <h2>Portfolio Performance Graph</h2>
           <p class="muted">Solid line = REAL money · Dashed lines = SIMULATED paper. Percentage mode normalizes every account to its own starting bankroll.</p>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
@@ -53,12 +53,7 @@
             <button id="range-24h" class="toggle-btn" type="button">24H</button>
             <button id="range-all" class="toggle-btn active" type="button">ALL</button>
           </div>
-          <div class="view-toggle" role="group" aria-label="Toggle Accounts">
-            <button id="line-live" class="toggle-btn active" type="button">LIVE $25</button>
-            <button id="line-s25" class="toggle-btn active" type="button">$25 Sim</button>
-            <button id="line-s100" class="toggle-btn active" type="button">$100 Sim</button>
-            <button id="line-s1000" class="toggle-btn active" type="button">$1k Sim</button>
-          </div>
+          <div id="line-toggles" class="view-toggle" role="group" aria-label="Toggle Accounts"></div>
         </div>
       </div>
       <div class="chart-wrap">
@@ -78,10 +73,6 @@
         <div class="filters">
           <div id="holdings-tabs" class="tabs-row" role="tablist">
             <button class="tab-btn active" data-acct="" type="button">All</button>
-            <button class="tab-btn" data-acct="live_25" type="button">LIVE $25</button>
-            <button class="tab-btn" data-acct="shadow_25" type="button">SHADOW $25</button>
-            <button class="tab-btn" data-acct="shadow_100" type="button">SHADOW $100</button>
-            <button class="tab-btn" data-acct="shadow_1000" type="button">SHADOW $1,000</button>
           </div>
           <input id="holdings-q" type="search" placeholder="Filter ticket…" aria-label="Filter holdings">
         </div>
@@ -118,10 +109,6 @@
         <div class="filters">
           <div id="completed-tabs" class="tabs-row" role="tablist">
             <button class="tab-btn active" data-acct="" type="button">All</button>
-            <button class="tab-btn" data-acct="live_25" type="button">LIVE $25</button>
-            <button class="tab-btn" data-acct="shadow_25" type="button">SHADOW $25</button>
-            <button class="tab-btn" data-acct="shadow_100" type="button">SHADOW $100</button>
-            <button id="tab-s1000" class="tab-btn" data-acct="shadow_1000" type="button">SHADOW $1,000</button>
           </div>
           <input id="completed-q" type="search" placeholder="Filter ticket…" aria-label="Filter completed trades">
         </div>

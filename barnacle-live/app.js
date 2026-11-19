@@ -8,7 +8,36 @@ let currentSnap = null;
 let prevSnap = null;
 let chartUnit = 'pct';   // 'pct' | 'usd' | 'pnl'
 let chartRange = 'all';  // '1h' | '6h' | '24h' | 'all'
-const showLines = { live_25: true, shadow_25: true, shadow_100: true, shadow_1000: true };
+const showLines = {};
+const ACCOUNT_COLORS = {
+  live_25: '#34d399',
+  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s25': '#38bdf8',
+  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s100': '#60a5fa',
+  'lab:btc:cust_xp_b8f53a9912_v1:hold:risk-cp_f10_s1000': '#22d3ee',
+  shadow_25: '#a78bfa',
+  shadow_100: '#c084fc',
+  shadow_1000: '#f59e0b',
+};
+const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', '#fb7185'];
+
+function accountGroupOf(a) {
+  if (a.group) return a.group;
+  if (a.kind === 'REAL' || a.account_id === 'live_25') return 'live';
+  if (String(a.account_id || '').includes('risk-cp_f10_s')) return 'original_validation';
+  return 'previous_shadow';
+}
+
+function shortLabelOf(a) {
+  const id = a.account_id || '';
+  if (id === 'live_25') return 'LIVE $25';
+  if (id.endsWith('_s25')) return 'XP Val $25';
+  if (id.endsWith('_s100')) return 'XP Val $100';
+  if (id.endsWith('_s1000')) return 'XP Val $1,000';
+  if (id === 'shadow_25') return 'Old Shadow $25';
+  if (id === 'shadow_100') return 'Old Shadow $100';
+  if (id === 'shadow_1000') return 'Old Shadow $1,000';
+  return (a.label || id).replace(' (Control)', '');
+}
 let holdingsAcct = '';
 let completedAcct = '';
 let lastPollOk = false;
@@ -167,8 +196,10 @@ function renderScoreboard(snap) {
     return;
   }
 
-  grid.innerHTML = accts.map(a => {
-    const isReal = a.kind === 'REAL' || a.account_id === 'live_25';
+  const renderCard = (a) => {
+    const grp = accountGroupOf(a);
+    const isReal = grp === 'live';
+    const isVal = grp === 'original_validation';
     const initC = Number(a.initial_cents || 0);
     const eqC = Number(a.equity_cents ?? initC);
     const netC = Number(a.net_pnl_cents ?? (eqC - initC));
@@ -177,7 +208,6 @@ function renderScoreboard(snap) {
       .filter(h => h.account_id === a.account_id)
       .reduce((s, h) => s + Number(h.contracts || 0), 0);
 
-    // Movement since preceding valid snapshot (or preceding series point)
     let prevEqC = prevMap[a.account_id]?.equity_cents;
     if (prevEqC == null) {
       const ser = snap?.three_accounts?.series?.[a.account_id] || [];
@@ -199,13 +229,21 @@ function renderScoreboard(snap) {
       : fmtUsd((a.net_sell_value_cents ?? 0) / 100);
 
     const netCls = netC > 0 ? 'pos' : netC < 0 ? 'neg' : '';
-    const titleLabel = isReal ? `${a.label} — REAL MONEY` : `${a.label.replace(' (Control)', '')} — SIMULATED`;
+    const titleLabel = isReal
+      ? `${a.label} — REAL MONEY`
+      : `${a.label.replace(' (Control)', '')} — SIMULATED`;
+    const cardCls = isReal ? 'real-card' : isVal ? 'validation-card' : 'paper-card';
+    const badgeHtml = isReal
+      ? '<span class="tag real">REAL MONEY · PAUSED</span>'
+      : isVal
+      ? '<span class="tag validation">ORIGINAL XP ENGINE · SIMULATED</span>'
+      : '<span class="tag legacy">PREVIOUS REWRITTEN · SIMULATED</span>';
 
     return `
-    <article class="acct-card ${isReal ? 'real-card' : 'paper-card'}">
+    <article class="acct-card ${cardCls}">
       <div class="acct-head">
         <span class="acct-title">${titleLabel}</span>
-        <span class="tag ${isReal ? 'real' : 'paper'}">${isReal ? 'REAL MONEY' : 'PAPER SIM'}</span>
+        ${badgeHtml}
       </div>
       <div class="eq-row">
         <span class="eq-val mono">${fmtUsd(eqC / 100)}</span>
@@ -230,7 +268,38 @@ function renderScoreboard(snap) {
         <span class="k">Total Fees</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
     </article>`;
-  }).join('');
+  };
+
+  const groups = [
+    {
+      key: 'original_validation',
+      title: 'ORIGINAL XP ENGINE VALIDATION (SIMULATED)',
+      sub: 'Fresh $25 / $100 / $1,000 paper accounts running the exact original CustomStrategy + Engine (forward.db).',
+      items: accts.filter(a => accountGroupOf(a) === 'original_validation'),
+    },
+    {
+      key: 'live',
+      title: 'PAUSED REAL-MONEY ACCOUNT',
+      sub: 'Kalshi Shard 2 real-money ledger (new orders paused).',
+      items: accts.filter(a => accountGroupOf(a) === 'live'),
+    },
+    {
+      key: 'previous_shadow',
+      title: 'PREVIOUS REWRITTEN EXPERIMENT (SIMULATED)',
+      sub: 'Earlier 1-second WebSocket-rewrite shadow accounts (preserved separately for comparison).',
+      items: accts.filter(a => accountGroupOf(a) === 'previous_shadow'),
+    },
+  ].filter(g => g.items.length > 0);
+
+  grid.innerHTML = groups.map(g => `
+    <div class="group-section">
+      <div class="group-head">
+        <span class="group-title">${g.title}</span>
+        <span class="group-sub">${g.sub}</span>
+      </div>
+      <div class="scoreboard-grid">${g.items.map(renderCard).join('')}</div>
+    </div>
+  `).join('');
 }
 
 function renderChart(snap) {
@@ -241,16 +310,31 @@ function renderChart(snap) {
   const accounts = snap?.three_accounts?.accounts || [];
   const localHist = loadJson(HIST_KEY, {});
 
-  const specs = [
-    { key: 'live_25', label: 'LIVE $25 (REAL)', color: '#34d399', dashed: false, init: 2500 },
-    { key: 'shadow_25', label: 'SHADOW $25 (PAPER)', color: '#a78bfa', dashed: true, init: 2500 },
-    { key: 'shadow_100', label: 'SHADOW $100 (PAPER)', color: '#38bdf8', dashed: true, init: 10000 },
-    { key: 'shadow_1000', label: 'SHADOW $1,000 (PAPER)', color: '#f59e0b', dashed: true, init: 100000 },
-  ];
-  accounts.forEach(a => {
-    const sp = specs.find(x => x.key === a.account_id);
-    if (sp && a.initial_cents) sp.init = Number(a.initial_cents);
+  const specs = accounts.map((a, idx) => {
+    const aid = a.account_id;
+    if (!(aid in showLines)) showLines[aid] = true;
+    const isReal = accountGroupOf(a) === 'live';
+    return {
+      key: aid,
+      label: shortLabelOf(a) + (isReal ? ' (REAL)' : ' (SIM)'),
+      shortLabel: shortLabelOf(a),
+      color: ACCOUNT_COLORS[aid] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length],
+      dashed: !isReal,
+      init: Number(a.initial_cents || 2500),
+    };
   });
+
+  const toggleBox = $('line-toggles');
+  if (toggleBox) {
+    toggleBox.innerHTML = specs.map(sp => `<button class="toggle-btn ${showLines[sp.key] ? 'active' : ''}" data-line="${sp.key}" type="button">${sp.shortLabel}</button>`).join('');
+    toggleBox.querySelectorAll('button').forEach(btn => {
+      btn.onclick = () => {
+        const k = btn.dataset.line;
+        showLines[k] = !showLines[k];
+        renderChart(currentSnap);
+      };
+    });
+  }
 
   const nowSec = Math.floor(Date.now() / 1000);
   const cutoff = chartRange === '1h' ? nowSec - 3600
@@ -390,7 +474,7 @@ function renderChart(snap) {
       const pnl = (best.equity_cents - sp.init) / 100;
       const pct = ((best.equity_cents - sp.init) / Math.max(1, sp.init)) * 100;
       return `<div style="display:flex;justify-content:space-between;gap:10px;color:${sp.color}">
-        <span>${sp.label.split(' ')[0]} ${sp.key === 'live_25' ? 'REAL' : sp.key.replace('shadow_', '$')}</span>
+        <span>${sp.shortLabel}</span>
         <span class="mono">${fmtUsd(eq)} (${fmtSignedPct(pct)} / ${fmtSignedUsd(pnl)})</span>
       </div>`;
     }).join('');
@@ -405,18 +489,28 @@ function renderChart(snap) {
   svg.onmouseleave = () => { hLine.style.display = 'none'; tip.style.display = 'none'; };
 }
 
+function renderAccountFilterTabs(containerId, accts, items, activeAcct, onSelect) {
+  const box = $(containerId);
+  if (!box) return;
+  const defs = [{ aid: '', label: 'All' }, ...accts.map(a => ({ aid: a.account_id, label: shortLabelOf(a) }))];
+  box.innerHTML = defs.map(d => {
+    const cnt = d.aid ? items.filter(x => x.account_id === d.aid).length : items.length;
+    return `<button class="tab-btn ${activeAcct === d.aid ? 'active' : ''}" data-acct="${d.aid}" type="button">${d.label} (${cnt})</button>`;
+  }).join('');
+  box.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => onSelect(btn.dataset.acct || '');
+  });
+}
+
 function renderHoldings(snap) {
   const all = snap?.holdings || [];
+  const accts = snap?.three_accounts?.accounts || [];
   const totalContracts = all.reduce((s, h) => s + Number(h.contracts || 0), 0);
-  $('holdings-summary').textContent = `${all.length} Open Positions · ${totalContracts} Contracts Held Across All 4 Accounts`;
+  $('holdings-summary').textContent = `${all.length} Open Positions · ${totalContracts} Contracts Held Across All ${accts.length} Accounts`;
 
-  // Update tab counts
-  document.querySelectorAll('#holdings-tabs .tab-btn').forEach(btn => {
-    const aid = btn.dataset.acct || '';
-    const cnt = aid ? all.filter(h => h.account_id === aid).length : all.length;
-    const baseLbl = aid === '' ? 'All' : aid === 'live_25' ? 'LIVE $25' : aid === 'shadow_25' ? 'SHADOW $25' : aid === 'shadow_100' ? 'SHADOW $100' : 'SHADOW $1,000';
-    btn.textContent = `${baseLbl} (${cnt})`;
-    btn.classList.toggle('active', holdingsAcct === aid);
+  renderAccountFilterTabs('holdings-tabs', accts, all, holdingsAcct, (aid) => {
+    holdingsAcct = aid;
+    if (currentSnap) renderHoldings(currentSnap);
   });
 
   const q = ($('holdings-q')?.value || '').trim().toLowerCase();
@@ -478,12 +572,9 @@ function renderCompleted(snap) {
     </div>`;
   }).join('');
 
-  document.querySelectorAll('#completed-tabs .tab-btn').forEach(btn => {
-    const aid = btn.dataset.acct || '';
-    const cnt = aid ? all.filter(t => t.account_id === aid).length : all.length;
-    const baseLbl = aid === '' ? 'All' : aid === 'live_25' ? 'LIVE $25' : aid === 'shadow_25' ? 'SHADOW $25' : aid === 'shadow_100' ? 'SHADOW $100' : 'SHADOW $1,000';
-    btn.textContent = `${baseLbl} (${cnt})`;
-    btn.classList.toggle('active', completedAcct === aid);
+  renderAccountFilterTabs('completed-tabs', accts, all, completedAcct, (aid) => {
+    completedAcct = aid;
+    if (currentSnap) renderCompleted(currentSnap);
   });
 
   const q = ($('completed-q')?.value || '').trim().toLowerCase();
@@ -606,22 +697,6 @@ $('range-6h').onclick = () => setRange('6h', $('range-6h'));
 $('range-24h').onclick = () => setRange('24h', $('range-24h'));
 $('range-all').onclick = () => setRange('all', $('range-all'));
 
-const toggleLine = (key, btnId) => {
-  showLines[key] = !showLines[key];
-  $(btnId).classList.toggle('active', showLines[key]);
-  if (currentSnap) renderChart(currentSnap);
-};
-$('line-live').onclick = () => toggleLine('live_25', 'line-live');
-$('line-s25').onclick = () => toggleLine('shadow_25', 'line-s25');
-$('line-s100').onclick = () => toggleLine('shadow_100', 'line-s100');
-$('line-s1000').onclick = () => toggleLine('shadow_1000', 'line-s1000');
-
-document.querySelectorAll('#holdings-tabs .tab-btn').forEach(btn => {
-  btn.onclick = () => { holdingsAcct = btn.dataset.acct || ''; if (currentSnap) renderHoldings(currentSnap); };
-});
-document.querySelectorAll('#completed-tabs .tab-btn').forEach(btn => {
-  btn.onclick = () => { completedAcct = btn.dataset.acct || ''; if (currentSnap) renderCompleted(currentSnap); };
-});
 $('holdings-q').oninput = () => { if (currentSnap) renderHoldings(currentSnap); };
 $('completed-q').oninput = () => { if (currentSnap) renderCompleted(currentSnap); };
 $('modal-close').onclick = () => $('trace-modal').close();
