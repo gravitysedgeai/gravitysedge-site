@@ -1209,13 +1209,17 @@ function renderCmosSync(snap) {
   const fmtDur = s => s == null ? '–' : (s >= 3600 ? `${(s / 3600).toFixed(1)}h` : (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`));
   const etaTxt = cs.eta_seconds != null ? `${fmtDur(cs.eta_seconds)} (est)` : '–';
 
+  const contractsTxt = cs.workload_discovered && cs.contracts_total != null
+    ? `${cs.contracts_done || 0} / ${cs.contracts_total}`
+    : `${cs.contracts_done || 0} completed (total discovering…)`;
+  const overallTxt = cs.overall_pct != null ? `${Number(cs.overall_pct).toFixed(1)}%` : 'Discovering';
   kpisEl.innerHTML = `
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Current Month Progress</span><span class="tag">${cs.current_month || '–'}</span></div>
       <div style="font-size:24px;font-weight:700" class="mono">${curPctText}</div>
-      <div class="muted" style="font-size:12px">Contracts: ${cs.contracts_done || 0} / ${cs.contracts_total || 0} · 4-Mo Overall: ${Number(cs.overall_pct || 0).toFixed(1)}%</div></div>
+      <div class="muted" style="font-size:12px">Contracts: ${contractsTxt} · 4-Mo Overall: ${overallTxt}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Records (Observed)</span><span class="tag">1m Bars</span></div>
-      <div class="mono" style="font-size:13px">Recovered: <b>${(cs.records_recovered || 0).toLocaleString()}</b> / ${(cs.records_expected || 0).toLocaleString()}</div>
-      <div class="muted mono" style="font-size:12px">Verified: ${(cs.records_verified || 0).toLocaleString()} · Rejected: ${cs.records_rejected || 0} · Rem: ${remRec.toLocaleString()}</div></div>
+      <div class="mono" style="font-size:13px">Recovered: <b>${(cs.records_recovered || 0).toLocaleString()}</b>${cs.workload_discovered && cs.records_expected != null ? ` / ${cs.records_expected.toLocaleString()}` : ' (discovering total…)'}</div>
+      <div class="muted mono" style="font-size:12px">Verified: ${(cs.records_verified || 0).toLocaleString()} · Rejected: ${cs.records_rejected || 0}${cs.workload_discovered ? ` · Rem: ${remRec.toLocaleString()}` : ''}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">API &amp; Throughput</span><span class="tag">Advanced</span></div>
       <div class="mono" style="font-size:13px">${Number(cs.throughput_rps || 0).toFixed(2)} req/s · ${Number(cs.throughput_rec_s || 0).toFixed(0)} rec/s · ${Number(cs.throughput_mb_s || 0).toFixed(3)} MB/s</div>
       <div class="muted mono" style="font-size:12px">Reqs: ${cs.api_requests_done || 0} done / ${cs.api_requests_remaining ?? '–'} rem · 429s: ${cs.rate_limit_429_count || 0} · Retries: ${cs.retry_count || 0} · Errs: ${cs.error_count || 0}</div></div>
