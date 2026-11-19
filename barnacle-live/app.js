@@ -461,7 +461,6 @@ function renderScoreboard(snap, force = false) {
         <span>Est. Unrealized (Resale):</span>
         <span class="mono unreal-neutral">${unrealTxt}</span>
       </div>
-      ${Number(a.withdrawn_to_savings_cents || 0) > 0 ? `<div class="muted mono" style="font-size:11px;margin-top:4px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span>Savings withdrawal: <b>-${fmtUsd(a.withdrawn_to_savings_cents / 100)}</b> · Cash after: <b>${fmtUsd((a.available_cents || 0) / 100)}</b></span><a href="#hermes-savings-panel" onclick="document.getElementById('hermes-savings-panel')?.scrollIntoView({behavior:'smooth'});return false;" style="color:#38bdf8">Savings details ↓</a></div>` : ''}
       <div class="stat-badges-4">
         <div class="stat-mini"><div class="lbl">Open</div><div class="val mono">${actCount}</div></div>
         <div class="stat-mini"><div class="lbl">Settling</div><div class="val mono">${setCount}</div></div>
@@ -471,6 +470,7 @@ function renderScoreboard(snap, force = false) {
       <div class="acct-rows">
         <span class="k">Starting Bankroll</span><span class="v">${fmtUsd(initC / 100)}</span>
         <span class="k">Available Cash</span><span class="v">${fmtUsd((a.available_cents || 0) / 100)}</span>
+        ${Number(a.withdrawn_to_savings_cents || 0) > 0 ? `<a class="k" href="#hermes-savings-panel" onclick="document.getElementById('hermes-savings-panel')?.scrollIntoView({behavior:'smooth'});return false;" style="color:#38bdf8;text-decoration:none">Savings Withdrawn</a><span class="v mono">-${fmtUsd(a.withdrawn_to_savings_cents / 100)}</span>` : ''}
         <span class="k">Capital Invested (Cost Basis)</span><span class="v">${fmtUsd((a.invested_cents || 0) / 100)}</span>
         <span class="k">Max Remaining Payout (${contractsHeld}x)</span><span class="v">${fmtUsd(maxRemPayoutC / 100)}</span>
         <span class="k">Est. Resale / Liquidation</span><span class="v">${posValTxt} / ${sellTxt}</span>
