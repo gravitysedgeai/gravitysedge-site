@@ -1211,10 +1211,6 @@ function renderCmosSync(snap) {
   const fmtDur = s => s == null ? '–' : (s >= 3600 ? `${(s / 3600).toFixed(1)}h` : (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`));
   const etaTxt = cs.eta_seconds != null ? `${fmtDur(cs.eta_seconds)} (est)` : '–';
 
-  const contractsTxt = cs.workload_discovered && cs.contracts_total != null
-    ? `${cs.contracts_done || 0} / ${cs.contracts_total}`
-    : `${cs.contracts_done || 0} completed (total discovering…)`;
-  const overallTxt = cs.overall_pct != null ? `${Number(cs.overall_pct).toFixed(1)}%` : 'Discovering';
   const fmtTsEt = ts => ts != null ? new Date(ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'NOT AVAILABLE';
   const fmtAge = ts => ts != null ? `${Math.max(0, Math.round(nowSec - ts))}s ago` : 'NOT AVAILABLE';
   const d1 = cs.deltas?.['1m'] || {};
