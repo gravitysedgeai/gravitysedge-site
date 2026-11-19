@@ -20,6 +20,12 @@ const ACCOUNT_COLORS = {
   'hermes-004-25': '#2dd4bf',
   'hermes-004-100': '#14b8a6',
   'hermes-004-1000': '#0d9488',
+  'hermes-clean-25': '#84cc16',
+  'hermes-clean-100': '#22c55e',
+  'hermes-clean-1000': '#16a34a',
+  'hestia-008-25': '#f472b6',
+  'hestia-008-100': '#ec4899',
+  'hestia-008-1000': '#db2777',
   'poseidon-006-25': '#f59e0b',
   'poseidon-006-100': '#fb923c',
   'poseidon-006-1000': '#f87171',
@@ -29,6 +35,8 @@ const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', 
 function accountGroupOf(a) {
   if (a.group) return a.group;
   if (a.kind === 'REAL' || String(a.account_id || '').startsWith('ares-')) return 'live';
+  if (String(a.account_id || '').startsWith('hestia-')) return 'clean_slate_hestia';
+  if (String(a.account_id || '').startsWith('hermes-clean-')) return 'clean_slate_hermes';
   if (String(a.account_id || '').startsWith('hermes-')) return 'successor_query_discovery';
   if (String(a.account_id || '').startsWith('athena-')) return 'expanded_financial_validation';
   if (String(a.account_id || '').startsWith('apollo-')) return 'original_validation';
@@ -261,7 +269,7 @@ function renderScoreboard(snap) {
       ? `${a.label} — REAL MONEY`
       : `${a.label.replace(' (Control)', '')} — SIMULATED`;
     const isFin = grp === 'expanded_financial_validation';
-    const isSucc = grp === 'successor_query_discovery';
+    const isSucc = grp === 'successor_query_discovery' || grp === 'clean_slate_hermes' || grp === 'clean_slate_hestia';
     const cardCls = isReal ? 'real-card' : (isVal || isSucc) ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
       ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
@@ -286,6 +294,9 @@ function renderScoreboard(snap) {
           const sellPnlCls = h.sell_pnl_usd == null ? '' : (h.sell_pnl_usd >= 0 ? 'pos' : 'neg');
           const liqWarn = h.partial_liquidity ? ` (Partial: ${h.fillable_qty}/${h.contracts})` : '';
           const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'Exchange Order Book'})` : 'UNAVAILABLE';
+          const sizingRow = h.alloc_pct != null
+            ? `<span class="k">Position Sizing</span><span class="v">Allocation: ${h.alloc_pct}% | Confidence: ${h.confidence_status || 'n/a'} | Mode: ${h.allocation_mode || 'n/a'}${h.limiting_factor ? ' | Limit: ' + h.limiting_factor : ''}</span>`
+            : '';
           return `
           <div class="pos-item">
             <div class="pos-item-head">
@@ -304,6 +315,7 @@ function renderScoreboard(snap) {
               <span class="k">Est. Net Liquidation${liqWarn}</span><span class="v">${estSellTxt}</span>
               <span class="k">Executable P&amp;L (Sell Now)</span><span class="v ${sellPnlCls}">${sellPnlTxt}</span>
               <span class="k">Max Settlement / Rem. Profit</span><span class="v">${fmtUsd(h.max_payout_usd)} / ${fmtSignedUsd(h.remaining_profit_usd)}</span>
+              ${sizingRow}
             </div>
             <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
           </div>`;
@@ -420,6 +432,18 @@ function renderScoreboard(snap) {
   };
 
   const groups = [
+    {
+      key: 'clean_slate_hestia',
+      title: 'HESTIA-008 (SIMULATED · ADAPTIVE SIZING)',
+      sub: 'NEW synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, <=10% baseline fallback).',
+      items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hestia'),
+    },
+    {
+      key: 'clean_slate_hermes',
+      title: 'HERMES-008B (SIMULATED · CLEAN-SLATE 10% BASELINE)',
+      sub: 'NEW synchronized clean-slate control arm paired with HESTIA-008 (fixed 10% sizing, identical entry feed).',
+      items: accts.filter(a => accountGroupOf(a) === 'clean_slate_hermes'),
+    },
     {
       key: 'successor_query_discovery',
       title: 'HERMES-004 (SIMULATED)',
