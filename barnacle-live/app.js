@@ -350,8 +350,8 @@ function renderScoreboard(snap) {
       const k = `${a.account_id}:${sec}`;
       return (k in sectionOpenOverrides) ? sectionOpenOverrides[k] : defOpen;
     };
-    const actOpen = isSecOpen('active', true);
-    const awtOpen = isSecOpen('awaiting', awaitingHoldings.length > 0);
+    const actOpen = isSecOpen('active', false);
+    const awtOpen = isSecOpen('awaiting', false);
     const cmpOpen = isSecOpen('completed', false);
 
     return `
@@ -854,6 +854,81 @@ $('range-all').onclick = () => setRange('all', $('range-all'));
 $('holdings-q').oninput = () => { if (currentSnap) renderHoldings(currentSnap); };
 $('completed-q').oninput = () => { if (currentSnap) renderCompleted(currentSnap); };
 $('modal-close').onclick = () => $('trace-modal').close();
+
+function buildStatusReportText(snap) {
+  if (!snap) return 'No snapshot loaded yet.';
+  const pubTs = snap.published_ts || (snap.published_at_utc ? Date.parse(snap.published_at_utc) / 1000 : null);
+  const ageS = pubTs ? Math.max(0, Math.round(Date.now() / 1000 - pubTs)) : null;
+  const accts = snap.three_accounts?.accounts || [];
+  const holds = snap.holdings || [];
+  const nowSec = Date.now() / 1000;
+  const lines = [
+    `# Barnacle Status Report`,
+    `Generated: ${fmtEt(nowSec)}`,
+    `Data Timestamp: ${fmtEt(pubTs)} (${ageS != null ? ageS + 's old' : 'freshness UNAVAILABLE'})`,
+    ``,
+  ];
+  accts.forEach(a => {
+    const isReal = accountGroupOf(a) === 'live';
+    const initC = Number(a.initial_cents || 0);
+    const eqC = Number(a.equity_cents ?? initC);
+    const acctH = holds.filter(h => h.account_id === a.account_id);
+    const actH = acctH.filter(h => !h.trading_closed && (!h.close_ts || Number(h.close_ts) > nowSec));
+    const awtH = acctH.filter(h => h.trading_closed || (h.close_ts && Number(h.close_ts) <= nowSec));
+    const contractsHeld = acctH.reduce((s, h) => s + Number(h.contracts || 0), 0);
+    const unrealStr = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
+    const netSellStr = a.net_sell_value_cents == null ? 'UNAVAILABLE' : fmtUsd(a.net_sell_value_cents / 100);
+    lines.push(`## ${a.label || a.codename} (${a.codename || 'EXPERIMENT'})`);
+    lines.push(`- Status: ${a.runtime_status || 'ACTIVE'} | Mode: ${isReal ? 'REAL MONEY' : 'PAPER SIM'}`);
+    lines.push(`- Starting Bankroll: ${fmtUsd(initC / 100)} | Current Equity: ${fmtUsd(eqC / 100)} | Available Cash: ${fmtUsd((a.available_cents || 0) / 100)} | Invested: ${fmtUsd((a.invested_cents || 0) / 100)}`);
+    lines.push(`- Realized P&L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} | Unrealized P&L: ${unrealStr} | Est. Net Liquidation: ${netSellStr}`);
+    lines.push(`- Completed: ${a.wins ?? 0}W / ${a.losses ?? 0}L (${a.closed_trades ?? 0} settled) | Active Positions: ${actH.length} | Contracts Held: ${contractsHeld}`);
+    if (actH.length) {
+      lines.push(`### Active Positions`);
+      actH.forEach(h => {
+        const fills = (h.entry_levels || []).map(l => `${l.qty}x @ ${l.price_cents}c`).join(', ');
+        const depth = (h.sell_levels || []).length ? h.sell_levels.map(l => `${l.price_cents}c:${l.available_qty}`).join(', ') : 'UNAVAILABLE';
+        const bid = h.best_bid_cents != null ? `${h.best_bid_cents}c` : 'UNAVAILABLE';
+        const liq = h.estimated_net_sell_usd != null ? fmtUsd(h.estimated_net_sell_usd) : 'UNAVAILABLE';
+        const spnl = h.sell_pnl_usd != null ? fmtSignedUsd(h.sell_pnl_usd) : 'UNAVAILABLE';
+        lines.push(`- ${h.ticker} (${h.side}) x${h.contracts} | Bought: ${fmtEt(h.opened_ts)} | Closes: ${fmtEt(h.close_ts)} | Fills: [${fills}] | Total Cost (incl fees): ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)} | Best Bid: ${bid} | Depth: [${depth}] | Est. Sale Proceeds: ${liq} | Est. Sell P&L: ${spnl} | Max Payout: ${fmtUsd(h.max_payout_usd)}`);
+      });
+    }
+    if (awtH.length) {
+      lines.push(`### Awaiting Settlement (${awtH.length})`);
+      awtH.forEach(h => {
+        lines.push(`- ${h.ticker} (${h.side}) x${h.contracts} | Cost Basis: ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)} | Closed: ${fmtEt(h.close_ts)} | Status: PENDING SETTLEMENT`);
+      });
+    }
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
+const copyBtn = $('copy-report-btn');
+if (copyBtn) {
+  copyBtn.onclick = async () => {
+    const txt = buildStatusReportText(currentSnap);
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(txt);
+      ok = true;
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    copyBtn.textContent = ok ? '✓ Copied!' : '✗ Copy Failed';
+    setTimeout(() => { copyBtn.textContent = '📋 Copy Status Report'; }, 2500);
+  };
+}
 
 prevSnap = loadJson(PREV_KEY, null);
 renderAll(loadJson(CACHE_KEY, null) || emptySnapshot(), 'WAITING');
