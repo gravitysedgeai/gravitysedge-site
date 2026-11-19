@@ -1766,6 +1766,89 @@ function renderSystemActivityStrip(snap) {
     </div>`;
 }
 
+
+// ---- Finding Better Trades — Shadow Experiment (read-only; every number comes from persisted experiment data) ----
+let hunterSlipMode = 'same_trades';
+function renderHunterShadow(snap) {
+  const panel = $('hunter-panel'), body = $('hunter-body');
+  if (!panel || !body) return;
+  const h = snap?.hunter_shadow;
+  if (!h || !Array.isArray(h.comparison)) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const st = h.status || {};
+  const f1 = v => (v == null ? '–' : Number(v).toFixed(1));
+  const usd = v => (v == null ? '–' : (Number(v) < 0 ? '-$' : '$') + Math.abs(Number(v)).toFixed(2));
+  const loss = v => usd(v ? -v : 0);
+  const ts = t => (t ? new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'never');
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, Date.now() / 1000 - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const per = h.periods || {};
+  const testFrom = per.test ? ts(per.test[0]) : '?', testTo = per.test ? ts(per.test[1]) : '?';
+  const row = c => `<tr style="${c.__best ? 'background:rgba(34,197,94,.10)' : ''}"><td>${esc(c.label)}${c.__best ? ' <span class="tag ok">highest replay net</span>' : ''}</td><td class="mono">${c.trades}</td><td class="mono">${c.wins}</td><td class="mono">${c.losses}</td><td class="mono">${c.win_pct == null ? '–' : f1(c.win_pct) + '%'}</td><td class="mono">${usd(c.net)}</td><td class="mono">${loss(c.biggest_loss)}</td></tr>`;
+  const cmp = h.comparison.map(c => ({ ...c }));
+  const traded = cmp.filter(c => c.trades > 0);
+  const top = traded.length ? traded.reduce((a, b) => (b.net > a.net ? b : a)) : null;
+  if (top) top.__best = true;
+  const verdict = !top ? 'No strategy placed a trade.' : top.net > 0
+    ? 'The highest net in this replay is highlighted. It is one short period; no winner is declared.'
+    : 'No strategy made a net profit in this replay. The highlighted row simply lost the least; no winner is declared.';
+  const live = h.live;
+  const useLive = !!(live && st.process_running);
+  const src = useLive ? { name: 'PROSPECTIVE SHADOW — live search', f: live, t: live.ts } : { name: 'HISTORICAL REPLAY — test period', f: h.funnel, t: h.generated_ts };
+  const fn = src.f || {};
+  const reasons = Object.entries(fn.reasons || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li>${esc(k)}: <b>${v}</b></li>`).join('');
+  const found = live?.contracts_found?.open_contracts;
+  const best = fn.best_qualifying;
+  const bands = h.bands || {};
+  const bandRow = k => { const b = bands[k] || {}; return `<tr><td>${k}¢</td><td class="mono">${b.trades ?? '–'}</td><td class="mono">${b.win_pct == null ? '–' : f1(b.win_pct) + '%'}</td><td class="mono">${usd(b.net)}</td><td class="mono">${loss(b.biggest_loss)}</td></tr>`; };
+  const slipRows = ((h.slippage || {}).baseline || []).map(x => { const r = x[hunterSlipMode]; return `<tr><td class="mono">+${x.slippage_c}¢</td><td class="mono">${r.trades}</td><td class="mono">${r.wins}</td><td class="mono">${r.losses}</td><td class="mono">${r.win_pct == null ? '–' : f1(r.win_pct) + '%'}</td><td class="mono">${usd(r.net)}</td><td class="mono">${usd(r.max_dd)}</td></tr>`; }).join('');
+  const mk = h.markets || [];
+  const groups = mk.filter(m => m.submarket === 'ALL').sort((a, b) => b.net_per_contract_set - a.net_per_contract_set);
+  const mrow = m => `<tr><td>${esc(m.market)}</td><td>${esc(m.submarket)}</td><td class="mono">${m.events}</td><td class="mono">${m.evidence === 'ok' ? f1(m.win_pct) + '%' : '–'}</td><td class="mono">${m.evidence === 'ok' ? usd(m.net_per_contract_set) : '<span class="tag">INSUFFICIENT DATA</span>'}</td><td class="mono">${loss(m.biggest_loss)}</td></tr>`;
+  const mhead = '<thead><tr><th>Market</th><th>Submarket (series / strike type)</th><th>Events</th><th>Win %</th><th>Net (1 contract/event)</th><th>Biggest loss</th></tr></thead>';
+  const marketsHtml = groups.map(g => `<details class="pos-details" style="margin:4px 0"><summary class="mono">${esc(g.market)} — ${g.events} events · ${g.evidence === 'ok' ? f1(g.win_pct) + '% win · ' + usd(g.net_per_contract_set) : 'INSUFFICIENT DATA'}</summary>
+      <div class="table-wrap"><table>${mhead}<tbody>${mrow(g)}${mk.filter(m => m.market === g.market && m.submarket !== 'ALL').map(mrow).join('')}</tbody></table></div></details>`).join('');
+  const lossRows = Object.entries(h.loss_limit || {}).map(([bk, rows]) => rows.map(r => `<tr><td class="mono">$${bk}</td><td class="mono">${r.limit ? (r.limit * 100) + '%' : 'none'}</td><td class="mono">${r.trades}</td><td class="mono">${usd(r.net)}</td><td class="mono">${usd(r.max_dd)}</td><td class="mono">${usd(r.avoided_losses)}</td><td class="mono">${usd(r.forgone_profit)}</td></tr>`).join('')).join('');
+  body.innerHTML = `
+    <div class="acct-card" style="padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0">Finding Better Trades — Shadow Experiment</h2>
+        <span><span class="tag ${st.process_running ? 'ok' : ''}">${esc(st.label || 'HISTORICAL REPLAY')}</span>${st.stale ? ' <span class="tag bad">STALE RESULTS</span>' : ''}</span>
+      </div>
+      <div class="muted mono" style="font-size:12px;margin-top:6px">Paper simulation only — no real money; existing accounts untouched. Replay results generated ${ago(h.generated_ts)} (${esc(ts(h.generated_ts))} ET); recorded-quote data through ${esc(ts(h.data_freshness_ts))} ET (${ago(h.data_freshness_ts)}).</div>
+      <div class="muted mono" style="font-size:12px;margin-top:4px">HISTORICAL REPLAY on the HERMES-008B market scope, $100 bankroll, test period ${esc(testFrom)} → ${esc(testTo)} ET. Win probabilities are measured training-period win rates (95% lower bound). Market/price-band cells with fewer than ${h.calibration?.min_cell_n ?? 30} measured outcomes are UNVALIDATED and not bought by the filtering strategies.</div>
+      <div class="table-wrap" style="margin-top:10px"><table>
+        <thead><tr><th>STRATEGY</th><th>TRADES</th><th>WINS</th><th>LOSSES</th><th>WIN %</th><th>NET P&amp;L</th><th>BIGGEST LOSS</th></tr></thead>
+        <tbody>${cmp.map(row).join('')}</tbody></table></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">${esc(verdict)} A strategy with 0 trades found no contract with validated positive expected profit.</div>
+    </div>
+    <div class="acct-card" style="padding:14px 16px;margin-top:10px">
+      <h3 style="margin:0 0 6px">What Barnacle is finding <span class="tag">${esc(src.name)}</span></h3>
+      <div class="muted mono" style="font-size:12px">${useLive ? '' : 'The prospective shadow search process is not running, so no new searches are happening; figures are from the historical replay. '}Last completed search: <b>${esc(ts(src.t))} ET</b></div>
+      <div class="muted mono" style="margin-top:8px;display:flex;gap:18px;flex-wrap:wrap">
+        ${found != null ? `<span>Open contracts on Kalshi: <b>${Number(found).toLocaleString()}</b></span>` : ''}
+        <span>Contracts examined: <b>${fn.examined ?? fn.contracts_examined ?? '–'}</b></span>
+        <span>Meeting price requirements: <b>${fn.meets_price_requirements ?? '–'}</b></span>
+        <span>Meeting profitability requirements: <b>${fn.meets_profitability_requirements ?? '–'}</b></span>
+        <span>Rejected: <b>${fn.rejected ?? '–'}</b></span></div>
+      <ul class="muted" style="margin:6px 0 0 18px;font-size:12px">${reasons}</ul>
+      <div style="margin-top:10px" class="mono">${best ? `Contract: <b>${esc(best.ticker)}</b><br>Purchase price: <b>${Number(best.price).toFixed(2)}</b><br>Estimated win probability (95% lower bound, n=${best.n}): <b>${best.est_win_pct}%</b><br>Expected net profit per contract: <b>${usd(best.net_edge)}</b><br>Why selected: highest conservative expected net profit among validated candidates` : '<b>NO QUALIFYING TRADE — SKIPPED</b><div class="muted" style="font-size:12px">No contract met the minimum profitability and risk requirements. Requirements were not loosened to create activity.</div>'}</div>
+      <div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>PRICE BAND</th><th>TRADES</th><th>WIN %</th><th>NET P&amp;L</th><th>BIGGEST LOSS</th></tr></thead>
+        <tbody>${['72-87', '88-89', '90-94', '95-98'].map(bandRow).join('')}</tbody></table></div>
+      <div class="muted" style="font-size:12px">Price bands: whole recorded period, historical replay, existing rule, matched $100 sizing. 72–87¢ is outside the original ≥88% rule (exploratory).</div>
+    </div>
+    <details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Slippage sensitivity (historical replay)</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div style="margin:8px 0"><label class="muted">Mode: <select id="hunter-slip-mode"><option value="same_trades" ${hunterSlipMode === 'same_trades' ? 'selected' : ''}>Same trades, higher price</option><option value="reconsidered" ${hunterSlipMode === 'reconsidered' ? 'selected' : ''}>Strategy reconsiders purchases</option></select></label></div>
+      <div class="table-wrap"><table><thead><tr><th>SLIPPAGE</th><th>TRADES</th><th>WINS</th><th>LOSSES</th><th>WIN %</th><th>NET P&amp;L</th><th>MAX DRAWDOWN</th></tr></thead><tbody>${slipRows}</tbody></table></div>
+      <div class="muted" style="font-size:12px">Existing rule on the test period. Underlying-price movement sensitivity has not been run (it needs aligned underlying price history).</div></details>
+    <details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Best performing markets (historical replay, whole recorded period)</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="muted" style="font-size:12px;margin:6px 0">1 contract per event, existing rule, fees included. Groups under 30 events are labelled INSUFFICIENT DATA. ${mk.some(m => m.repeatable_edge) ? '' : 'After correcting for multiple comparisons, no market or submarket shows a repeatable positive edge.'}</div>
+      ${marketsHtml}</details>
+    <details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Single-loss limits by bankroll (historical replay)</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="table-wrap"><table><thead><tr><th>BANKROLL</th><th>MAX LOSS / POSITION</th><th>TRADES</th><th>NET P&amp;L</th><th>MAX DRAWDOWN</th><th>LOSSES AVOIDED</th><th>PROFIT FORGONE</th></tr></thead><tbody>${lossRows}</tbody></table></div></details>`;
+  const sel = $('hunter-slip-mode');
+  if (sel) sel.onchange = () => { hunterSlipMode = sel.value; renderHunterShadow(currentSnap); };
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
@@ -1775,6 +1858,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderZeusExecutionComparison(snap);
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
+  renderHunterShadow(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
