@@ -64,6 +64,7 @@ function fmtCountdown(closeTs) {
 }
 let holdingsAcct = '';
 let completedAcct = '';
+const openDetailsAccounts = new Set();
 let lastPollOk = false;
 let es = null;
 let retryMs = 2000;
@@ -344,8 +345,8 @@ function renderScoreboard(snap) {
         <span class="k">Realized / Unrealized</span><span class="v">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${unrealTxt}</span>
         <span class="k">Total Fees</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
-      <details class="pos-details">
-        <summary><span>Open Position Details (${acctHoldings.length})</span><span>▸ Expand</span></summary>
+      <details class="pos-details" data-acct="${a.account_id}" ${openDetailsAccounts.has(a.account_id) ? 'open' : ''}>
+        <summary><span>Open Position Details (${acctHoldings.length})</span><span>${openDetailsAccounts.has(a.account_id) ? '▾ Collapse' : '▸ Expand'}</span></summary>
         ${posDetailsHtml}
       </details>
     </article>`;
@@ -393,6 +394,17 @@ function renderScoreboard(snap) {
       <div class="scoreboard-grid">${g.items.map(renderCard).join('')}</div>
     </div>
   `).join('');
+
+  grid.querySelectorAll('details.pos-details').forEach(det => {
+    det.addEventListener('toggle', () => {
+      const aid = det.dataset.acct;
+      if (!aid) return;
+      if (det.open) openDetailsAccounts.add(aid);
+      else openDetailsAccounts.delete(aid);
+      const sumSpan = det.querySelector('summary span:last-child');
+      if (sumSpan) sumSpan.textContent = det.open ? '▾ Collapse' : '▸ Expand';
+    });
+  });
 }
 
 function renderChart(snap) {
