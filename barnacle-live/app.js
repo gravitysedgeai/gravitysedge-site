@@ -1495,12 +1495,75 @@ function openModal(item) {
   $('trace-modal').showModal();
 }
 
+function renderHermesSavings(snap) {
+  const panel = $('hermes-savings-panel');
+  const kpis = $('hermes-sav-kpis');
+  const charts = $('hermes-sav-charts');
+  const txBody = $('hermes-sav-tx-body');
+  const txCnt = $('hermes-sav-tx-count');
+  const meta = $('hermes-sav-meta');
+  if (!panel || !kpis) return;
+  const hs = snap?.hermes_savings;
+  if (!hs || !hs.available) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  const actStr = hs.activated_ts ? new Date(hs.activated_ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '–';
+  if (meta) {
+    meta.textContent = `Activated ${actStr} ET · Conservation diff: $${Number(hs.conservation_diff_usd || 0).toFixed(4)} · HERMES-008B $25 & $100 remain unchanged references.`;
+  }
+  const diff = Number(hs.deficit_or_excess_usd || 0);
+  const diffTxt = `${diff >= 0 ? '+' : ''}$${diff.toFixed(2)} ${diff >= 0 ? 'Excess' : 'Deficit'}`;
+  const fmtSigned = v => `${Number(v) >= 0 ? '+' : ''}$${Number(v || 0).toFixed(2)}`;
+
+  kpis.innerHTML = `
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Trading Bankroll ($1,000 Target)</span><span class="tag">${diffTxt}</span></div>
+      <div class="mono" style="font-size:13px">Trading Equity: <b>$${Number(hs.trading_equity_usd || 0).toFixed(2)}</b> · Cash: <b>$${Number(hs.available_cash_usd || 0).toFixed(2)}</b></div>
+      <div class="muted mono" style="font-size:12px">Target: $${Number(hs.target_principal_usd || 1000).toFixed(2)} · Open Cost (${hs.open_positions || 0}): $${Number(hs.open_cost_usd || 0).toFixed(2)}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Simulated Savings &amp; Combined</span><span class="tag ok">SWEEPS</span></div>
+      <div class="mono" style="font-size:13px">Total Savings: <b>$${Number(hs.total_savings_usd || 0).toFixed(2)}</b> · Combined: <b>$${Number(hs.combined_equity_usd || 0).toFixed(2)}</b></div>
+      <div class="muted mono" style="font-size:12px">Today: $${Number(hs.today_savings_usd || 0).toFixed(2)} · Weekly: $${Number(hs.weekly_savings_usd || 0).toFixed(2)} · Monthly: $${Number(hs.monthly_savings_usd || 0).toFixed(2)}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Net Trading Results (Periods)</span><span class="tag">Realized</span></div>
+      <div class="mono" style="font-size:13px">Daily: <b>${fmtSigned(hs.daily_net_trading_usd)}</b> · Weekly: <b>${fmtSigned(hs.weekly_net_trading_usd)}</b> · Monthly: <b>${fmtSigned(hs.monthly_net_trading_usd)}</b></div>
+      <div class="muted mono" style="font-size:12px">Since Activation: ${fmtSigned(hs.realized_since_activation_usd)}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Averages Since Activation</span><span class="tag">Daily Avg</span></div>
+      <div class="mono" style="font-size:13px">Avg Savings/Day: <b>$${Number(hs.avg_daily_savings_usd || 0).toFixed(2)}</b> · Avg Trading/Day: <b>${fmtSigned(hs.avg_daily_trading_net_usd)}</b></div>
+      <div class="muted mono" style="font-size:12px">Initial Eq: $${Number(hs.initial_balances?.equity_usd || 0).toFixed(2)}</div></div>`;
+
+  if (charts) {
+    const ser = hs.cumulative_savings_series || [];
+    const savVals = ser.map(p => Number(p.savings_total || 0));
+    const eqVals = ser.map(p => Number(p.trading_equity || 0));
+    const combVals = ser.map(p => Number(p.combined_equity || 0));
+    charts.innerHTML = `
+      <div class="acct-card">${_svgSparkline(savVals, '#22c55e', 'Cumulative Savings ($)', v => '$' + v.toFixed(2))}</div>
+      <div class="acct-card">${_svgSparkline(eqVals, '#38bdf8', 'Trading Bankroll ($)', v => '$' + v.toFixed(2))}</div>
+      <div class="acct-card">${_svgSparkline(combVals, '#a78bfa', 'Combined Equity (Trading + Savings)', v => '$' + v.toFixed(2))}</div>`;
+  }
+
+  const txs = hs.transactions || [];
+  if (txCnt) txCnt.textContent = String(txs.length);
+  if (txBody) {
+    txBody.innerHTML = txs.map(t => `<tr>
+      <td class="mono">${new Date(t.ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' })}</td>
+      <td class="mono">+$${Number(t.amount_usd || 0).toFixed(2)}</td>
+      <td class="mono">$${Number(t.balance_after_usd || 0).toFixed(2)}</td>
+      <td class="mono">$${Number(t.trading_equity_after_usd || 0).toFixed(2)}</td>
+      <td class="mono">${fmtSigned(t.settled_net_pnl_snapshot_usd)}</td>
+      <td class="mono">${esc((t.linked_position_ids || []).join(', ') || '–')}</td>
+      <td>${esc(t.detail)}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">No savings sweeps yet.</td></tr>';
+  }
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
   renderScoreboard(snap, force);
   renderZeusExecutionComparison(snap);
   renderWalkForwardResearch(snap);
+  renderHermesSavings(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
