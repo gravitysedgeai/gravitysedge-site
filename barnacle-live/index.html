@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Barnacle Live Run #001 — Real vs. Shadow Portfolio Dashboard</title>
-  <meta name="description" content="Live read-only portfolio scoreboard, equity graphs, open holdings, and settled trades for Barnacle Live Run #001.">
+  <meta name="description"
+    content="Live read-only portfolio scoreboard, equity graphs, open holdings, and settled trades for Barnacle Live Run #001.">
   <link rel="stylesheet" href="styles.css?v=20261118c">
 </head>
+
 <body>
   <div class="ambient-glow"></div>
 
@@ -15,7 +18,8 @@
       <div class="brand-badge">LIVE RUN #001</div>
       <div>
         <h1 id="run-title">Barnacle Live Portfolio Monitor</h1>
-        <p id="run-subtitle" class="subtitle">Independent Simulated Paper Experiments (HERMES-004 / APOLLO-002 / ATHENA-003 / POSEIDON-006) &amp; Paused Real-Money Account (ARES-005)</p>
+        <p id="run-subtitle" class="subtitle">Independent Simulated Paper Experiments (HERMES-004 / APOLLO-002 /
+          ATHENA-003 / POSEIDON-006) &amp; Paused Real-Money Account (ARES-005)</p>
       </div>
     </div>
     <div class="status-cluster">
@@ -40,7 +44,8 @@
       <div class="panel-head">
         <div>
           <h2>Portfolio Performance Graph</h2>
-          <p class="muted">Solid line = REAL money · Dashed lines = SIMULATED paper. Percentage mode normalizes every account to its own starting bankroll.</p>
+          <p class="muted">Solid line = REAL money · Dashed lines = SIMULATED paper. Percentage mode normalizes every
+            account to its own starting bankroll.</p>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
           <div class="view-toggle" role="group" aria-label="Chart Metric">
@@ -66,38 +71,41 @@
 
     <!-- 3. CURRENT HOLDINGS — ACTUAL PURCHASED TICKETS -->
     <section class="panel" aria-label="Current Holdings">
-      <div class="panel-head">
-        <div>
-          <h2>Current Holdings — Actual Purchased Tickets</h2>
-          <p id="holdings-summary" class="muted">Loading open positions…</p>
-        </div>
-        <div class="filters">
+      <details id="holdings-panel-details" class="pos-details" style="border-top:0;padding-top:0;margin-top:0">
+        <summary style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+          <div>
+            <h2>Current Holdings — Actual Purchased Tickets</h2>
+            <p id="holdings-summary" class="muted" style="margin:2px 0 0 0">Loading open positions…</p>
+          </div>
+          <span style="font-size:12px;color:var(--info)">▸ Expand / Collapse</span>
+        </summary>
+        <div class="filters" style="margin-top:10px">
           <div id="holdings-tabs" class="tabs-row" role="tablist">
             <button class="tab-btn active" data-acct="" type="button">All</button>
           </div>
           <input id="holdings-q" type="search" placeholder="Filter ticket…" aria-label="Filter holdings">
         </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Market / Ticket</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Entry</th>
-              <th>Total Cost</th>
-              <th>Cur Value</th>
-              <th>Est. Net Sell</th>
-              <th>Unrealized P&amp;L</th>
-              <th>Purchased</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="holdings-body"></tbody>
-        </table>
-      </div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>Account</th>
+                <th>Market / Ticket</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Entry</th>
+                <th>Total Cost</th>
+                <th>Cur Value</th>
+                <th>Est. Net Sell</th>
+                <th>Unrealized P&amp;L</th>
+                <th>Purchased</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="holdings-body"></tbody>
+          </table>
+        </div>
+      </details>
     </section>
 
     <!-- 4. COMPLETED TRANSACTIONS LEDGER -->
@@ -105,7 +113,8 @@
       <div class="panel-head">
         <div>
           <h2>Completed Transactions Ledger</h2>
-          <p class="muted">Actual settled outcomes with entry cost, gross settlement payout, fees, and true NET profit/loss.</p>
+          <p class="muted">Actual settled outcomes with entry cost, gross settlement payout, fees, and true NET
+            profit/loss.</p>
         </div>
         <div class="filters">
           <div id="completed-tabs" class="tabs-row" role="tablist">
@@ -141,15 +150,19 @@
       <div class="explainer-grid">
         <div>
           <h3>Real vs. Simulated</h3>
-          <p><b>LIVE $25 (REAL)</b> reflects reconciled Kalshi shard 2 cash (`$0.58` on shard 0 is excluded), actual fills, and exchange settlements. <b>SHADOW</b> accounts simulate order-book fills on independent ledgers.</p>
+          <p><b>LIVE $25 (REAL)</b> reflects reconciled Kalshi shard 2 cash (`$0.58` on shard 0 is excluded), actual
+            fills, and exchange settlements. <b>SHADOW</b> accounts simulate order-book fills on independent ledgers.
+          </p>
         </div>
         <div>
           <h3>Hypothetical Sell-Now Estimates</h3>
-          <p>Est. Net Sell Value walks live bid-side order-book depth minus estimated Kalshi taker fees. Barnacle holds to settlement; sell-now figures are informational only, never completed sales.</p>
+          <p>Est. Net Sell Value walks live bid-side order-book depth minus estimated Kalshi taker fees. Barnacle holds
+            to settlement; sell-now figures are informational only, never completed sales.</p>
         </div>
         <div>
           <h3>Read-Only &amp; Sanitized</h3>
-          <p>No trading controls, API keys, skipped signals, or strategy thresholds are exposed. Updates stream via outbound snapshot relay.</p>
+          <p>No trading controls, API keys, skipped signals, or strategy thresholds are exposed. Updates stream via
+            outbound snapshot relay.</p>
         </div>
       </div>
     </section>
@@ -170,4 +183,5 @@
 
   <script src="app.js?v=20261118c"></script>
 </body>
+
 </html>
