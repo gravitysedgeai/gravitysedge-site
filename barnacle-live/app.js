@@ -17,6 +17,9 @@ const ACCOUNT_COLORS = {
   'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s25': '#a78bfa',
   'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s100': '#c084fc',
   'lab:crossmarket:cust_xp_b8f53a9912_fin_v1:hold:risk-cp_f10_s1000': '#e879f9',
+  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s25': '#2dd4bf',
+  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s100': '#14b8a6',
+  'lab:crossmarket:cust_xp_b8f53a9912_succ_v1:hold:risk-cp_f10_s1000': '#0d9488',
   shadow_25: '#f59e0b',
   shadow_100: '#fb923c',
   shadow_1000: '#f87171',
@@ -26,6 +29,7 @@ const FALLBACK_COLORS = ['#38bdf8', '#a78bfa', '#f59e0b', '#f472b6', '#2dd4bf', 
 function accountGroupOf(a) {
   if (a.group) return a.group;
   if (a.kind === 'REAL' || a.account_id === 'live_25') return 'live';
+  if (String(a.account_id || '').includes('succ_v1')) return 'successor_query_discovery';
   if (String(a.account_id || '').includes('fin_v1')) return 'expanded_financial_validation';
   if (String(a.account_id || '').includes('risk-cp_f10_s')) return 'original_validation';
   return 'previous_shadow';
@@ -34,15 +38,18 @@ function accountGroupOf(a) {
 function shortLabelOf(a) {
   const id = a.account_id || '';
   if (id === 'live_25') return 'LIVE $25';
+  if (id.includes('succ_v1') && id.endsWith('_s25')) return 'Succ $25';
+  if (id.includes('succ_v1') && id.endsWith('_s100')) return 'Succ $100';
+  if (id.includes('succ_v1') && id.endsWith('_s1000')) return 'Succ $1,000';
   if (id.includes('fin_v1') && id.endsWith('_s25')) return 'Fin Exp $25';
   if (id.includes('fin_v1') && id.endsWith('_s100')) return 'Fin Exp $100';
   if (id.includes('fin_v1') && id.endsWith('_s1000')) return 'Fin Exp $1,000';
   if (id.endsWith('_s25')) return 'XP Val $25';
   if (id.endsWith('_s100')) return 'XP Val $100';
   if (id.endsWith('_s1000')) return 'XP Val $1,000';
-  if (id === 'shadow_25') return 'Old Shadow $25';
-  if (id === 'shadow_100') return 'Old Shadow $100';
-  if (id === 'shadow_1000') return 'Old Shadow $1,000';
+  if (id === 'shadow_25') return 'Legacy WS $25';
+  if (id === 'shadow_100') return 'Legacy WS $100';
+  if (id === 'shadow_1000') return 'Legacy WS $1,000';
   return (a.label || id).replace(' (Control)', '');
 }
 
@@ -255,14 +262,17 @@ function renderScoreboard(snap) {
       ? `${a.label} — REAL MONEY`
       : `${a.label.replace(' (Control)', '')} — SIMULATED`;
     const isFin = grp === 'expanded_financial_validation';
-    const cardCls = isReal ? 'real-card' : isVal ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
+    const isSucc = grp === 'successor_query_discovery';
+    const cardCls = isReal ? 'real-card' : (isVal || isSucc) ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
       ? '<span class="tag real">REAL MONEY · PAUSED</span>'
       : isVal
       ? '<span class="tag validation">ORIGINAL XP ENGINE · SIMULATED</span>'
+      : isSucc
+      ? '<span class="tag validation" style="background:#2dd4bf;border-color:#2dd4bf">EXP #1 SUCCESSOR · SIMULATED</span>'
       : isFin
       ? '<span class="tag validation" style="background:#a78bfa;border-color:#a78bfa">FINANCIAL EXPANSION · SIMULATED</span>'
-      : '<span class="tag legacy">PREVIOUS REWRITTEN · SIMULATED</span>';
+      : '<span class="tag legacy">LEGACY WS REWRITE · SIMULATED</span>';
 
     const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
     const posDetailsHtml = acctHoldings.length === 0
@@ -289,7 +299,7 @@ function renderScoreboard(snap) {
               <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
               <span class="k">Closes / Countdown</span><span class="v">${fmtEt(h.close_ts)} (${fmtCountdown(h.close_ts)})</span>
               <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
-              <span class="k">Pre-Fee Avg / Fee-Incl Avg</span><span class="v">${h.entry_price_cents}¢ / ${h.fee_inclusive_avg_cents ?? h.entry_price_cents}¢</span>
+              <span class="k">Pre-Fee Avg / Break-Even (Fee-Incl)</span><span class="v">${h.entry_price_cents}¢ / ${h.fee_inclusive_avg_cents ?? h.entry_price_cents}¢</span>
               <span class="k">Cost + Fees = Cost Basis</span><span class="v">${fmtUsd(h.purchase_cost_usd)} + ${fmtUsd(h.fee_usd)} = ${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
               <span class="k">Best Selling Bid</span><span class="v">${bestBidTxt}</span>
               <span class="k">Book Freshness</span><span class="v">${bookFresh}</span>
@@ -306,6 +316,11 @@ function renderScoreboard(snap) {
       <div class="acct-head">
         <span class="acct-title">${titleLabel}</span>
         ${badgeHtml}
+      </div>
+      <div class="muted" style="font-size:11px;display:flex;flex-wrap:wrap;gap:6px">
+        <span>Strategy: <span class="mono">${a.strategy_id || '–'}</span></span>
+        <span>· Source: <span class="mono">${a.data_source || '–'}</span></span>
+        <span>· Status: <b>${a.runtime_status || 'ACTIVE'}</b></span>
       </div>
       <div class="eq-row">
         <span class="eq-val mono">${fmtUsd(eqC / 100)}</span>
@@ -338,6 +353,12 @@ function renderScoreboard(snap) {
 
   const groups = [
     {
+      key: 'successor_query_discovery',
+      title: 'EXPERIMENT #1 SUCCESSOR · QUERY DISCOVERY (SIMULATED)',
+      sub: 'Original CustomStrategy + Engine fed by parameter-driven market_catalog.db discovery across Crypto, Metals, Energy, FX, Indices, and Rates.',
+      items: accts.filter(a => accountGroupOf(a) === 'successor_query_discovery'),
+    },
+    {
       key: 'original_validation',
       title: 'ORIGINAL XP CRYPTO VALIDATION (SIMULATED)',
       sub: 'Fresh $25 / $100 / $1,000 paper accounts running the exact original CustomStrategy + Engine (forward.db).',
@@ -357,8 +378,8 @@ function renderScoreboard(snap) {
     },
     {
       key: 'previous_shadow',
-      title: 'PREVIOUS REWRITTEN EXPERIMENT (SIMULATED)',
-      sub: 'Earlier 1-second WebSocket-rewrite shadow accounts (preserved separately for comparison).',
+      title: 'LEGACY WS REWRITE (SIMULATED)',
+      sub: 'Older Experiment #1 using rewritten 1-second WebSocket logic (preserved separately for comparison).',
       items: accts.filter(a => accountGroupOf(a) === 'previous_shadow'),
     },
   ].filter(g => g.items.length > 0);
