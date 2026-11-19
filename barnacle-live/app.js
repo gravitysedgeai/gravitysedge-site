@@ -446,8 +446,14 @@ function renderScoreboard(snap) {
   `).join('');
 
   grid.querySelectorAll('details.pos-details').forEach(det => {
+    const sk = det.dataset.sec;
+    const sum = det.querySelector('summary');
+    if (sum && sk) {
+      sum.addEventListener('click', () => {
+        sectionOpenOverrides[sk] = !det.open;
+      });
+    }
     det.addEventListener('toggle', () => {
-      const sk = det.dataset.sec;
       if (!sk) return;
       sectionOpenOverrides[sk] = det.open;
       const sumSpan = det.querySelector('summary span:last-child');
