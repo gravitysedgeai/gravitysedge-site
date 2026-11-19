@@ -1215,19 +1215,30 @@ function renderCmosSync(snap) {
     ? `${cs.contracts_done || 0} / ${cs.contracts_total}`
     : `${cs.contracts_done || 0} completed (total discovering…)`;
   const overallTxt = cs.overall_pct != null ? `${Number(cs.overall_pct).toFixed(1)}%` : 'Discovering';
+  const fmtTsEt = ts => ts != null ? new Date(ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) + ' ET' : 'NOT AVAILABLE';
+  const fmtAge = ts => ts != null ? `${Math.max(0, Math.round(nowSec - ts))}s ago` : 'NOT AVAILABLE';
+  const d1 = cs.deltas?.['1m'] || {};
+  const d5 = cs.deltas?.['5m'] || {};
+  const d15 = cs.deltas?.['15m'] || {};
+  const al = cs.adaptive_learning || {};
+  const contractsTxt = cs.workload_discovered && cs.contracts_total != null
+    ? `${cs.contracts_done || 0} / ${cs.contracts_total}`
+    : `${cs.contracts_done || 0} completed (total discovering…)`;
+  const overallTxt = cs.overall_pct != null ? `${Number(cs.overall_pct).toFixed(1)}%` : 'DISCOVERING';
   kpisEl.innerHTML = `
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Current Month Progress</span><span class="tag">${cs.current_month || '–'}</span></div>
-      <div style="font-size:24px;font-weight:700" class="mono">${curPctText}</div>
-      <div class="muted" style="font-size:12px">Contracts: ${contractsTxt} · 4-Mo Overall: ${overallTxt}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Records (Observed)</span><span class="tag">1m Bars</span></div>
-      <div class="mono" style="font-size:13px">Recovered: <b>${(cs.records_recovered || 0).toLocaleString()}</b>${cs.workload_discovered && cs.records_expected != null ? ` / ${cs.records_expected.toLocaleString()}` : ' (discovering total…)'}</div>
-      <div class="muted mono" style="font-size:12px">Verified: ${(cs.records_verified || 0).toLocaleString()} · Rejected: ${cs.records_rejected || 0}${cs.workload_discovered ? ` · Rem: ${remRec.toLocaleString()}` : ''}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">API &amp; Throughput</span><span class="tag">Advanced</span></div>
-      <div class="mono" style="font-size:13px">${Number(cs.throughput_rps || 0).toFixed(2)} req/s · ${Number(cs.throughput_rec_s || 0).toFixed(0)} rec/s · ${Number(cs.throughput_mb_s || 0).toFixed(3)} MB/s</div>
-      <div class="muted mono" style="font-size:12px">Reqs: ${cs.api_requests_done || 0} done / ${cs.api_requests_remaining ?? '–'} rem · 429s: ${cs.rate_limit_429_count || 0} · Retries: ${cs.retry_count || 0} · Errs: ${cs.error_count || 0}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Timing &amp; ETA</span><span class="tag">Estimate</span></div>
-      <div class="mono" style="font-size:13px">Elapsed: <b>${fmtDur(elapsedS)}</b> · ETA: <b>${etaTxt}</b></div>
-      <div class="muted mono" style="font-size:12px">Downloaded: ${(Number(cs.bytes_downloaded || 0) / (1024 * 1024)).toFixed(2)} MB · Heartbeat cadence: ${cs.heartbeat_interval_s || 10}s</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">1. Historical Discovery</span><span class="tag">${esc(cs.current_series || cs.current_month || '–')}</span></div>
+      <div class="mono" style="font-size:13px">Discovered: <b>${(cs.contracts_total ?? (cs.months || []).find(m => m.month === cs.current_month)?.contracts_total ?? 0).toLocaleString()}</b> · Reqs: <b>${(cs.discovery_requests_done || 0).toLocaleString()}</b></div>
+      <div class="muted mono" style="font-size:11px">Last discovery: ${fmtTsEt(cs.last_discovery_ts)} (${fmtAge(cs.last_discovery_ts)})</div>
+      <div class="muted mono" style="font-size:11px">Δ Reqs 1m/5m/15m: +${d1.discovery_reqs || 0} / +${d5.discovery_reqs || 0} / +${d15.discovery_reqs || 0} · Ctrs +${d1.contracts_discovered || 0}/1m</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">2. Recovery &amp; Validation</span><span class="tag">${curPctText}</span></div>
+      <div class="mono" style="font-size:13px">Contracts: <b>${contractsTxt}</b> · Overall: <b>${overallTxt}</b></div>
+      <div class="muted mono" style="font-size:11px">Recovered: ${(cs.records_recovered || 0).toLocaleString()} · Validated: ${(cs.records_verified || 0).toLocaleString()} · Rej: ${cs.records_rejected || 0}</div>
+      <div class="muted mono" style="font-size:11px">Last download: ${fmtTsEt(cs.last_download_ts)} (${fmtAge(cs.last_download_ts)}) · Validated: ${fmtAge(cs.last_validation_ts)}</div>
+      <div class="muted mono" style="font-size:11px">Δ 1m/5m/15m Ctrs: +${d1.contracts_downloaded || 0}/+${d5.contracts_downloaded || 0}/+${d15.contracts_downloaded || 0} · Recs +${d1.records_recovered || 0}/1m</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">3. Timing, ETA &amp; Training</span><span class="tag">${esc(al.status || 'IDLE')}</span></div>
+      <div class="mono" style="font-size:13px">Elapsed: <b>${fmtDur(elapsedS)}</b> · ETA: <b>${cs.workload_discovered ? etaTxt : 'DISCOVERING'}</b></div>
+      <div class="muted mono" style="font-size:11px">Cycles: ${al.cycles_completed || 0} · Last training: ${fmtTsEt(al.last_cycle_ts)} (${fmtAge(al.last_cycle_ts)})</div>
+      <div class="muted mono" style="font-size:11px">Last DB commit: ${fmtAge(cs.last_commit_ts)} · 429s: ${cs.rate_limit_429_count || 0} · Errs: ${cs.error_count || 0}</div></div>
     ${(() => {
       const stg = cs.storage || {};
       const freeGb = stg.free_gb != null ? Number(stg.free_gb).toFixed(2) : "—";
@@ -1642,9 +1653,44 @@ function renderCmosPortfolioPanel(snap) {
   if ($('cmos-goto-sync')) $('cmos-goto-sync').onclick = () => $('nav-tab-cmos-sync')?.click();
 }
 
+function renderSystemActivityStrip(snap) {
+  const strip = $('sys-activity-strip');
+  if (!strip || !snap) return;
+  strip.style.display = 'block';
+  const nowS = Date.now() / 1000;
+  const pubAge = snap.generated_ts != null ? Math.max(0, Math.round(nowS - snap.generated_ts)) : null;
+  const pubStale = pubAge == null || pubAge > 90;
+  const cs = snap.cmos_sync || {};
+  const al = cs.adaptive_learning || {};
+  const os = snap.os_services || {};
+  const d1 = cs.deltas?.['1m'] || {};
+  const mkPill = (lbl, st, cls) => `<span class="pill ${cls} mono" style="font-size:11px">${esc(lbl)}: ${esc(st)}</span>`;
+
+  const recSt = cs.status || 'UNKNOWN';
+  const recCls = (recSt === 'ACTIVE' || recSt === 'COMPLETED' || recSt === 'DISCOVERING' || recSt === 'DOWNLOADING') ? 'ok' : (recSt === 'STOPPED' || recSt === 'STALLED' || recSt === 'FAILED' ? 'bad' : 'warn');
+  const trSt = al.status || 'IDLE';
+  const trCls = trSt === 'TRAINING' ? 'ok' : (trSt === 'STALLED' || trSt === 'ERROR' ? 'bad' : 'warn');
+  const colAlive = os.ws_critical?.alive;
+  const papAlive = os.fwd_serve?.alive && os.zeus_head_to_head?.alive && os.cmos_paper_runner?.alive;
+  const pubTxt = pubStale ? `PUBLISHER STALE (${pubAge ?? '?'}s) — Recovery status cannot currently be confirmed` : `LIVE (${pubAge}s ago)`;
+
+  strip.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${mkPill('Recovery', `${recSt}${cs.worker_pid ? ` (PID ${cs.worker_pid})` : ''}`, recCls)}
+        ${mkPill('Training', trSt, trCls)}
+        ${mkPill('Collector', colAlive === true ? `RUNNING (${os.ws_critical.pid})` : (colAlive === false ? 'STOPPED' : 'UNKNOWN'), colAlive === true ? 'ok' : (colAlive === false ? 'bad' : 'warn'))}
+        ${mkPill('Paper Workers', papAlive === true ? 'RUNNING' : (os.fwd_serve?.alive === false ? 'DEGRADED' : 'UNKNOWN'), papAlive === true ? 'ok' : 'warn')}
+        ${mkPill('Publisher/Relay', pubTxt, pubStale ? 'bad' : 'ok')}
+      </div>
+      <div class="muted mono" style="font-size:11px">Op: <b>${esc(cs.operation || '–')}</b> · Δ1m Reqs +${d1.discovery_reqs || 0}, Ctrs +${d1.contracts_downloaded || 0}, Recs +${d1.records_recovered || 0}</div>
+    </div>`;
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
+  renderSystemActivityStrip(snap);
   renderScoreboard(snap, force);
   renderCmosPortfolioPanel(snap);
   renderZeusExecutionComparison(snap);
