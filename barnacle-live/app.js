@@ -1141,20 +1141,26 @@ const CMOS_LOG_PAGE_SIZE = 25;
 function initNavTabs() {
   const bPort = $('nav-tab-portfolio');
   const bCmos = $('nav-tab-cmos-sync');
+  const bTrain = $('nav-tab-training-cmos');
   const vPort = $('view-portfolio');
   const vCmos = $('view-cmos-sync');
+  const vTrain = $('view-training-cmos');
   if (!bPort || !bCmos || !vPort || !vCmos) return;
   const setTab = (tab) => {
-    const isCmos = tab === 'cmos-sync';
-    vPort.style.display = isCmos ? 'none' : 'block';
-    vCmos.style.display = isCmos ? 'block' : 'none';
-    bPort.classList.toggle('active', !isCmos);
-    bCmos.classList.toggle('active', isCmos);
-    if (isCmos && currentSnap) renderCmosSync(currentSnap);
+    vPort.style.display = tab === 'portfolio' ? 'block' : 'none';
+    vCmos.style.display = tab === 'cmos-sync' ? 'block' : 'none';
+    if (vTrain) vTrain.style.display = tab === 'training-cmos' ? 'block' : 'none';
+    bPort.classList.toggle('active', tab === 'portfolio');
+    bCmos.classList.toggle('active', tab === 'cmos-sync');
+    if (bTrain) bTrain.classList.toggle('active', tab === 'training-cmos');
+    if (tab === 'cmos-sync' && currentSnap) renderCmosSync(currentSnap);
+    if (tab === 'training-cmos' && currentSnap) renderTrainingCmos(currentSnap);
   };
   bPort.onclick = () => { location.hash = ''; setTab('portfolio'); };
   bCmos.onclick = () => { location.hash = '#cmos-sync'; setTab('cmos-sync'); };
+  if (bTrain) bTrain.onclick = () => { location.hash = '#training-cmos'; setTab('training-cmos'); };
   if (location.hash === '#cmos-sync') setTab('cmos-sync');
+  else if (location.hash === '#training-cmos') setTab('training-cmos');
 }
 
 function renderCmosSync(snap) {
@@ -1289,6 +1295,198 @@ function renderCmosSync(snap) {
     if ($('cmos-prev-pg')) $('cmos-prev-pg').onclick = () => { if (cmosLogPage > 0) { cmosLogPage--; renderCmosSync(currentSnap); } };
     if ($('cmos-next-pg')) $('cmos-next-pg').onclick = () => { if (cmosLogPage < totalPages - 1) { cmosLogPage++; renderCmosSync(currentSnap); } };
   }
+  renderAdaptiveTrackB(cs);
+}
+
+function _svgSparkline(vals, color, label, fmtFn) {
+  if (!vals || !vals.length) return `<div class="muted mono" style="font-size:12px">No ${label} series yet</div>`;
+  const w = 280, h = 68, pad = 6;
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const span = Math.max(1e-6, mx - mn);
+  const pts = vals.map((v, i) => {
+    const x = vals.length === 1 ? w / 2 : pad + (i / (vals.length - 1)) * (w - 2 * pad);
+    const y = h - pad - ((v - mn) / span) * (h - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const last = vals[vals.length - 1];
+  return `<div style="display:flex;justify-content:space-between;font-size:12px" class="mono"><span>${label}</span><b>${fmtFn(last)}</b></div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:68px;background:#050914;border-radius:6px;margin-top:4px">
+      <polyline fill="none" stroke="${color}" stroke-width="2" points="${pts}" />
+    </svg>
+    <div class="muted mono" style="font-size:11px">Min: ${fmtFn(mn)} · Max: ${fmtFn(mx)} (${vals.length} ckpts)</div>`;
+}
+
+function renderAdaptiveTrackB(cs) {
+  const al = cs?.adaptive_learning || {};
+  const kpis = $('cmos-sync-adaptive-kpis');
+  if (!kpis) return;
+  const stPill = $('cmos-adaptive-status-pill');
+  const actPill = $('cmos-adaptive-active-pill');
+  const bestPill = $('cmos-adaptive-best-pill');
+  const reason = $('cmos-adaptive-reason');
+  if (stPill) {
+    stPill.className = `pill mono ${al.status === 'ERROR' || al.status === 'STALLED' ? 'bad' : (al.status === 'TRAINING' ? 'ok' : 'warn')}`;
+    stPill.textContent = al.status || 'IDLE';
+  }
+  if (actPill) actPill.textContent = `ACTIVE: ${al.active_model_version || '–'}`;
+  if (bestPill) bestPill.textContent = `BEST: ${al.best_model_version || '–'}`;
+  if (reason) reason.textContent = al.status_reason || 'Awaiting verified batch observations…';
+
+  const oos = al.eval?.historical_oos || {};
+  const dlt = al.delta_vs_previous || {};
+  const pp = al.prospective_paper || {};
+  const lastCycleTxt = al.last_cycle_ts ? `${new Date(al.last_cycle_ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} (${al.last_cycle_duration_s ?? '–'}s)` : '–';
+  kpis.innerHTML = `
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Model Lineage</span><span class="tag">Adaptive</span></div>
+      <div class="mono" style="font-size:13px">Active: <b>${esc(al.active_model_version || '–')}</b></div>
+      <div class="muted mono" style="font-size:12px">Challenger: ${esc(al.latest_challenger_version || '–')} · Cycles: ${al.cycles_completed || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Training Data &amp; Trigger</span><span class="tag">Verified D:</span></div>
+      <div class="mono" style="font-size:13px">Obs: <b>${(al.verified_observations || 0).toLocaleString()}</b> · Events: <b>${al.independent_events || 0}</b></div>
+      <div class="muted mono" style="font-size:12px">Last: ${lastCycleTxt} · Next trigger: ${al.next_trigger_events ?? '–'} new events</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Historical OOS Performance</span><span class="tag">Out-of-Sample</span></div>
+      <div class="mono" style="font-size:13px">Brier: <b>${oos.brier_score ?? '–'}</b> · LogLoss: <b>${oos.log_loss ?? '–'}</b> · Net: <b>$${(oos.realized_net_pnl_usd ?? 0).toFixed(2)}</b></div>
+      <div class="muted mono" style="font-size:12px">Exp: $${(oos.expected_net_pnl_usd ?? 0).toFixed(2)} · W/L: ${oos.wins || 0}/${oos.losses || 0} · DD: $${(oos.max_drawdown_usd ?? 0).toFixed(2)} · ΔPnL: ${dlt.net_pnl_delta_usd != null ? (dlt.net_pnl_delta_usd >= 0 ? '+' : '') + '$' + dlt.net_pnl_delta_usd.toFixed(2) : '–'}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Challenger Gate &amp; Paper</span><span class="tag">Separated</span></div>
+      <div class="mono" style="font-size:13px">Tested: <b>${al.models_tested || 0}</b> · Promoted: <b>${al.models_promoted || 0}</b> · Rejected: <b>${al.models_rejected || 0}</b></div>
+      <div class="muted mono" style="font-size:12px">Prospective Paper: ${pp.trades || 0} trades · Net $${(pp.net_pnl_usd || 0).toFixed(2)} · Open ${pp.open_positions || 0}</div></div>`;
+}
+
+let _pendingRestoreVersion = null;
+
+function renderTrainingCmos(snap) {
+  const cs = snap?.cmos_sync;
+  const kpis = $('tcmos-kpis');
+  if (!kpis || !cs) return;
+  const al = cs.adaptive_learning || {};
+  const tr = al.eval?.train || {};
+  const va = al.eval?.validation || {};
+  const oos = al.eval?.historical_oos || {};
+  const pp = al.prospective_paper || {};
+  const dlt = al.delta_vs_previous || {};
+
+  if ($('tcmos-reason')) $('tcmos-reason').textContent = `${al.status_reason || 'Idle'} · Heartbeat age: ${al.heartbeat_age_s ?? '–'}s · Op: ${al.operation || 'idle'}`;
+  if ($('tcmos-status-pill')) {
+    $('tcmos-status-pill').className = `pill mono ${al.status === 'ERROR' || al.status === 'STALLED' ? 'bad' : (al.status === 'TRAINING' ? 'ok' : 'warn')}`;
+    $('tcmos-status-pill').textContent = al.status || 'IDLE';
+  }
+  if ($('tcmos-active-pill')) $('tcmos-active-pill').textContent = `ACTIVE: ${al.active_model_version || '–'}`;
+  if ($('tcmos-best-pill')) $('tcmos-best-pill').textContent = `BEST: ${al.best_model_version || '–'}`;
+  if ($('tcmos-challenger-pill')) $('tcmos-challenger-pill').textContent = `CHALLENGER: ${al.latest_challenger_version || '–'}`;
+
+  kpis.innerHTML = `
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Active &amp; Best Models</span><span class="tag">${esc(cs.current_month || '–')}</span></div>
+      <div class="mono" style="font-size:13px">Active: <b>${esc(al.active_model_version || '–')}</b></div>
+      <div class="muted mono" style="font-size:12px">Best Validated: ${esc(al.best_model_version || '–')} · Cycles: ${al.cycles_completed || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Verified Training Base</span><span class="tag">D: NVMe</span></div>
+      <div class="mono" style="font-size:13px">Obs: <b>${(al.verified_observations || 0).toLocaleString()}</b> · Events: <b>${al.independent_events || 0}</b></div>
+      <div class="muted mono" style="font-size:12px">Calibration Err: ${oos.calibration_err ?? '–'} · Pred vs Actual: ${oos.pred_win_prob ?? '–'} / ${oos.actual_win_prob ?? '–'}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">OOS Economics &amp; Risk</span><span class="tag">After Fees</span></div>
+      <div class="mono" style="font-size:13px">Net P&amp;L: <b>$${(oos.realized_net_pnl_usd ?? 0).toFixed(2)}</b> · Max DD: <b>$${(oos.max_drawdown_usd ?? 0).toFixed(2)}</b></div>
+      <div class="muted mono" style="font-size:12px">RAR: ${oos.risk_adjusted_return ?? '–'} · $/Trade: $${(oos.profit_per_trade_usd ?? 0).toFixed(2)} · Turnover: ${oos.capital_turnover ?? '–'}x</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Δ vs Previous Checkpoint</span><span class="tag">Gate</span></div>
+      <div class="mono" style="font-size:13px">ΔBrier: <b>${dlt.brier_delta ?? '–'}</b> · ΔPnL: <b>${dlt.net_pnl_delta_usd != null ? (dlt.net_pnl_delta_usd >= 0 ? '+' : '') + '$' + dlt.net_pnl_delta_usd.toFixed(2) : '–'}</b></div>
+      <div class="muted mono" style="font-size:12px">Tested: ${al.models_tested || 0} · Promoted: ${al.models_promoted || 0} · Rejected: ${al.models_rejected || 0}</div></div>`;
+
+  const splitsEl = $('tcmos-splits');
+  if (splitsEl) {
+    const mkSplit = (title, tag, d) => `<div class="acct-card"><div class="acct-head"><span class="acct-title">${title}</span><span class="tag">${tag}</span></div>
+      <div class="mono" style="font-size:12px">Events: <b>${d.n_events ?? d.trades ?? 0}</b> · Brier: <b>${d.brier_score ?? '–'}</b> · LogLoss: <b>${d.log_loss ?? '–'}</b></div>
+      <div class="muted mono" style="font-size:12px">Net P&amp;L: $${(d.realized_net_pnl_usd ?? d.net_pnl_usd ?? 0).toFixed(2)} · DD: $${(d.max_drawdown_usd ?? 0).toFixed(2)} · WinRate: ${d.win_rate != null ? (d.win_rate * 100).toFixed(1) + '%' : '–'}</div></div>`;
+    splitsEl.innerHTML = mkSplit('1. Training Split', 'In-Sample', tr)
+      + mkSplit('2. Validation Split', 'Model Selection', va)
+      + mkSplit('3. Historical OOS', 'Unseen History', oos)
+      + mkSplit('4. Prospective Paper', 'Live Research', pp);
+  }
+
+  const chartsEl = $('tcmos-charts');
+  const ckptsAsc = [...(cs.checkpoints || [])].reverse();
+  if (chartsEl) {
+    const briers = ckptsAsc.map(c => c.oos_brier).filter(v => v != null).map(Number);
+    const pnls = ckptsAsc.map(c => c.oos_net_pnl_usd).filter(v => v != null).map(Number);
+    const dds = ckptsAsc.map(c => c.max_drawdown_usd).filter(v => v != null).map(Number);
+    const evs = ckptsAsc.map(c => c.independent_events).filter(v => v != null).map(Number);
+    const famRows = Object.entries(oos.by_family || {}).map(([ser, f]) =>
+      `<div class="mono" style="font-size:12px">${esc(ser)}: ${f.trades} trades · Net $${Number(f.net_pnl_usd || 0).toFixed(2)} · Brier ${f.brier_score ?? '–'}</div>`
+    ).join('') || '<div class="muted mono" style="font-size:12px">No family OOS breakdown yet</div>';
+    chartsEl.innerHTML = `
+      <div class="acct-card">${_svgSparkline(briers, '#38bdf8', 'OOS Brier Score (Lower=Better)', v => v.toFixed(4))}</div>
+      <div class="acct-card">${_svgSparkline(pnls, '#22c55e', 'OOS Net P&L ($)', v => '$' + v.toFixed(2))}</div>
+      <div class="acct-card">${_svgSparkline(dds, '#f59e0b', 'OOS Max Drawdown ($)', v => '$' + v.toFixed(2))}</div>
+      <div class="acct-card">${_svgSparkline(evs, '#a78bfa', 'Verified Independent Events', v => String(Math.round(v)))}
+        <div style="margin-top:6px;border-top:1px solid #1f2937;padding-top:6px">${famRows}</div></div>`;
+  }
+
+  const cBody = $('tcmos-checkpoints-body');
+  if (cBody) {
+    cBody.innerHTML = (cs.checkpoints || []).map(c => {
+      const ts = c.created_ts ? new Date(c.created_ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '–';
+      const sha = c.checkpoint_sha256 ? esc(String(c.checkpoint_sha256).slice(0, 12)) : '–';
+      const isAct = c.deployment_status === 'ACTIVE_PAPER';
+      const btn = isAct
+        ? '<span class="tag ok">ACTIVE</span>'
+        : `<button class="toggle-btn tcmos-restore-btn" data-version="${esc(c.version)}" type="button">Restore Checkpoint</button>`;
+      return `<tr>
+        <td class="mono">${esc(c.version)}</td><td class="mono">${ts}</td><td class="mono">${esc(c.training_period || c.month || '–')}</td>
+        <td class="mono">${esc(c.training_mode || '–')}</td><td class="mono">${c.independent_events ?? '–'}</td>
+        <td class="mono">${c.oos_brier ?? '–'}</td><td class="mono">${c.oos_net_pnl_usd != null ? '$' + Number(c.oos_net_pnl_usd).toFixed(2) : '–'}</td>
+        <td class="mono">${c.max_drawdown_usd != null ? '$' + Number(c.max_drawdown_usd).toFixed(2) : '–'}</td>
+        <td class="mono">${esc(c.validation_status || '–')}</td><td class="mono">${esc(c.deployment_status || '–')}</td>
+        <td class="mono">${sha}</td><td>${btn}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="12" class="muted">No checkpoints created yet.</td></tr>';
+
+    document.querySelectorAll('.tcmos-restore-btn').forEach(btn => {
+      btn.onclick = () => {
+        _pendingRestoreVersion = btn.getAttribute('data-version');
+        const modal = $('tcmos-rollback-modal');
+        if ($('tcmos-rollback-desc')) {
+          $('tcmos-rollback-desc').textContent = `Replace active CMOS paper model (${al.active_model_version || 'none'}) with verified checkpoint ${_pendingRestoreVersion}? Existing paper ledgers and real-money PAUSED settings are untouched.`;
+        }
+        if ($('tcmos-rollback-msg')) $('tcmos-rollback-msg').textContent = '';
+        if (modal) modal.style.display = 'flex';
+      };
+    });
+  }
+
+  const rBody = $('tcmos-rollback-body');
+  const rCnt = $('tcmos-rollback-count');
+  const rList = al.rollback_audit || [];
+  if (rCnt) rCnt.textContent = String(rList.length);
+  if (rBody) {
+    rBody.innerHTML = rList.map(r => `<tr>
+      <td class="mono">${new Date(r.ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</td>
+      <td class="mono">${esc(r.actor)}</td><td class="mono">${esc(r.from_version || '–')}</td>
+      <td class="mono">${esc(r.to_version)}</td><td class="mono">${esc(String(r.checkpoint_sha256 || '').slice(0, 12))}</td>
+      <td>${esc(r.reason)}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">No rollbacks recorded.</td></tr>';
+  }
+}
+
+if ($('tcmos-rollback-cancel')) {
+  $('tcmos-rollback-cancel').onclick = () => {
+    _pendingRestoreVersion = null;
+    if ($('tcmos-rollback-modal')) $('tcmos-rollback-modal').style.display = 'none';
+  };
+}
+if ($('tcmos-rollback-confirm')) {
+  $('tcmos-rollback-confirm').onclick = async () => {
+    if (!_pendingRestoreVersion) return;
+    const msgEl = $('tcmos-rollback-msg');
+    const reason = ($('tcmos-rollback-reason')?.value || 'Dashboard operator checkpoint restore').trim();
+    try {
+      const resp = await fetch('/api/live-money/cmos/restore-checkpoint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: _pendingRestoreVersion, confirm: true, reason }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data?.detail || `HTTP ${resp.status}`);
+      if (msgEl) msgEl.textContent = `Restored ${data.restored_version} (sha256=${String(data.sha256 || '').slice(0, 12)})`;
+      setTimeout(() => { if ($('tcmos-rollback-modal')) $('tcmos-rollback-modal').style.display = 'none'; }, 900);
+    } catch (err) {
+      if (msgEl) msgEl.textContent = `Local Barnacle API required for write actions (${err.message}).`;
+    }
+  };
 }
 
 function openModal(item) {
@@ -1307,6 +1505,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderHoldings(snap);
   renderCompleted(snap);
   renderCmosSync(snap);
+  renderTrainingCmos(snap);
 }
 
 async function pollSnapshot() {

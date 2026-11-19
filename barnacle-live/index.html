@@ -38,6 +38,7 @@
     <nav class="tabs-row" style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap" role="tablist" aria-label="Dashboard Views">
       <button id="nav-tab-portfolio" class="tab-btn active" type="button">Portfolio Monitor</button>
       <button id="nav-tab-cmos-sync" class="tab-btn" type="button">CMOS SYNC</button>
+      <button id="nav-tab-training-cmos" class="tab-btn" type="button">Training → CMOS</button>
     </nav>
 
     <section id="truth-banner" class="banner warn" role="status" style="display:none">Connecting to Barnacle live relay…</section>
@@ -240,6 +241,21 @@
         <div id="cmos-sync-timeline" style="margin-top:14px"></div>
       </section>
 
+      <section class="panel" aria-label="CMOS Adaptive Learning Track B">
+        <div class="panel-head">
+          <div>
+            <h2>Track B: Adaptive Learning &amp; Challenger Evaluation</h2>
+            <p id="cmos-adaptive-reason" class="muted">Awaiting verified batch observations…</p>
+          </div>
+          <div class="pills">
+            <span id="cmos-adaptive-status-pill" class="pill mono">IDLE</span>
+            <span id="cmos-adaptive-active-pill" class="pill mono">ACTIVE: –</span>
+            <span id="cmos-adaptive-best-pill" class="pill mono">BEST: –</span>
+          </div>
+        </div>
+        <div id="cmos-sync-adaptive-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
+      </section>
+
       <section class="panel" aria-label="Monthly Learning Progress">
         <div class="panel-head">
           <div>
@@ -289,6 +305,81 @@
         </details>
       </section>
     </div><!-- /#view-cmos-sync -->
+
+    <!-- TRAINING -> CMOS VIEW -->
+    <div id="view-training-cmos" style="display:none">
+      <section class="panel" aria-label="CMOS Live Training Performance">
+        <div class="panel-head">
+          <div>
+            <h2>Training → CMOS — Live Training Performance &amp; Save Points</h2>
+            <p id="tcmos-reason" class="muted">Waiting for persisted training telemetry…</p>
+          </div>
+          <div class="pills">
+            <span id="tcmos-status-pill" class="pill mono">IDLE</span>
+            <span id="tcmos-active-pill" class="pill mono">ACTIVE: –</span>
+            <span id="tcmos-best-pill" class="pill mono">BEST: –</span>
+            <span id="tcmos-challenger-pill" class="pill mono">CHALLENGER: –</span>
+          </div>
+        </div>
+        <div id="tcmos-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
+        <div id="tcmos-splits" class="scoreboard-grid" style="margin-top:10px"></div>
+      </section>
+
+      <section class="panel" aria-label="Visual Learning History">
+        <div class="panel-head">
+          <div>
+            <h2>Visual Learning History (Historical OOS vs Model Versions)</h2>
+            <p class="muted">Training, validation, historical out-of-sample, and prospective paper results are strictly separated. Same-dataset comparison distinguishes model quality from market regime shifts.</p>
+          </div>
+        </div>
+        <div id="tcmos-charts" class="scoreboard-grid" style="margin-top:10px"></div>
+      </section>
+
+      <section class="panel" aria-label="Immutable Checkpoints and Rollback">
+        <div class="panel-head">
+          <div>
+            <h2>Immutable Model Checkpoints (D: NVMe) &amp; Safe Rollback</h2>
+            <p class="muted">Restoring a checkpoint verifies SHA-256 integrity and feature compatibility, applies only to CMOS paper research, preserves all ledgers, and never alters real-money settings.</p>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:8px">
+          <table>
+            <thead>
+              <tr>
+                <th>Version</th><th>Created</th><th>Period</th><th>Mode</th><th>Events</th>
+                <th>OOS Brier</th><th>OOS Net P&amp;L</th><th>Max DD</th><th>Validation</th><th>Deployment</th><th>SHA-256</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="tcmos-checkpoints-body"></tbody>
+          </table>
+        </div>
+        <details class="pos-details panel-details" style="margin-top:10px">
+          <summary class="panel-summary">
+            <div><h2>Checkpoint Rollback Audit Log <span id="tcmos-rollback-count" class="count-pill">0</span></h2></div>
+            <span class="expand-lbl">▸ Expand</span>
+          </summary>
+          <div class="table-wrap" style="margin-top:8px">
+            <table>
+              <thead><tr><th>Time (ET)</th><th>Actor</th><th>Replaced</th><th>Restored</th><th>SHA-256</th><th>Reason</th></tr></thead>
+              <tbody id="tcmos-rollback-body"></tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    </div><!-- /#view-training-cmos -->
+
+    <div id="tcmos-rollback-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center">
+      <div class="panel" style="max-width:480px;width:92%;margin:auto">
+        <h3>Confirm CMOS Paper Checkpoint Restore</h3>
+        <p id="tcmos-rollback-desc" class="muted" style="margin:8px 0"></p>
+        <input id="tcmos-rollback-reason" type="text" placeholder="Reason for rollback (recorded in audit log)" style="width:100%;padding:8px;margin:8px 0;background:#111827;color:#f3f4f6;border:1px solid #374151;border-radius:6px" />
+        <div id="tcmos-rollback-msg" class="muted mono" style="font-size:12px;margin-bottom:8px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button id="tcmos-rollback-cancel" class="tab-btn" type="button">Cancel</button>
+          <button id="tcmos-rollback-confirm" class="tab-btn active" type="button">Confirm Restore</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <dialog id="trace-modal" class="modal">
