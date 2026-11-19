@@ -244,6 +244,12 @@ function renderScoreboard(snap) {
       : fmtUsd(a.net_sell_value_cents / 100);
     const unrealTxt = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
 
+    const nowSec = Date.now() / 1000;
+    const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
+    const activeHoldings = acctHoldings.filter(h => !h.trading_closed && (!h.close_ts || Number(h.close_ts) > nowSec));
+    const awaitingHoldings = acctHoldings.filter(h => h.trading_closed || (h.close_ts && Number(h.close_ts) <= nowSec));
+    const acctCompleted = (snap?.completed_trades || []).filter(t => t.account_id === a.account_id);
+
     const realizedC = Number(a.realized_net_cents ?? 0);
     const realCls = realizedC > 0 ? 'pos' : realizedC < 0 ? 'neg' : '';
     const realRetPct = initC > 0 ? (realizedC / initC) * 100 : 0;
@@ -260,12 +266,6 @@ function renderScoreboard(snap) {
     const badgeHtml = isReal
       ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
       : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${a.codename || 'PAPER'} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
-
-    const nowSec = Date.now() / 1000;
-    const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
-    const activeHoldings = acctHoldings.filter(h => !h.trading_closed && (!h.close_ts || Number(h.close_ts) > nowSec));
-    const awaitingHoldings = acctHoldings.filter(h => h.trading_closed || (h.close_ts && Number(h.close_ts) <= nowSec));
-    const acctCompleted = (snap?.completed_trades || []).filter(t => t.account_id === a.account_id);
 
     const renderEntryLvls = (h) => (h.entry_levels || []).map(l => {
       const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
