@@ -460,6 +460,7 @@ function renderScoreboard(snap, force = false) {
         <span>Est. Unrealized (Resale):</span>
         <span class="mono unreal-neutral">${unrealTxt}</span>
       </div>
+      ${Number(a.withdrawn_to_savings_cents || 0) > 0 ? `<div class="muted mono" style="font-size:11px;margin-top:4px;display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap"><span>Savings withdrawal: <b>-${fmtUsd(a.withdrawn_to_savings_cents / 100)}</b> · Cash after: <b>${fmtUsd((a.available_cents || 0) / 100)}</b></span><a href="#hermes-savings-panel" onclick="document.getElementById('hermes-savings-panel')?.scrollIntoView({behavior:'smooth'});return false;" style="color:#38bdf8">Savings details ↓</a></div>` : ''}
       <div class="stat-badges-4">
         <div class="stat-mini"><div class="lbl">Open</div><div class="val mono">${actCount}</div></div>
         <div class="stat-mini"><div class="lbl">Settling</div><div class="val mono">${setCount}</div></div>
@@ -1534,9 +1535,9 @@ function renderHermesSavings(snap) {
         <span class="tag ok">SIMULATED SAVINGS LEDGER</span>
       </div>
       <div class="muted mono" style="font-size:12px;margin-top:8px;display:flex;gap:18px;flex-wrap:wrap">
-        <span>Initial savings transfer: <b>$${startTr.toFixed(2)}</b></span>
-        <span>Earned since activation: <b>+$${postAct.toFixed(2)}</b></span>
-        <span>Trading bankroll target: <b>$${target.toFixed(0)}</b></span>
+        <span>Initial transfer: <b>$${startTr.toFixed(2)}</b></span>
+        <span>New savings since activation: <b>+$${postAct.toFixed(2)}</b></span>
+        <span>Trading bankroll remaining: <b>$${Number(hs.trading_equity_usd || 0).toFixed(2)}</b> (target $${target.toFixed(0)})</span>
       </div>
     </div>`;
 
@@ -1561,10 +1562,44 @@ function renderHermesSavings(snap) {
   }
 }
 
+function renderCmosPortfolioPanel(snap) {
+  const panel = $('cmos-portfolio-panel');
+  const body = $('cmos-portfolio-body');
+  if (!panel || !body) return;
+  const cs = snap?.cmos_sync;
+  if (!cs || !cs.available) {
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block';
+  const al = cs.adaptive_learning || {};
+  const oos = al.eval?.historical_oos || {};
+  const ap = al.adaptive_paper_account || {};
+  const pp = al.prospective_paper || {};
+  const blocked = !al.active_model_version && (al.cycles_completed || 0) > 0;
+  const valCls = blocked ? 'bad' : (al.active_model_version ? 'ok' : 'warn');
+  const valTxt = blocked ? 'PROMOTION BLOCKED / VALIDATION FAILED' : (al.active_model_version ? 'VALIDATED & ACTIVE' : 'AWAITING VALIDATION');
+
+  body.innerHTML = `
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Recovery &amp; Training Status</span><span class="tag">${esc(cs.status || '–')}</span></div>
+      <div class="mono" style="font-size:12px">Month <b>${esc(cs.current_month || '–')}</b>: ${cs.contracts_done || 0} completed (${cs.workload_discovered ? `${cs.contracts_total} total` : 'discovering total…'})</div>
+      <div class="muted mono" style="font-size:11px">Training: ${esc(al.status || 'IDLE')} · Cycles: ${al.cycles_completed || 0} · Events: ${al.independent_events || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Model &amp; Validation Gate</span><span class="tag ${valCls}">${valTxt}</span></div>
+      <div class="mono" style="font-size:12px">Latest Challenger: <b>${esc(al.latest_challenger_version || '–')}</b> · Validated: <b>${al.models_promoted || 0}</b></div>
+      <div class="muted mono" style="font-size:11px">Latest OOS: Brier ${oos.brier_score ?? '–'} · Net $${oos.realized_net_pnl_usd != null ? Number(oos.realized_net_pnl_usd).toFixed(2) : '–'} · ${esc(al.status_reason || '–')}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Paper Isolation</span><span class="tag">${esc(ap.status || 'PREPARED_INACTIVE')}</span></div>
+      <div class="mono" style="font-size:12px">Adaptive Paper (<code>cmos_adaptive_100</code>): <b>${esc(ap.status || 'PREPARED_INACTIVE')}</b> ($${Number(ap.bankroll_usd || 100).toFixed(0)})</div>
+      <div class="muted mono" style="font-size:11px">Separate CMOS V1 (<code>cmos_interrogator_100</code>): ${pp.trades || 0} settled · ${pp.open_positions || 0} open · Net $${Number(pp.net_pnl_usd || 0).toFixed(2)}</div></div>`;
+
+  if ($('cmos-goto-training')) $('cmos-goto-training').onclick = () => $('nav-tab-training-cmos')?.click();
+  if ($('cmos-goto-sync')) $('cmos-goto-sync').onclick = () => $('nav-tab-cmos-sync')?.click();
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
   renderScoreboard(snap, force);
+  renderCmosPortfolioPanel(snap);
   renderZeusExecutionComparison(snap);
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
