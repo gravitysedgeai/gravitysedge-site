@@ -50,7 +50,7 @@ function fmtCountdown(closeTs) {
 }
 let holdingsAcct = '';
 let completedAcct = '';
-const openDetailsAccounts = new Set();
+const sectionOpenOverrides = {}; // key: `${account_id}:${sec}` -> boolean
 let lastPollOk = false;
 let es = null;
 let retryMs = 2000;
@@ -255,15 +255,22 @@ function renderScoreboard(snap) {
       ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
       : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${a.codename || 'PAPER'} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
 
+    const nowSec = Date.now() / 1000;
     const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
-    const posDetailsHtml = acctHoldings.length === 0
-      ? '<div class="muted" style="font-size:11px;margin-top:4px">No open positions.</div>'
-      : acctHoldings.map(h => {
-          const entryLvls = (h.entry_levels || []).map(l => {
-            const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
-            const costStr = l.total_cost_usd != null ? ` · ${fmtUsd(l.total_cost_usd)}` : '';
-            return `<span class="depth-chip" title="${tsStr}">${l.qty}x @ ${l.price_cents}¢${costStr}${tsStr ? ' (' + tsStr + ')' : ''}</span>`;
-          }).join('');
+    const activeHoldings = acctHoldings.filter(h => !h.trading_closed && (!h.close_ts || Number(h.close_ts) > nowSec));
+    const awaitingHoldings = acctHoldings.filter(h => h.trading_closed || (h.close_ts && Number(h.close_ts) <= nowSec));
+    const acctCompleted = (snap?.completed_trades || []).filter(t => t.account_id === a.account_id);
+
+    const renderEntryLvls = (h) => (h.entry_levels || []).map(l => {
+      const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
+      const costStr = l.total_cost_usd != null ? ` · ${fmtUsd(l.total_cost_usd)}` : '';
+      return `<span class="depth-chip" title="${tsStr}">${l.qty}x @ ${l.price_cents}¢${costStr}${tsStr ? ' (' + tsStr + ')' : ''}</span>`;
+    }).join('');
+
+    const activeHtml = activeHoldings.length === 0
+      ? '<div class="muted" style="font-size:11px;margin-top:4px">No active open positions.</div>'
+      : activeHoldings.map(h => {
+          const entryLvls = renderEntryLvls(h);
           const sellLvls = (h.sell_levels || []).length
             ? h.sell_levels.map(l => `<span class="depth-chip">${l.price_cents}¢: ${l.available_qty} avail (sell ${l.sell_qty})</span>`).join('')
             : '<span class="muted">UNAVAILABLE</span>';
@@ -272,7 +279,7 @@ function renderScoreboard(snap) {
           const sellPnlTxt = h.sell_pnl_usd != null ? fmtSignedUsd(h.sell_pnl_usd) : 'UNAVAILABLE';
           const sellPnlCls = h.sell_pnl_usd == null ? '' : (h.sell_pnl_usd >= 0 ? 'pos' : 'neg');
           const liqWarn = h.partial_liquidity ? ` (Partial: ${h.fillable_qty}/${h.contracts})` : '';
-          const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'book'})` : 'UNAVAILABLE';
+          const bookFresh = h.book_ts ? `${fmtEt(h.book_ts)} (${h.book_source || 'Exchange Order Book'})` : 'UNAVAILABLE';
           return `
           <div class="pos-item">
             <div class="pos-item-head">
@@ -295,6 +302,57 @@ function renderScoreboard(snap) {
             <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
           </div>`;
         }).join('');
+
+    const awaitingHtml = awaitingHoldings.length === 0
+      ? '<div class="muted" style="font-size:11px;margin-top:4px">No positions awaiting settlement.</div>'
+      : awaitingHoldings.map(h => {
+          const entryLvls = renderEntryLvls(h);
+          return `
+          <div class="pos-item">
+            <div class="pos-item-head">
+              <span class="mono">${h.ticker}</span>
+              <span class="tag legacy">PENDING SETTLEMENT · ${h.side} · ${h.contracts}x</span>
+            </div>
+            <div class="muted">${h.marketplace || 'Kalshi'} · Series: <span class="mono">${h.series_ticker || '–'}</span> · Event: <span class="mono">${h.event_ticker || '–'}</span></div>
+            <div class="pos-kv">
+              <span class="k">Purchased (ET)</span><span class="v">${fmtEt(h.opened_ts)}</span>
+              <span class="k">Trading Closed (ET)</span><span class="v">${fmtEt(h.close_ts)}</span>
+              <span class="k">Entry Fills</span><span class="v">${entryLvls || '–'}</span>
+              <span class="k">Cost Basis (Invested)</span><span class="v">${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
+              <span class="k">Executable Resale</span><span class="v muted">CLOSED (AWAITING SETTLEMENT)</span>
+              <span class="k">Status</span><span class="v">PENDING OUTCOME</span>
+            </div>
+          </div>`;
+        }).join('');
+
+    const completedHtml = acctCompleted.length === 0
+      ? '<div class="muted" style="font-size:11px;margin-top:4px">No completed positions yet.</div>'
+      : acctCompleted.map(t => {
+          const net = Number(t.realized_net_usd ?? t.net_pnl_usd ?? 0);
+          const proceeds = t.proceeds_usd != null ? fmtUsd(t.proceeds_usd) : (t.result === 'WIN' ? fmtUsd(Number(t.contracts || 0)) : '$0.00');
+          const resBadge = t.result === 'WIN' ? 'win' : t.result === 'SOLD' ? 'paper' : 'loss';
+          return `
+          <div class="pos-item">
+            <div class="pos-item-head">
+              <span class="mono">${t.ticker}</span>
+              <span class="tag ${resBadge}">${t.result || t.status || 'SETTLED'} · ${t.side} · ${t.contracts}x</span>
+            </div>
+            <div class="pos-kv">
+              <span class="k">Entry Cost / Fees</span><span class="v">${fmtUsd(t.invested_usd)} / ${fmtUsd(t.fee_usd || 0)}</span>
+              <span class="k">${t.result === 'SOLD' ? 'Sale Proceeds' : 'Settlement Payout'}</span><span class="v">${proceeds}</span>
+              <span class="k">Realized Net P&amp;L</span><span class="v ${net >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(net)}</span>
+              <span class="k">Completed (ET)</span><span class="v">${fmtEt(t.closed_ts || t.ts)}</span>
+            </div>
+          </div>`;
+        }).join('');
+
+    const isSecOpen = (sec, defOpen) => {
+      const k = `${a.account_id}:${sec}`;
+      return (k in sectionOpenOverrides) ? sectionOpenOverrides[k] : defOpen;
+    };
+    const actOpen = isSecOpen('active', true);
+    const awtOpen = isSecOpen('awaiting', awaitingHoldings.length > 0);
+    const cmpOpen = isSecOpen('completed', false);
 
     return `
     <article class="acct-card ${cardCls}">
@@ -329,9 +387,17 @@ function renderScoreboard(snap) {
         <span class="k">Realized / Unrealized</span><span class="v">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${unrealTxt}</span>
         <span class="k">Total Fees</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
-      <details class="pos-details" data-acct="${a.account_id}" ${openDetailsAccounts.has(a.account_id) ? 'open' : ''}>
-        <summary><span>Open Position Details (${acctHoldings.length})</span><span>${openDetailsAccounts.has(a.account_id) ? '▾ Collapse' : '▸ Expand'}</span></summary>
-        ${posDetailsHtml}
+      <details class="pos-details" data-sec="${a.account_id}:active" ${actOpen ? 'open' : ''}>
+        <summary><span>1. Active Positions (${activeHoldings.length})</span><span>${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        ${activeHtml}
+      </details>
+      <details class="pos-details" data-sec="${a.account_id}:awaiting" ${awtOpen ? 'open' : ''}>
+        <summary><span>2. Awaiting Settlement (${awaitingHoldings.length})</span><span>${awtOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        ${awaitingHtml}
+      </details>
+      <details class="pos-details" data-sec="${a.account_id}:completed" ${cmpOpen ? 'open' : ''}>
+        <summary><span>3. Completed Positions (${acctCompleted.length})</span><span>${cmpOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        ${completedHtml}
       </details>
     </article>`;
   };
@@ -381,10 +447,9 @@ function renderScoreboard(snap) {
 
   grid.querySelectorAll('details.pos-details').forEach(det => {
     det.addEventListener('toggle', () => {
-      const aid = det.dataset.acct;
-      if (!aid) return;
-      if (det.open) openDetailsAccounts.add(aid);
-      else openDetailsAccounts.delete(aid);
+      const sk = det.dataset.sec;
+      if (!sk) return;
+      sectionOpenOverrides[sk] = det.open;
       const sumSpan = det.querySelector('summary span:last-child');
       if (sumSpan) sumSpan.textContent = det.open ? '▾ Collapse' : '▸ Expand';
     });
