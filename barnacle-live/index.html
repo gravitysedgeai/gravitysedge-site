@@ -7,9 +7,9 @@
   <title>Barnacle Live Run #001 — Portfolio Analytics</title>
   <meta name="description"
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
-  <link rel="stylesheet" href="styles.css?v=20261119b">
+  <link rel="stylesheet" href="styles.css?v=20261119c">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261119b" defer></script>
+  <script src="app.js?v=20261119c" defer></script>
 </head>
 
 <body>
@@ -35,7 +35,14 @@
   </header>
 
   <main class="container">
+    <nav class="tabs-row" style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap" role="tablist" aria-label="Dashboard Views">
+      <button id="nav-tab-portfolio" class="tab-btn active" type="button">Portfolio Monitor</button>
+      <button id="nav-tab-cmos-sync" class="tab-btn" type="button">CMOS SYNC</button>
+    </nav>
+
     <section id="truth-banner" class="banner warn" role="status" style="display:none">Connecting to Barnacle live relay…</section>
+
+    <div id="view-portfolio">
 
     <!-- 1. ACTIVE SCOREBOARD -->
     <section aria-label="Portfolio Scoreboard">
@@ -213,6 +220,75 @@
         </div>
       </div>
     </section>
+    </div><!-- /#view-portfolio -->
+
+    <!-- CMOS SYNC VIEW -->
+    <div id="view-cmos-sync" style="display:none">
+      <section class="panel" aria-label="CMOS Sync Real-Time Progress">
+        <div class="panel-head">
+          <div>
+            <h2>CMOS SYNC — Progressive Monthly Recovery &amp; Training</h2>
+            <p id="cmos-sync-reason" class="muted">Waiting for CMOS sync telemetry…</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="cmos-sync-status-pill" class="pill warn">PAUSED</span>
+            <span id="cmos-sync-month-pill" class="pill mono">MONTH: –</span>
+            <span id="cmos-sync-op-pill" class="pill mono">OP: –</span>
+          </div>
+        </div>
+        <div id="cmos-sync-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
+        <div id="cmos-sync-timeline" style="margin-top:14px"></div>
+      </section>
+
+      <section class="panel" aria-label="Monthly Learning Progress">
+        <div class="panel-head">
+          <div>
+            <h2>Monthly Learning &amp; Validation Progress</h2>
+            <p class="muted">Observed recovery/validation counts and out-of-sample evaluation before training on each month. Estimates (ETA) are labeled separately from observed facts.</p>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:8px">
+          <table>
+            <thead>
+              <tr>
+                <th>Month</th><th>Recovery %</th><th>Validation %</th><th>Train / Eval</th><th>Quality</th>
+                <th>Indep. Events</th><th>Brier</th><th>Log Loss</th><th>Net P&amp;L</th><th>Max DD</th><th>Δ vs Prev</th><th>Zeus P&amp;L</th>
+              </tr>
+            </thead>
+            <tbody id="cmos-months-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="CMOS Sync Details">
+        <details class="pos-details panel-details">
+          <summary class="panel-summary">
+            <div><h2>Per-Market-Family Recovery &amp; Validation</h2></div>
+            <span class="expand-lbl">▸ Expand</span>
+          </summary>
+          <div class="table-wrap" style="margin-top:10px">
+            <table>
+              <thead><tr><th>Series</th><th>Discovered</th><th>Recovered</th><th>Validated</th><th>Rejected</th><th>Records</th></tr></thead>
+              <tbody id="cmos-families-body"></tbody>
+            </table>
+          </div>
+        </details>
+        <details class="pos-details panel-details" style="margin-top:10px">
+          <summary class="panel-summary">
+            <div><h2>Checkpoints &amp; Activity / Retry Log <span id="cmos-log-count" class="count-pill">0</span></h2></div>
+            <span class="expand-lbl">▸ Expand</span>
+          </summary>
+          <div id="cmos-checkpoints-box" style="margin-top:10px"></div>
+          <div class="table-wrap" style="margin-top:10px">
+            <table>
+              <thead><tr><th>Time (ET)</th><th>Level</th><th>Month</th><th>Op</th><th>Message</th></tr></thead>
+              <tbody id="cmos-events-body"></tbody>
+            </table>
+          </div>
+          <div id="cmos-events-pager" class="pager-bar"></div>
+        </details>
+      </section>
+    </div><!-- /#view-cmos-sync -->
   </main>
 
   <dialog id="trace-modal" class="modal">

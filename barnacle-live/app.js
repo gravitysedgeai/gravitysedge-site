@@ -1135,6 +1135,150 @@ function renderCompleted(snap) {
   }
 }
 
+let cmosLogPage = 0;
+const CMOS_LOG_PAGE_SIZE = 25;
+
+function initNavTabs() {
+  const bPort = $('nav-tab-portfolio');
+  const bCmos = $('nav-tab-cmos-sync');
+  const vPort = $('view-portfolio');
+  const vCmos = $('view-cmos-sync');
+  if (!bPort || !bCmos || !vPort || !vCmos) return;
+  const setTab = (tab) => {
+    const isCmos = tab === 'cmos-sync';
+    vPort.style.display = isCmos ? 'none' : 'block';
+    vCmos.style.display = isCmos ? 'block' : 'none';
+    bPort.classList.toggle('active', !isCmos);
+    bCmos.classList.toggle('active', isCmos);
+    if (isCmos && currentSnap) renderCmosSync(currentSnap);
+  };
+  bPort.onclick = () => { location.hash = ''; setTab('portfolio'); };
+  bCmos.onclick = () => { location.hash = '#cmos-sync'; setTab('cmos-sync'); };
+  if (location.hash === '#cmos-sync') setTab('cmos-sync');
+}
+
+function renderCmosSync(snap) {
+  const pill = $('cmos-sync-status-pill');
+  const mPill = $('cmos-sync-month-pill');
+  const opPill = $('cmos-sync-op-pill');
+  const reasonEl = $('cmos-sync-reason');
+  const kpisEl = $('cmos-sync-kpis');
+  const tlEl = $('cmos-sync-timeline');
+  const mBody = $('cmos-months-body');
+  const fBody = $('cmos-families-body');
+  const cpBox = $('cmos-checkpoints-box');
+  const eBody = $('cmos-events-body');
+  const ePager = $('cmos-events-pager');
+  const logCnt = $('cmos-log-count');
+  if (!kpisEl) return;
+
+  const cs = snap?.cmos_sync;
+  if (!cs || !cs.available) {
+    if (pill) { pill.className = 'pill warn'; pill.textContent = 'PAUSED'; }
+    if (reasonEl) reasonEl.textContent = cs?.status_reason || 'CMOS sync worker not initialized yet.';
+    kpisEl.innerHTML = '';
+    return;
+  }
+
+  const nowSec = Date.now() / 1000;
+  const hbAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(nowSec - cs.heartbeat_ts)) : cs.heartbeat_age_s;
+  let status = cs.status || 'PAUSED';
+  let reason = cs.status_reason || '';
+  if ((status === 'ACTIVE' || status === 'WAITING') && hbAge != null && hbAge > 35) {
+    status = 'STALLED';
+    reason = `Heartbeat stale (${hbAge}s > 35s); last op: ${cs.operation}`;
+  }
+
+  const pillCls = status === 'ACTIVE' || status === 'COMPLETED' ? 'ok' : (status === 'FAILED' || status === 'STALLED' ? 'bad' : 'warn');
+  if (pill) { pill.className = `pill ${pillCls}`; pill.textContent = status; }
+  if (mPill) mPill.textContent = `MONTH: ${cs.current_month || '–'}`;
+  if (opPill) opPill.textContent = `OP: ${String(cs.operation || '–').toUpperCase()}`;
+  if (reasonEl) reasonEl.textContent = `${reason} · Heartbeat: ${hbAge != null ? hbAge + 's ago' : '–'} · Last OK: ${cs.last_success_op || '–'}`;
+
+  const curPctText = cs.workload_discovered
+    ? (cs.current_month_pct != null ? `${Number(cs.current_month_pct).toFixed(1)}%` : '0.0%')
+    : 'DISCOVERING';
+  const remRec = Math.max(0, (cs.records_expected || 0) - (cs.records_recovered || 0));
+  const elapsedS = cs.started_ts ? Math.max(0, Math.round(nowSec - cs.started_ts)) : 0;
+  const fmtDur = s => s == null ? '–' : (s >= 3600 ? `${(s / 3600).toFixed(1)}h` : (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`));
+  const etaTxt = cs.eta_seconds != null ? `${fmtDur(cs.eta_seconds)} (est)` : '–';
+
+  kpisEl.innerHTML = `
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Current Month Progress</span><span class="tag">${cs.current_month || '–'}</span></div>
+      <div style="font-size:24px;font-weight:700" class="mono">${curPctText}</div>
+      <div class="muted" style="font-size:12px">Contracts: ${cs.contracts_done || 0} / ${cs.contracts_total || 0} · 4-Mo Overall: ${Number(cs.overall_pct || 0).toFixed(1)}%</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Records (Observed)</span><span class="tag">1m Bars</span></div>
+      <div class="mono" style="font-size:13px">Recovered: <b>${(cs.records_recovered || 0).toLocaleString()}</b> / ${(cs.records_expected || 0).toLocaleString()}</div>
+      <div class="muted mono" style="font-size:12px">Verified: ${(cs.records_verified || 0).toLocaleString()} · Rejected: ${cs.records_rejected || 0} · Rem: ${remRec.toLocaleString()}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">API &amp; Throughput</span><span class="tag">Advanced</span></div>
+      <div class="mono" style="font-size:13px">${Number(cs.throughput_rps || 0).toFixed(2)} req/s · ${Number(cs.throughput_rec_s || 0).toFixed(0)} rec/s · ${Number(cs.throughput_mb_s || 0).toFixed(3)} MB/s</div>
+      <div class="muted mono" style="font-size:12px">Reqs: ${cs.api_requests_done || 0} done / ${cs.api_requests_remaining ?? '–'} rem · 429s: ${cs.rate_limit_429_count || 0} · Retries: ${cs.retry_count || 0} · Errs: ${cs.error_count || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Timing &amp; ETA</span><span class="tag">Estimate</span></div>
+      <div class="mono" style="font-size:13px">Elapsed: <b>${fmtDur(elapsedS)}</b> · ETA: <b>${etaTxt}</b></div>
+      <div class="muted mono" style="font-size:12px">Downloaded: ${(Number(cs.bytes_downloaded || 0) / (1024 * 1024)).toFixed(2)} MB · Heartbeat cadence: ${cs.heartbeat_interval_s || 10}s</div></div>`;
+
+  if (tlEl) {
+    tlEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">` +
+      (cs.months || []).map(m => {
+        const st = m.training_status === 'COMPLETED' || (m.recovery_pct >= 100 && m.validation_pct >= 100) ? 'COMPLETED' : (m.month === cs.current_month ? status : 'PENDING');
+        const cls = st === 'COMPLETED' ? 'ok' : (st === 'ACTIVE' || st === 'WAITING' ? 'warn' : '');
+        const pct = m.workload_discovered ? `${Number(m.recovery_pct || 0).toFixed(0)}%` : (m.month === cs.current_month ? 'DISCOVERING' : 'PENDING');
+        return `<div class="acct-card" style="padding:8px 10px"><div class="row between"><b>${m.month}</b><span class="pill ${cls}">${st}</span></div><div class="muted mono" style="font-size:12px;margin-top:4px">Rec ${pct} · Val ${Number(m.validation_pct || 0).toFixed(0)}%</div></div>`;
+      }).join('') + `</div>`;
+  }
+
+  if (mBody) {
+    mBody.innerHTML = (cs.months || []).map(m => `<tr>
+      <td class="mono"><b>${m.month}</b></td>
+      <td class="mono">${m.workload_discovered ? Number(m.recovery_pct || 0).toFixed(1) + '%' : 'DISCOVERING'}</td>
+      <td class="mono">${Number(m.validation_pct || 0).toFixed(1)}%</td>
+      <td class="mono">${m.training_status} / ${m.eval_status}</td>
+      <td class="mono">${m.quality_score != null ? Number(m.quality_score).toFixed(2) + '%' : '–'}</td>
+      <td class="mono">${m.independent_events || 0}</td>
+      <td class="mono">${m.brier_score != null ? Number(m.brier_score).toFixed(4) : '–'}</td>
+      <td class="mono">${m.log_loss != null ? Number(m.log_loss).toFixed(4) : '–'}</td>
+      <td class="mono">${m.net_pnl_usd != null ? fmtSignedUsd(m.net_pnl_usd) : '–'}</td>
+      <td class="mono">${m.max_drawdown_usd != null ? '$' + Number(m.max_drawdown_usd).toFixed(2) : '–'}</td>
+      <td class="mono">${m.delta_vs_prev_usd != null ? fmtSignedUsd(m.delta_vs_prev_usd) : '–'}</td>
+      <td class="mono">${m.zeus_net_pnl_usd != null ? fmtSignedUsd(m.zeus_net_pnl_usd) : '–'}</td>
+    </tr>`).join('');
+  }
+
+  if (fBody) {
+    fBody.innerHTML = (cs.families || []).map(f => `<tr>
+      <td class="mono">${f.series}</td><td class="mono">${f.contracts_total}</td><td class="mono">${f.contracts_done}</td>
+      <td class="mono">${f.contracts_verified}</td><td class="mono">${f.contracts_rejected}</td><td class="mono">${f.records_recovered}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">No family records yet.</td></tr>';
+  }
+
+  if (cpBox) {
+    const cps = cs.checkpoints || [];
+    cpBox.innerHTML = cps.length
+      ? `<div class="muted" style="font-size:12px">Latest checkpoint: <b class="mono">${cps[0].version}</b> (${cps[0].month}, ${cps[0].train_bars} bars)</div>`
+      : '<div class="muted" style="font-size:12px">No versioned monthly checkpoint committed yet (baseline 2026-01).</div>';
+  }
+
+  const evs = cs.events || [];
+  if (logCnt) logCnt.textContent = `${evs.length} events`;
+  const totalPages = Math.max(1, Math.ceil(evs.length / CMOS_LOG_PAGE_SIZE));
+  cmosLogPage = Math.min(cmosLogPage, totalPages - 1);
+  const pageEvs = evs.slice(cmosLogPage * CMOS_LOG_PAGE_SIZE, (cmosLogPage + 1) * CMOS_LOG_PAGE_SIZE);
+  if (eBody) {
+    eBody.innerHTML = pageEvs.map(e => `<tr>
+      <td class="mono">${new Date(e.ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</td>
+      <td class="mono">${e.level}</td><td class="mono">${e.month || '–'}</td><td class="mono">${e.operation || '–'}</td>
+      <td>${String(e.message || '').replace(/[&<>]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch]))}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">No events logged yet.</td></tr>';
+  }
+  if (ePager) {
+    ePager.innerHTML = totalPages > 1
+      ? `<button id="cmos-prev-pg" class="toggle-btn" type="button">Prev</button> <span class="muted mono">${cmosLogPage + 1}/${totalPages}</span> <button id="cmos-next-pg" class="toggle-btn" type="button">Next</button>`
+      : '';
+    if ($('cmos-prev-pg')) $('cmos-prev-pg').onclick = () => { if (cmosLogPage > 0) { cmosLogPage--; renderCmosSync(currentSnap); } };
+    if ($('cmos-next-pg')) $('cmos-next-pg').onclick = () => { if (cmosLogPage < totalPages - 1) { cmosLogPage++; renderCmosSync(currentSnap); } };
+  }
+}
+
 function openModal(item) {
   $('modal-title').textContent = `${item.account_label || ''} · ${item.ticker || 'Position Detail'}`;
   $('modal-body').innerHTML = `<pre class="mono" style="white-space:pre-wrap;font-size:12px;background:#050914;padding:10px;border-radius:8px;max-height:60vh;overflow:auto">${JSON.stringify(item, null, 2)}</pre>`;
@@ -1150,6 +1294,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
+  renderCmosSync(snap);
 }
 
 async function pollSnapshot() {
@@ -1345,6 +1490,7 @@ function wireControls() {
 
 // Init once
 wireControls();
+initNavTabs();
 prevSnap = loadJson(PREV_KEY, null);
 const initialSnap = loadJson(CACHE_KEY, null) || emptySnapshot();
 renderAll(initialSnap, 'WAITING', true);
