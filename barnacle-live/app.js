@@ -495,14 +495,14 @@ function renderScoreboard(snap, force = false) {
   const activeGroups = [
     {
       key: 'clean_slate_hestia',
-      title: 'HESTIA-008 (SIMULATED · ADAPTIVE SIZING)',
-      sub: 'Synchronized clean-slate comparison: adaptive fractional-Kelly sizing (up to 50% ceiling, skipping unvalidated probabilities).',
+      title: 'HESTIA-008 · ADAPTIVE POSITION SIZING — NOT CONTINUOUS LEARNING',
+      sub: 'Adjusts position size (up to 50% ceiling) using static kalshi-calibration-model.json probability estimates, validation rules, and L2 depth. Does not consume CMOS retraining.',
       items: activeAccts.filter(a => accountGroupOf(a) === 'clean_slate_hestia'),
     },
     {
       key: 'clean_slate_hermes',
-      title: 'HERMES-008B (SIMULATED · CLEAN-SLATE 10% BASELINE)',
-      sub: 'Synchronized clean-slate control arm paired with HESTIA-008 (fixed 10% sizing, identical entry feed).',
+      title: 'HERMES-008B · FIXED 10% BASELINE — NO MODEL TRAINING',
+      sub: 'Fixed 10% bankroll sizing with static cust_xp_hermes_clean_v1 entry rules. No model training or CMOS dependency.',
       items: activeAccts.filter(a => accountGroupOf(a) === 'clean_slate_hermes'),
     },
     {
@@ -1337,9 +1337,10 @@ function renderAdaptiveTrackB(cs) {
   const pp = al.prospective_paper || {};
   const lastCycleTxt = al.last_cycle_ts ? `${new Date(al.last_cycle_ts * 1000).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} (${al.last_cycle_duration_s ?? '–'}s)` : '–';
   kpis.innerHTML = `
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Model Lineage</span><span class="tag">Adaptive</span></div>
-      <div class="mono" style="font-size:13px">Active: <b>${esc(al.active_model_version || '–')}</b></div>
-      <div class="muted mono" style="font-size:12px">Challenger: ${esc(al.latest_challenger_version || '–')} · Cycles: ${al.cycles_completed || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Model Lineage &amp; Promotion</span><span class="tag">${al.auto_promotion_enabled ? 'AUTO-PROMOTE ON' : 'MANUAL'}</span></div>
+      <div class="mono" style="font-size:12px">Deployed Paper (V1): <b>${esc(al.deployed_paper_model_version || 'CMOS-V1 (cmos_model.json)')}</b></div>
+      <div class="mono" style="font-size:12px">Deployed Adaptive: <b>${esc(al.deployed_adaptive_model_version || al.active_model_version || '–')}</b> · Best: <b>${esc(al.best_model_version || '–')}</b></div>
+      <div class="muted mono" style="font-size:11px">Latest Challenger: ${esc(al.latest_challenger_version || '–')} · Paper Auto-Reload: ${al.paper_auto_reload_enabled ? 'Yes' : 'No (Isolated)'}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Training Data &amp; Trigger</span><span class="tag">Verified D:</span></div>
       <div class="mono" style="font-size:13px">Obs: <b>${(al.verified_observations || 0).toLocaleString()}</b> · Events: <b>${al.independent_events || 0}</b></div>
       <div class="muted mono" style="font-size:12px">Last: ${lastCycleTxt} · Next trigger: ${al.next_trigger_events ?? '–'} new events</div></div>
