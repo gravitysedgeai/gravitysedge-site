@@ -1524,7 +1524,8 @@ function renderHermesSavings(snap) {
       <div class="muted mono" style="font-size:12px">Target: $${Number(hs.target_principal_usd || 1000).toFixed(2)} · Open Cost (${hs.open_positions || 0}): $${Number(hs.open_cost_usd || 0).toFixed(2)}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Simulated Savings &amp; Combined</span><span class="tag ok">SWEEPS</span></div>
       <div class="mono" style="font-size:13px">Total Savings: <b>$${Number(hs.total_savings_usd || 0).toFixed(2)}</b> · Combined: <b>$${Number(hs.combined_equity_usd || 0).toFixed(2)}</b></div>
-      <div class="muted mono" style="font-size:12px">Today: $${Number(hs.today_savings_usd || 0).toFixed(2)} · Weekly: $${Number(hs.weekly_savings_usd || 0).toFixed(2)} · Monthly: $${Number(hs.monthly_savings_usd || 0).toFixed(2)}</div></div>
+      <div class="muted mono" style="font-size:12px">Starting Transfer: $${Number(hs.starting_savings_transfer_usd || 0).toFixed(2)} · Earned Since Act: $${Number(hs.post_activation_savings_usd || 0).toFixed(2)}</div>
+      <div class="muted mono" style="font-size:11px">Post-Act Today: $${Number(hs.today_savings_usd || 0).toFixed(2)} · Wk: $${Number(hs.weekly_savings_usd || 0).toFixed(2)} · Mo: $${Number(hs.monthly_savings_usd || 0).toFixed(2)}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Net Trading Results (Periods)</span><span class="tag">Realized</span></div>
       <div class="mono" style="font-size:13px">Daily: <b>${fmtSigned(hs.daily_net_trading_usd)}</b> · Weekly: <b>${fmtSigned(hs.weekly_net_trading_usd)}</b> · Monthly: <b>${fmtSigned(hs.monthly_net_trading_usd)}</b></div>
       <div class="muted mono" style="font-size:12px">Since Activation: ${fmtSigned(hs.realized_since_activation_usd)}</div></div>
@@ -1553,7 +1554,7 @@ function renderHermesSavings(snap) {
       <td class="mono">$${Number(t.trading_equity_after_usd || 0).toFixed(2)}</td>
       <td class="mono">${fmtSigned(t.settled_net_pnl_snapshot_usd)}</td>
       <td class="mono">${esc((t.linked_position_ids || []).join(', ') || '–')}</td>
-      <td>${esc(t.detail)}</td>
+      <td>${t.entry_type === 'STARTING_SAVINGS_TRANSFER' ? '<span class="tag">STARTING TRANSFER</span> ' : ''}${esc(t.detail)}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="muted">No savings sweeps yet.</td></tr>';
   }
 }
