@@ -630,3 +630,9 @@ tr.clickable:hover {
 .pos-kv .v { font-family: var(--mono); text-align: right; }
 .depth-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .depth-chip { padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); background: rgba(15,23,42,.9); font-family: var(--mono); font-size: 10px; }
+
+.potential-box { text-align: right; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(56,189,248,.35); background: rgba(56,189,248,.08); }
+.potential-lbl { font-size: 9px; font-weight: 800; letter-spacing: .05em; color: var(--info); text-transform: uppercase; }
+.potential-val { font-size: 16px; font-weight: 800; color: var(--text); }
+.unreal-neutral { color: var(--warn); }
+.stat-badges-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

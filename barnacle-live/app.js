@@ -244,7 +244,13 @@ function renderScoreboard(snap) {
       : fmtUsd(a.net_sell_value_cents / 100);
     const unrealTxt = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
 
-    const netCls = netC > 0 ? 'pos' : netC < 0 ? 'neg' : '';
+    const realizedC = Number(a.realized_net_cents ?? 0);
+    const realCls = realizedC > 0 ? 'pos' : realizedC < 0 ? 'neg' : '';
+    const realRetPct = initC > 0 ? (realizedC / initC) * 100 : 0;
+    const potAllWinC = Number(a.potential_total_all_win_cents ?? ((a.available_cents || 0) + (contractsHeld * 100)));
+    const maxRemPayoutC = Number(a.max_remaining_payout_cents ?? (contractsHeld * 100));
+    const actCount = a.active_open_positions ?? activeHoldings.length;
+    const setCount = a.settling_positions ?? awaitingHoldings.length;
     const titleLabel = isReal
       ? `${a.label} — REAL MONEY`
       : `${a.label.replace(' (Control)', '')} — SIMULATED`;
@@ -366,26 +372,37 @@ function renderScoreboard(snap) {
         <span>· Status: <b>${a.runtime_status || 'ACTIVE'}</b></span>
       </div>
       <div class="eq-row">
-        <span class="eq-val mono">${fmtUsd(eqC / 100)}</span>
-        ${deltaHtml}
+        <div>
+          <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em">Current Account Equity</div>
+          <span class="eq-val mono">${fmtUsd(eqC / 100)}</span>
+          ${deltaHtml}
+        </div>
+        <div class="potential-box" title="Hypothetical maximum if all ${contractsHeld} open contracts win ($1.00/contract) — NOT guaranteed">
+          <div class="potential-lbl">POTENTIAL TOTAL — ALL WIN</div>
+          <div class="potential-val mono">${fmtUsd(potAllWinC / 100)}</div>
+        </div>
       </div>
-      <div class="net-row ${netCls}">
-        <span>Net P&amp;L: ${fmtSignedUsd(netC / 100)}</span>
-        <span class="mono">${fmtSignedPct(retPct)}</span>
+      <div class="net-row ${realCls}">
+        <span>Realized P&amp;L (Settled): <b>${fmtSignedUsd(realizedC / 100)}</b></span>
+        <span class="mono">${fmtSignedPct(realRetPct)}</span>
       </div>
-      <div class="stat-badges">
-        <div class="stat-mini"><div class="lbl">Win / Loss</div><div class="val mono">${a.wins ?? 0}W / ${a.losses ?? 0}L</div></div>
-        <div class="stat-mini"><div class="lbl">Open Pos</div><div class="val mono">${a.open_positions ?? 0}</div></div>
-        <div class="stat-mini"><div class="lbl">Contracts</div><div class="val mono">${contractsHeld}</div></div>
+      <div class="muted" style="font-size:11px;display:flex;justify-content:space-between;gap:6px">
+        <span>Est. Unrealized (Resale):</span>
+        <span class="mono unreal-neutral">${unrealTxt}</span>
+      </div>
+      <div class="stat-badges-4">
+        <div class="stat-mini"><div class="lbl">Open</div><div class="val mono">${actCount}</div></div>
+        <div class="stat-mini"><div class="lbl">Settling</div><div class="val mono">${setCount}</div></div>
+        <div class="stat-mini"><div class="lbl">Settled W</div><div class="val mono pos">${a.wins ?? 0}</div></div>
+        <div class="stat-mini"><div class="lbl">Settled L</div><div class="val mono neg">${a.losses ?? 0}</div></div>
       </div>
       <div class="acct-rows">
-        <span class="k">Starting Balance</span><span class="v">${fmtUsd(initC / 100)}</span>
+        <span class="k">Starting Bankroll</span><span class="v">${fmtUsd(initC / 100)}</span>
         <span class="k">Available Cash</span><span class="v">${fmtUsd((a.available_cents || 0) / 100)}</span>
-        <span class="k">Invested Cost Basis</span><span class="v">${fmtUsd((a.invested_cents || 0) / 100)}</span>
-        <span class="k">Position Market Value</span><span class="v">${posValTxt}</span>
-        <span class="k">Est. Net Sell Value</span><span class="v">${sellTxt}</span>
-        <span class="k">Realized / Unrealized</span><span class="v">${fmtSignedUsd((a.realized_net_cents || 0) / 100)} / ${unrealTxt}</span>
-        <span class="k">Total Fees</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
+        <span class="k">Capital Invested (Cost Basis)</span><span class="v">${fmtUsd((a.invested_cents || 0) / 100)}</span>
+        <span class="k">Max Remaining Payout (${contractsHeld}x)</span><span class="v">${fmtUsd(maxRemPayoutC / 100)}</span>
+        <span class="k">Est. Resale / Liquidation</span><span class="v">${posValTxt} / ${sellTxt}</span>
+        <span class="k">Fees Paid</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
       <details class="pos-details" data-sec="${a.account_id}:active" ${actOpen ? 'open' : ''}>
         <summary><span>1. Active Positions (${activeHoldings.length})</span><span>${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
@@ -884,11 +901,12 @@ function buildStatusReportText(snap) {
     const contractsHeld = acctH.reduce((s, h) => s + Number(h.contracts || 0), 0);
     const unrealStr = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
     const netSellStr = a.net_sell_value_cents == null ? 'UNAVAILABLE' : fmtUsd(a.net_sell_value_cents / 100);
+    const potAllWin = Number(a.potential_total_all_win_cents ?? ((a.available_cents || 0) + (contractsHeld * 100)));
     lines.push(`## ${a.label || a.codename} (${a.codename || 'EXPERIMENT'})`);
     lines.push(`- Status: ${a.runtime_status || 'ACTIVE'} | Mode: ${isReal ? 'REAL MONEY' : 'PAPER SIM'}`);
-    lines.push(`- Starting Bankroll: ${fmtUsd(initC / 100)} | Current Equity: ${fmtUsd(eqC / 100)} | Available Cash: ${fmtUsd((a.available_cents || 0) / 100)} | Invested: ${fmtUsd((a.invested_cents || 0) / 100)}`);
-    lines.push(`- Realized P&L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} | Unrealized P&L: ${unrealStr} | Est. Net Liquidation: ${netSellStr}`);
-    lines.push(`- Completed: ${a.wins ?? 0}W / ${a.losses ?? 0}L (${a.closed_trades ?? 0} settled) | Active Positions: ${actH.length} | Contracts Held: ${contractsHeld}`);
+    lines.push(`- Starting Bankroll: ${fmtUsd(initC / 100)} | Current Equity: ${fmtUsd(eqC / 100)} | Available Cash: ${fmtUsd((a.available_cents || 0) / 100)} | Invested: ${fmtUsd((a.invested_cents || 0) / 100)} | Potential Total (All Win): ${fmtUsd(potAllWin / 100)}`);
+    lines.push(`- Realized P&L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} | Est. Unrealized (Resale): ${unrealStr} | Est. Net Liquidation: ${netSellStr} | Fees Paid: ${fmtUsd((a.fees_cents || 0) / 100)}`);
+    lines.push(`- Open: ${actH.length} | Settling: ${awtH.length} | Settled Wins: ${a.wins ?? 0} | Settled Losses: ${a.losses ?? 0} | Contracts Held: ${contractsHeld}`);
     if (actH.length) {
       lines.push(`### Active Positions`);
       actH.forEach(h => {
