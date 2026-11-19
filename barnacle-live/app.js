@@ -117,7 +117,7 @@ function loadJson(key, fallback) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; }
 }
 function saveJson(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch { }
 }
 
 function getMemoryHist() {
@@ -189,7 +189,7 @@ function renderStatusHeader(snap, connState) {
   const pubSt = snap.publisher_status || 'DISABLED';
   const effState = connState === 'OFFLINE' ? 'OFFLINE'
     : (!pubTs || pubSt === 'DISABLED' || (feedAgeS != null && feedAgeS > 180)) ? 'STALE'
-    : 'ONLINE';
+      : 'ONLINE';
 
   const connPill = $('conn-pill');
   if (effState === 'ONLINE') { connPill.textContent = '● SYSTEM ONLINE'; connPill.className = 'pill ok'; }
@@ -395,13 +395,13 @@ function renderScoreboard(snap, force = false) {
     const posValTxt = a.position_value_cents == null
       ? 'UNAVAILABLE'
       : (a.open_positions > 0 && a.mark_reliable === false)
-      ? `${fmtUsd(a.position_value_cents / 100)} *`
-      : fmtUsd(a.position_value_cents / 100);
+        ? `${fmtUsd(a.position_value_cents / 100)} *`
+        : fmtUsd(a.position_value_cents / 100);
     const sellTxt = a.net_sell_value_cents == null
       ? 'UNAVAILABLE'
       : (a.open_positions > 0 && a.mark_reliable === false && !a.net_sell_value_cents)
-      ? 'UNAVAILABLE'
-      : fmtUsd(a.net_sell_value_cents / 100);
+        ? 'UNAVAILABLE'
+        : fmtUsd(a.net_sell_value_cents / 100);
     const unrealTxt = a.unrealized_pnl_cents == null ? 'UNAVAILABLE' : fmtSignedUsd(a.unrealized_pnl_cents / 100);
 
     const acctHoldings = holdings.filter(h => h.account_id === a.account_id);
@@ -601,6 +601,64 @@ function renderScoreboard(snap, force = false) {
   }
 }
 
+let zeusH2HChart = null;
+
+function renderZeusExecutionComparison(snap) {
+  const cardsEl = $('zeus-h2h-cards');
+  const noteEl = $('zeus-h2h-note');
+  const chartEl = $('zeus-h2h-chart');
+  if (!cardsEl) return;
+  const h2h = snap?.zeus_execution_comparison;
+  if (noteEl && h2h?.modeled_note) noteEl.textContent = h2h.modeled_note;
+
+  const t = h2h?.taker || { label: 'ZEUS-TAKER', available_cash_usd: 100, invested_capital_usd: 0, realized_net_pnl_usd: 0, current_equity_usd: 100, wins: 0, losses: 0, open_orders: 0, unfilled_orders: 0, profit_per_executed_contract: 0, missed_opportunities: 0, executed_contracts: 0, fees_usd: 0 };
+  const m = h2h?.maker || { label: 'ZEUS-MAKER', available_cash_usd: 100, invested_capital_usd: 0, realized_net_pnl_usd: 0, current_equity_usd: 100, wins: 0, losses: 0, open_orders: 0, unfilled_orders: 0, maker_partial_fill_est_qty: 0, maker_partial_fill_est_orders: 0, profit_per_executed_contract: 0, missed_opportunities: 0, executed_contracts: 0, fees_usd: 0, conservative_maker_fees_usd: 0 };
+
+  const fmtUsd = v => `$${Number(v || 0).toFixed(2)}`;
+  const cardHtml = (a, isMaker) => `
+    <div class="acct-card ${isMaker ? 'validation-card' : ''}">
+      <div class="acct-head">
+        <span class="acct-title">${a.label} · $100</span>
+        <span class="tag ${isMaker ? 'warn' : 'validation'}">${isMaker ? 'CONSERVATIVE MODELED MAKER' : 'PAPER TAKER (ZEUS)'}</span>
+      </div>
+      <div class="muted" style="font-size:12px;margin:4px 0 8px">
+        ${isMaker ? 'Resting limit orders · queue-modeled fills (not confirmed exchange fills) · no fallback' : 'Authentic 60s grid · 30s latency · cp_f10 risk · hold-to-settlement'}
+      </div>
+      <div class="acct-metrics" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px">
+        <div><span class="muted">Equity:</span> <b class="mono">${fmtUsd(a.current_equity_usd)}</b></div>
+        <div><span class="muted">Realized Net:</span> <b class="mono ${a.realized_net_pnl_usd >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(a.realized_net_pnl_usd)}</b></div>
+        <div><span class="muted">Available Cash:</span> <b class="mono">${fmtUsd(a.available_cash_usd)}</b></div>
+        <div><span class="muted">Invested:</span> <b class="mono">${fmtUsd(a.invested_capital_usd)}</b></div>
+        <div><span class="muted">Settled W / L:</span> <b class="mono">${a.wins}W / ${a.losses}L</b></div>
+        <div><span class="muted">Open / Unfilled:</span> <b class="mono">${a.open_orders} / ${a.unfilled_orders}</b></div>
+        <div><span class="muted">Profit / Contract:</span> <b class="mono">${fmtSignedUsd(a.profit_per_executed_contract)}</b></div>
+        <div><span class="muted">Missed Opps:</span> <b class="mono">${a.missed_opportunities}</b></div>
+        <div><span class="muted">Executed Qty:</span> <b class="mono">${a.executed_contracts}</b></div>
+        <div><span class="muted">${isMaker ? 'Est. Partial Fills:' : 'Fees:'}</span> <b class="mono">${isMaker ? `${a.maker_partial_fill_est_qty} cts (${a.maker_partial_fill_est_orders})` : fmtUsd(a.fees_usd)}</b></div>
+      </div>
+    </div>`;
+
+  cardsEl.innerHTML = cardHtml(t, false) + cardHtml(m, true);
+
+  if (chartEl && typeof echarts !== 'undefined') {
+    if (!zeusH2HChart) zeusH2HChart = echarts.init(chartEl);
+    const tPts = (h2h?.series?.['ZEUS-TAKER'] || []).map(p => [p.ts * 1000, p.equity_usd]);
+    const mPts = (h2h?.series?.['ZEUS-MAKER'] || []).map(p => [p.ts * 1000, p.equity_usd]);
+    zeusH2HChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['ZEUS-TAKER ($)', 'ZEUS-MAKER (modeled $)'], textStyle: { color: '#94a3b8' } },
+      grid: { left: 52, right: 20, top: 32, bottom: 28 },
+      xAxis: { type: 'time', axisLabel: { color: '#94a3b8' } },
+      yAxis: { type: 'value', scale: true, axisLabel: { color: '#94a3b8', formatter: v => `$${Number(v).toFixed(2)}` }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } } },
+      series: [
+        { name: 'ZEUS-TAKER ($)', type: 'line', showSymbol: tPts.length <= 2, data: tPts, smooth: false, lineStyle: { width: 2, color: '#38bdf8' }, itemStyle: { color: '#38bdf8' } },
+        { name: 'ZEUS-MAKER (modeled $)', type: 'line', showSymbol: mPts.length <= 2, data: mPts, smooth: false, lineStyle: { width: 2, type: 'dashed', color: '#f59e0b' }, itemStyle: { color: '#f59e0b' } },
+      ],
+    }, true);
+  }
+}
+
 function renderWalkForwardResearch(snap) {
   const panel = $('wf-research-panel');
   const body = $('wf-research-body');
@@ -765,8 +823,8 @@ function renderChart(snap, forceToggleRebuild = false) {
   const nowSec = Math.floor(Date.now() / 1000);
   const cutoff = chartRange === '1h' ? nowSec - 3600
     : chartRange === '6h' ? nowSec - 21600
-    : chartRange === '24h' ? nowSec - 86400
-    : 0;
+      : chartRange === '24h' ? nowSec - 86400
+        : 0;
 
   const valOf = (eqC, init) => {
     const pnlC = eqC - init;
@@ -1087,6 +1145,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
   renderScoreboard(snap, force);
+  renderZeusExecutionComparison(snap);
   renderWalkForwardResearch(snap);
   renderChart(snap, force);
   renderHoldings(snap);
@@ -1276,7 +1335,7 @@ function wireControls() {
           ta.select();
           ok = document.execCommand('copy');
           document.body.removeChild(ta);
-        } catch {}
+        } catch { }
       }
       copyBtn.textContent = ok ? '✓ Copied!' : '✗ Copy Failed';
       setTimeout(() => { copyBtn.textContent = '📋 Copy Status Report'; }, 2500);

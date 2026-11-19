@@ -7,9 +7,9 @@
   <title>Barnacle Live Run #001 — Portfolio Analytics</title>
   <meta name="description"
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
-  <link rel="stylesheet" href="styles.css?v=20261119a">
+  <link rel="stylesheet" href="styles.css?v=20261119b">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261119a" defer></script>
+  <script src="app.js?v=20261119b" defer></script>
 </head>
 
 <body>
@@ -40,6 +40,20 @@
     <!-- 1. ACTIVE SCOREBOARD -->
     <section aria-label="Portfolio Scoreboard">
       <div id="scoreboard-grid"></div>
+    </section>
+
+    <!-- 1A. ZEUS EXECUTION COMPARISON ($100 HEAD-TO-HEAD) -->
+    <section id="zeus-h2h-panel" class="panel" aria-label="Zeus Execution Comparison">
+      <div class="panel-head">
+        <div>
+          <h2>ZEUS EXECUTION COMPARISON <span class="count-pill">ZEUS-TAKER vs ZEUS-MAKER · $100 PAPER</span></h2>
+          <p id="zeus-h2h-note" class="muted">Synchronized KXBTC paper comparison. ZEUS-MAKER fills are conservative queue-modeled estimates (no maker-to-taker fallback), not confirmed exchange executions.</p>
+        </div>
+      </div>
+      <div id="zeus-h2h-cards" class="scoreboard-grid"></div>
+      <div class="chart-wrap" style="margin-top:12px">
+        <div id="zeus-h2h-chart" class="echarts-box" style="height:260px"></div>
+      </div>
     </section>
 
     <!-- 1B. DECEMBER 2025 BTC WALK-FORWARD LEARNING RUN -->
