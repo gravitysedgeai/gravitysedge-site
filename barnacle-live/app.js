@@ -1367,20 +1367,22 @@ function renderTrainingCmos(snap) {
 
   if ($('tcmos-reason')) $('tcmos-reason').textContent = `${al.status_reason || 'Idle'} · Heartbeat age: ${al.heartbeat_age_s ?? '–'}s · Op: ${al.operation || 'idle'}`;
   if ($('tcmos-status-pill')) {
-    $('tcmos-status-pill').className = `pill mono ${al.status === 'ERROR' || al.status === 'STALLED' ? 'bad' : (al.status === 'TRAINING' ? 'ok' : 'warn')}`;
-    $('tcmos-status-pill').textContent = al.status || 'IDLE';
+    const blocked = !al.active_model_version && (al.cycles_completed || 0) > 0;
+    $('tcmos-status-pill').className = `pill mono ${blocked || al.status === 'ERROR' || al.status === 'STALLED' ? 'bad' : (al.status === 'TRAINING' ? 'ok' : 'warn')}`;
+    $('tcmos-status-pill').textContent = blocked ? 'PROMOTION BLOCKED' : (al.status || 'IDLE');
   }
-  if ($('tcmos-active-pill')) $('tcmos-active-pill').textContent = `ACTIVE: ${al.active_model_version || '–'}`;
-  if ($('tcmos-best-pill')) $('tcmos-best-pill').textContent = `BEST: ${al.best_model_version || '–'}`;
+  if ($('tcmos-active-pill')) $('tcmos-active-pill').textContent = `ACTIVE ADAPTIVE: ${al.active_model_version || 'NONE (BLOCKED)'}`;
+  if ($('tcmos-best-pill')) $('tcmos-best-pill').textContent = `BEST: ${al.best_model_version || 'NONE'}`;
   if ($('tcmos-challenger-pill')) $('tcmos-challenger-pill').textContent = `CHALLENGER: ${al.latest_challenger_version || '–'}`;
 
   kpis.innerHTML = `
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Active &amp; Best Models</span><span class="tag">${esc(cs.current_month || '–')}</span></div>
-      <div class="mono" style="font-size:13px">Active: <b>${esc(al.active_model_version || '–')}</b></div>
-      <div class="muted mono" style="font-size:12px">Best Validated: ${esc(al.best_model_version || '–')} · Cycles: ${al.cycles_completed || 0}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Verified Training Base</span><span class="tag">D: NVMe</span></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Active &amp; Best Models</span><span class="tag ${al.active_model_version ? 'ok' : 'bad'}">${al.active_model_version ? esc(cs.current_month || '–') : 'PROMOTION BLOCKED'}</span></div>
+      <div class="mono" style="font-size:12px">Deployed Paper (V1): <b>${esc(al.deployed_paper_model_version || 'CMOS-V1 (cmos_model.json)')}</b></div>
+      <div class="mono" style="font-size:12px">Deployed Adaptive: <b>${esc(al.active_model_version || 'NONE (VALIDATION FAILED)')}</b></div>
+      <div class="muted mono" style="font-size:11px">Best Validated: ${esc(al.best_model_version || 'None')} · Cycles: ${al.cycles_completed || 0}</div></div>
+    <div class="acct-card"><div class="acct-head"><span class="acct-title">Candidate vs Selected Calibration</span><span class="tag">D: NVMe</span></div>
       <div class="mono" style="font-size:13px">Obs: <b>${(al.verified_observations || 0).toLocaleString()}</b> · Events: <b>${al.independent_events || 0}</b></div>
-      <div class="muted mono" style="font-size:12px">Calibration Err: ${oos.calibration_err ?? '–'} · Pred vs Actual: ${oos.pred_win_prob ?? '–'} / ${oos.actual_win_prob ?? '–'}</div></div>
+      <div class="muted mono" style="font-size:11px">All-Cand Pred/Act: ${oos.pred_win_prob ?? '–'} / ${oos.actual_win_prob ?? '–'} · Selected: ${oos.selected_pred_win_prob ?? '–'} / ${oos.selected_actual_win_prob ?? '–'}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">OOS Economics &amp; Risk</span><span class="tag">After Fees</span></div>
       <div class="mono" style="font-size:13px">Net P&amp;L: <b>$${(oos.realized_net_pnl_usd ?? 0).toFixed(2)}</b> · Max DD: <b>$${(oos.max_drawdown_usd ?? 0).toFixed(2)}</b></div>
       <div class="muted mono" style="font-size:12px">RAR: ${oos.risk_adjusted_return ?? '–'} · $/Trade: $${(oos.profit_per_trade_usd ?? 0).toFixed(2)} · Turnover: ${oos.capital_turnover ?? '–'}x</div></div>
@@ -1419,19 +1421,26 @@ function renderTrainingCmos(snap) {
 
   const cBody = $('tcmos-checkpoints-body');
   if (cBody) {
-    cBody.innerHTML = (cs.checkpoints || []).map(c => {
+    cBody.innerHTML = (cs.checkpoints || []).slice(0, 40).map(c => {
       const ts = c.created_ts ? new Date(c.created_ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '–';
       const sha = c.checkpoint_sha256 ? esc(String(c.checkpoint_sha256).slice(0, 12)) : '–';
       const isAct = c.deployment_status === 'ACTIVE_PAPER';
+      const vs = String(c.validation_status || '–');
+      const vBadge = vs === 'MODEL_INVALIDATED'
+        ? '<span class="tag bad">MODEL INVALIDATED</span>'
+        : (vs === 'VALIDATION_FAILED' ? '<span class="tag bad">VALIDATION FAILED</span>'
+          : (vs === 'PROMOTION_BLOCKED' ? '<span class="tag warn">PROMOTION BLOCKED</span>' : esc(vs)));
       const btn = isAct
         ? '<span class="tag ok">ACTIVE</span>'
-        : `<button class="toggle-btn tcmos-restore-btn" data-version="${esc(c.version)}" type="button">Restore Checkpoint</button>`;
+        : (vs === 'MODEL_INVALIDATED' || vs === 'VALIDATION_FAILED'
+          ? '<span class="muted mono" style="font-size:11px">Blocked</span>'
+          : `<button class="toggle-btn tcmos-restore-btn" data-version="${esc(c.version)}" type="button">Restore Checkpoint</button>`);
       return `<tr>
         <td class="mono">${esc(c.version)}</td><td class="mono">${ts}</td><td class="mono">${esc(c.training_period || c.month || '–')}</td>
         <td class="mono">${esc(c.training_mode || '–')}</td><td class="mono">${c.independent_events ?? '–'}</td>
         <td class="mono">${c.oos_brier ?? '–'}</td><td class="mono">${c.oos_net_pnl_usd != null ? '$' + Number(c.oos_net_pnl_usd).toFixed(2) : '–'}</td>
         <td class="mono">${c.max_drawdown_usd != null ? '$' + Number(c.max_drawdown_usd).toFixed(2) : '–'}</td>
-        <td class="mono">${esc(c.validation_status || '–')}</td><td class="mono">${esc(c.deployment_status || '–')}</td>
+        <td class="mono">${vBadge}</td><td class="mono">${esc(c.deployment_status || '–')}</td>
         <td class="mono">${sha}</td><td>${btn}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="12" class="muted">No checkpoints created yet.</td></tr>';
@@ -1498,50 +1507,39 @@ function openModal(item) {
 
 function renderHermesSavings(snap) {
   const panel = $('hermes-savings-panel');
-  const kpis = $('hermes-sav-kpis');
-  const charts = $('hermes-sav-charts');
+  const card = $('hermes-sav-card');
+  const chart = $('hermes-sav-chart');
   const txBody = $('hermes-sav-tx-body');
   const txCnt = $('hermes-sav-tx-count');
-  const meta = $('hermes-sav-meta');
-  if (!panel || !kpis) return;
+  if (!panel || !card) return;
   const hs = snap?.hermes_savings;
   if (!hs || !hs.available) {
     panel.style.display = 'none';
     return;
   }
   panel.style.display = 'block';
-  const actStr = hs.activated_ts ? new Date(hs.activated_ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : '–';
-  if (meta) {
-    meta.textContent = `Activated ${actStr} ET · Conservation diff: $${Number(hs.conservation_diff_usd || 0).toFixed(4)} · HERMES-008B $25 & $100 remain unchanged references.`;
-  }
-  const diff = Number(hs.deficit_or_excess_usd || 0);
-  const diffTxt = `${diff >= 0 ? '+' : ''}$${diff.toFixed(2)} ${diff >= 0 ? 'Excess' : 'Deficit'}`;
-  const fmtSigned = v => `${Number(v) >= 0 ? '+' : ''}$${Number(v || 0).toFixed(2)}`;
+  const tot = Number(hs.total_savings_usd || 0);
+  const startTr = Number(hs.starting_savings_transfer_usd || 0);
+  const postAct = Number(hs.post_activation_savings_usd || 0);
+  const target = Number(hs.target_principal_usd || 1000);
 
-  kpis.innerHTML = `
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Trading Bankroll ($1,000 Target)</span><span class="tag">${diffTxt}</span></div>
-      <div class="mono" style="font-size:13px">Trading Equity: <b>$${Number(hs.trading_equity_usd || 0).toFixed(2)}</b> · Cash: <b>$${Number(hs.available_cash_usd || 0).toFixed(2)}</b></div>
-      <div class="muted mono" style="font-size:12px">Target: $${Number(hs.target_principal_usd || 1000).toFixed(2)} · Open Cost (${hs.open_positions || 0}): $${Number(hs.open_cost_usd || 0).toFixed(2)}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Simulated Savings &amp; Combined</span><span class="tag ok">SWEEPS</span></div>
-      <div class="mono" style="font-size:13px">Total Savings: <b>$${Number(hs.total_savings_usd || 0).toFixed(2)}</b> · Combined: <b>$${Number(hs.combined_equity_usd || 0).toFixed(2)}</b></div>
-      <div class="muted mono" style="font-size:12px">Starting Transfer: $${Number(hs.starting_savings_transfer_usd || 0).toFixed(2)} · Earned Since Act: $${Number(hs.post_activation_savings_usd || 0).toFixed(2)}</div>
-      <div class="muted mono" style="font-size:11px">Post-Act Today: $${Number(hs.today_savings_usd || 0).toFixed(2)} · Wk: $${Number(hs.weekly_savings_usd || 0).toFixed(2)} · Mo: $${Number(hs.monthly_savings_usd || 0).toFixed(2)}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Net Trading Results (Periods)</span><span class="tag">Realized</span></div>
-      <div class="mono" style="font-size:13px">Daily: <b>${fmtSigned(hs.daily_net_trading_usd)}</b> · Weekly: <b>${fmtSigned(hs.weekly_net_trading_usd)}</b> · Monthly: <b>${fmtSigned(hs.monthly_net_trading_usd)}</b></div>
-      <div class="muted mono" style="font-size:12px">Since Activation: ${fmtSigned(hs.realized_since_activation_usd)}</div></div>
-    <div class="acct-card"><div class="acct-head"><span class="acct-title">Averages Since Activation</span><span class="tag">Daily Avg</span></div>
-      <div class="mono" style="font-size:13px">Avg Savings/Day: <b>$${Number(hs.avg_daily_savings_usd || 0).toFixed(2)}</b> · Avg Trading/Day: <b>${fmtSigned(hs.avg_daily_trading_net_usd)}</b></div>
-      <div class="muted mono" style="font-size:12px">Initial Eq: $${Number(hs.initial_balances?.equity_usd || 0).toFixed(2)}</div></div>`;
+  card.innerHTML = `
+    <div class="acct-card" style="padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <div style="font-size:22px;font-weight:700" class="mono">HERMES SAVINGS — $${tot.toFixed(2)}</div>
+        <span class="tag ok">SIMULATED SAVINGS LEDGER</span>
+      </div>
+      <div class="muted mono" style="font-size:12px;margin-top:8px;display:flex;gap:18px;flex-wrap:wrap">
+        <span>Initial savings transfer: <b>$${startTr.toFixed(2)}</b></span>
+        <span>Earned since activation: <b>+$${postAct.toFixed(2)}</b></span>
+        <span>Trading bankroll target: <b>$${target.toFixed(0)}</b></span>
+      </div>
+    </div>`;
 
-  if (charts) {
+  if (chart) {
     const ser = hs.cumulative_savings_series || [];
     const savVals = ser.map(p => Number(p.savings_total || 0));
-    const eqVals = ser.map(p => Number(p.trading_equity || 0));
-    const combVals = ser.map(p => Number(p.combined_equity || 0));
-    charts.innerHTML = `
-      <div class="acct-card">${_svgSparkline(savVals, '#22c55e', 'Cumulative Savings ($)', v => '$' + v.toFixed(2))}</div>
-      <div class="acct-card">${_svgSparkline(eqVals, '#38bdf8', 'Trading Bankroll ($)', v => '$' + v.toFixed(2))}</div>
-      <div class="acct-card">${_svgSparkline(combVals, '#a78bfa', 'Combined Equity (Trading + Savings)', v => '$' + v.toFixed(2))}</div>`;
+    chart.innerHTML = `<div class="acct-card">${_svgSparkline(savVals, '#22c55e', 'Simulated Savings Balance Over Time ($)', v => '$' + v.toFixed(2))}</div>`;
   }
 
   const txs = hs.transactions || [];
@@ -1549,12 +1547,12 @@ function renderHermesSavings(snap) {
   if (txBody) {
     txBody.innerHTML = txs.map(t => `<tr>
       <td class="mono">${new Date(t.ts * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' })}</td>
+      <td class="mono">${t.entry_type === 'STARTING_SAVINGS_TRANSFER' ? '<span class="tag">STARTING TRANSFER</span>' : '<span class="tag ok">POST-ACT DEPOSIT</span>'}</td>
       <td class="mono">+$${Number(t.amount_usd || 0).toFixed(2)}</td>
       <td class="mono">$${Number(t.balance_after_usd || 0).toFixed(2)}</td>
       <td class="mono">$${Number(t.trading_equity_after_usd || 0).toFixed(2)}</td>
-      <td class="mono">${fmtSigned(t.settled_net_pnl_snapshot_usd)}</td>
       <td class="mono">${esc((t.linked_position_ids || []).join(', ') || '–')}</td>
-      <td>${t.entry_type === 'STARTING_SAVINGS_TRANSFER' ? '<span class="tag">STARTING TRANSFER</span> ' : ''}${esc(t.detail)}</td>
+      <td>${esc(t.detail)}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="muted">No savings sweeps yet.</td></tr>';
   }
 }

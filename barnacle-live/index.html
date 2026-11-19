@@ -76,24 +76,17 @@
     </section>
 
     <!-- 1B-2. HERMES SAVINGS ($1,000 FIXED-PRINCIPAL PROFIT-SWEEP) -->
-    <section id="hermes-savings-panel" class="panel" aria-label="HERMES Savings Profit-Sweep" style="display:none">
-      <div class="panel-head">
-        <div>
-          <h2>HERMES SAVINGS — $1,000 Fixed-Principal Cash-Flow Experiment</h2>
-          <p id="hermes-sav-meta" class="muted">Verified excess realized net profit above $1,000 target principal is swept into simulated savings. HERMES-008B $25 &amp; $100 remain unchanged references.</p>
-        </div>
-        <span id="hermes-sav-pill" class="pill mono">TARGET: $1,000</span>
-      </div>
-      <div id="hermes-sav-kpis" class="scoreboard-grid" style="margin-top:10px"></div>
-      <div id="hermes-sav-charts" class="scoreboard-grid" style="margin-top:10px"></div>
+    <section id="hermes-savings-panel" class="panel" aria-label="HERMES Savings" style="display:none">
+      <div id="hermes-sav-card"></div>
+      <div id="hermes-sav-chart" style="margin-top:10px"></div>
       <details class="pos-details panel-details" style="margin-top:10px">
         <summary class="panel-summary">
-          <div><h2>Savings Deposit Ledger (Linked to Settled Positions) <span id="hermes-sav-tx-count" class="count-pill">0</span></h2></div>
+          <div><h2>Transaction History <span id="hermes-sav-tx-count" class="count-pill">0</span></h2></div>
           <span class="expand-lbl">▸ Expand</span>
         </summary>
         <div class="table-wrap" style="margin-top:8px">
           <table>
-            <thead><tr><th>Time (ET)</th><th>Sweep Amount</th><th>Savings Balance</th><th>Trading Equity After</th><th>Settled Net P&amp;L</th><th>Linked Position IDs</th><th>Detail</th></tr></thead>
+            <thead><tr><th>Time (ET)</th><th>Type</th><th>Amount</th><th>Savings Balance</th><th>Trading Equity After</th><th>Linked Position IDs</th><th>Detail</th></tr></thead>
             <tbody id="hermes-sav-tx-body"></tbody>
           </table>
         </div>
