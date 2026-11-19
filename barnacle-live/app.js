@@ -1215,7 +1215,19 @@ function renderCmosSync(snap) {
       <div class="muted mono" style="font-size:12px">Reqs: ${cs.api_requests_done || 0} done / ${cs.api_requests_remaining ?? '–'} rem · 429s: ${cs.rate_limit_429_count || 0} · Retries: ${cs.retry_count || 0} · Errs: ${cs.error_count || 0}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Timing &amp; ETA</span><span class="tag">Estimate</span></div>
       <div class="mono" style="font-size:13px">Elapsed: <b>${fmtDur(elapsedS)}</b> · ETA: <b>${etaTxt}</b></div>
-      <div class="muted mono" style="font-size:12px">Downloaded: ${(Number(cs.bytes_downloaded || 0) / (1024 * 1024)).toFixed(2)} MB · Heartbeat cadence: ${cs.heartbeat_interval_s || 10}s</div></div>`;
+      <div class="muted mono" style="font-size:12px">Downloaded: ${(Number(cs.bytes_downloaded || 0) / (1024 * 1024)).toFixed(2)} MB · Heartbeat cadence: ${cs.heartbeat_interval_s || 10}s</div></div>
+    ${(() => {
+      const stg = cs.storage || {};
+      const freeGb = stg.free_gb != null ? Number(stg.free_gb).toFixed(2) : "—";
+      const totGb = stg.total_gb != null ? Number(stg.total_gb).toFixed(0) : "—";
+      const usedMb = stg.cmos_used_mb != null ? Number(stg.cmos_used_mb).toFixed(2) : "—";
+      const tagCls = stg.critical ? "bad" : (stg.low ? "warn" : "ok");
+      const tagTxt = stg.critical ? "CRITICAL" : (stg.low ? "LOW SPACE" : (stg.temp_verified_d ? "D: LOCKED" : "CHECK"));
+      const warnLine = stg.warning ? `<div class="muted mono" style="font-size:12px;color:#f59e0b">${esc(stg.warning)}</div>` : "";
+      return `<div class="acct-card"><div class="acct-head"><span class="acct-title">Storage Safety (D: NVMe)</span><span class="tag ${tagCls}">${tagTxt}</span></div>
+      <div class="mono" style="font-size:13px">Free: <b>${freeGb} GB</b> / ${totGb} GB · CMOS: <b>${usedMb} MB</b></div>
+      <div class="muted mono" style="font-size:12px">Temp/DuckDB/Cache: ${stg.temp_verified_d ? "D:\\BarnacleCore (verified)" : "Pending"}</div>${warnLine}</div>`;
+    })()}`;
 
   if (tlEl) {
     tlEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">` +
