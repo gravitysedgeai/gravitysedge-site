@@ -2323,7 +2323,7 @@ function buildStatusReportSections(snap, nowSec) {
       const tally = {}; cm.components.filter(c => c.view === 'active').forEach(c => { tally[c.status] = (tally[c.status] || 0) + 1; });
       L.push('Statuses: TRADING, EVALUATING, TRAINING, COLLECTING (doing work now); IDLE (running, nothing to do - reason given); BLOCKED (a gate is holding it); STALE (alive but nothing new); STOPPED; ERROR. Enabled is not the same as working.');
       L.push(`Live view: ${order.filter(k => tally[k]).map(k => k + ' ' + tally[k]).join(', ') || 'none'}. Inactive/retired: ${cm.components.filter(c => c.view !== 'active').length}. Generated ${at(cm.generated_ts)}.`, '');
-      const line = c => `- ${c.name} | ${c.status} | ${c.reason || '-'} | last activity: ${c.last_activity_ts ? at(c.last_activity_ts) : 'none observed'}${c.last_activity ? ' (' + c.last_activity + ')' : ''}` +
+      const line = c => `- ${c.name} | ${c.status}${c.integrity ? ' | integrity: ' + integrityLabel(c) : ''} | ${c.reason || '-'} | last activity: ${c.last_activity_ts ? at(c.last_activity_ts) : 'none observed'}${c.last_activity ? ' (' + c.last_activity + ')' : ''}` +
         `${componentProgress(c) ? ' | progress: ' + componentProgress(c) : ''}${c.performance ? ' | result: ' + c.performance : ''}${(c.recent || []).length ? ' | recent: ' + c.recent.join('; ') : ''}`;
       [...new Set(cm.components.filter(c => c.view === 'active').map(c => c.category))].forEach(cat => {
         L.push(`## ${cat} (live view)`);
@@ -2336,6 +2336,21 @@ function buildStatusReportSections(snap, nowSec) {
         ina.forEach(c => L.push(`- ${c.name} | ${c.status} | ${c.category} | ${c.reason || '-'}`));
         L.push('');
       }
+    }
+  }
+  // ===== INTEGRITY & AUTHORIZATION (SENTINEL): alarms and the public audit-ledger anchor, same data as the component rows =====
+  {
+    const sn = snap.components && snap.components.sentinel;
+    L.push('# CATEGORY: INTEGRITY & AUTHORIZATION (SENTINEL; ORIGIN lineage and EQUILIBRIUM contracts are in the same registry)');
+    if (!sn) {
+      L.push('- No integrity registry is published in this snapshot (SENTINEL has no registered components yet or the report could not be built).', '');
+    } else {
+      const al = sn.alarms || [];
+      L.push(`Alarms: ${al.length ? al.length : 'none'}. Statuses: VERIFIED, BLOCKED, UNREGISTERED, MISMATCH, UNRESOLVED, REVOKED, DISCOVERY BYPASS, STALE.`);
+      al.forEach(a => L.push(`- ALARM | ${a.component_id} | ${a.integrity} | ${a.text} | reason class: ${a.reason_class || '-'} | event: ${a.event_ts ? at(a.event_ts) : 'unknown'} | affected: ${a.affected_operation} | last valid state: ${a.last_valid_ts ? at(a.last_valid_ts) : 'none recorded'}`));
+      (sn.components || []).forEach(c => L.push(`- ${c.name} | ${integrityLabel(c)} | enforcing: ${c.enforcing ? 'yes' : 'no (shadow period)'} | last authorized entry: ${c.last_valid_ts ? at(c.last_valid_ts) : 'none'}`));
+      if (sn.ledger) L.push(`- Audit ledger anchor | chain ${sn.ledger.chain_ok ? 'VERIFIED' : 'FAILED VERIFICATION'} | sequence ${sn.ledger.ledger_seq} | head ${sn.ledger.head_hash} | snapshot ${at(sn.ledger.snapshot_ts)} | ledger id ${sn.ledger.ledger_id} (tamper-evident reference, not proof against an actor who controls both the ledger and the anchors)`);
+      L.push('');
     }
   }
   return L;
@@ -2447,6 +2462,12 @@ function componentAgo(ts, nowSec) {
   const sec = Math.max(0, nowSec - ts);
   return (sec < 90 ? Math.round(sec) + ' s' : sec < 5400 ? Math.round(sec / 60) + ' min' : sec < 172800 ? (sec / 3600).toFixed(1) + ' h' : (sec / 86400).toFixed(1) + ' days') + ' ago';
 }
+// SENTINEL integrity label: text + symbol + shape (never colour alone). Public-safe fields only.
+function integrityLabel(c) {
+  if (!c || !c.integrity) return '';
+  const sym = ({ VERIFIED: '✔ VERIFIED', VERIFIED_PARTIAL: '✔* VERIFIED (declared dynamic inputs not hashed)', UNREGISTERED: '⚠ UNREGISTERED', BLOCKED: '✖ BLOCKED', REVOKED: '✖ REVOKED', MISMATCH: '⚠ MISMATCH', UNRESOLVED: '? UNRESOLVED', DISCOVERY_BYPASS: '⚠ DISCOVERY BYPASS' })[c.integrity] || c.integrity;
+  return sym + (c.verification_id ? ' · id ' + c.verification_id : '') + (c.version_label ? ' · ' + c.version_label : '');
+}
 function componentProgress(c) {
   if (c.work == null) return '';
   const label = c.work_label || 'units';
@@ -2468,6 +2489,7 @@ function opsStrip(snap, cid) {
   const reasonShown = c.status === 'TRADING' || c.status === 'COLLECTING' || c.status === 'EVALUATING' || c.status === 'TRAINING' ? '' : c.reason;
   return `<div class="ops-strip" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:11px;margin:6px 0;padding:5px 8px;border:1px solid rgba(148,163,184,.25);border-radius:6px">
       <span class="tag ${componentTagClass(c.status)}">${esc(c.status)}</span>
+      ${c.integrity ? `<span class="mono">${esc(integrityLabel(c))}</span>` : ''}
       <span class="mono">last activity: ${esc(componentAgo(c.last_activity_ts, nowSec))}${c.last_activity ? ' &middot; ' + esc(c.last_activity) : ''}</span>
       ${prog ? `<span class="muted mono">${esc(prog)}</span>` : ''}
       ${reasonShown ? `<span class="muted" style="flex-basis:100%">${esc(reasonShown)}</span>` : ''}
@@ -2492,7 +2514,7 @@ function renderComponents(snap) {
   const chips = order.filter(k => cnt[k]).map(k => `<span class="tag ${componentTagClass(k)}" title="${esc(k)}">${esc(k)} ${cnt[k]}</span>`).join(' ');
   const cats = [...new Set(act.map(c => c.category))];
   const row = c => `<tr><td><span class="tag ${componentTagClass(c.status)}">${esc(c.status)}</span></td>
-      <td><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${esc(c.kind || '')}</div></td>
+      <td><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${esc(c.kind || '')}</div>${c.integrity ? '<div class="mono" style="font-size:11px;border:1px solid currentColor;display:inline-block;padding:1px 5px;margin-top:3px">' + esc(integrityLabel(c)) + '</div>' : ''}</td>
       <td style="font-size:12px">${esc(c.reason || '')}</td>
       <td class="mono" style="font-size:12px">last: ${esc(componentAgo(c.last_activity_ts, nowSec))}${c.last_activity ? '<div class="muted">' + esc(c.last_activity) + '</div>' : ''}${componentProgress(c) ? '<div class="muted">' + esc(componentProgress(c)) + '</div>' : ''}</td>
       <td style="font-size:12px">${esc(c.performance || '')}${(c.recent || []).length ? '<details><summary class="muted">recent</summary>' + c.recent.map(r => '<div>' + esc(r) + '</div>').join('') + '</details>' : ''}</td></tr>`;
