@@ -1934,6 +1934,8 @@ function buildStatusReportText(snap) {
     `Generated: ${fmtEt(nowSec)}`,
     `Data Timestamp: ${fmtEt(pubTs)} (${ageS != null ? ageS + 's old' : 'freshness UNAVAILABLE'})`,
     ``,
+    `# CATEGORY: TRADING ACCOUNTS (REAL MONEY and PAPER SIM)`,
+    ``,
   ];
   accts.forEach(a => {
     const isReal = accountGroupOf(a) === 'live';
@@ -1947,7 +1949,7 @@ function buildStatusReportText(snap) {
     const netSellStr = a.net_sell_value_cents == null ? 'UNAVAILABLE' : fmtUsd(a.net_sell_value_cents / 100);
     const potAllWin = Number(a.potential_total_all_win_cents ?? ((a.available_cents || 0) + (contractsHeld * 100)));
     lines.push(`## ${a.label || a.codename} (${a.codename || 'EXPERIMENT'})`);
-    lines.push(`- Status: ${a.runtime_status || 'ACTIVE'} | Mode: ${isReal ? 'REAL MONEY' : 'PAPER SIM'}`);
+    lines.push(`- Status: ${reportStatus(a.runtime_status)} | Mode: ${isReal ? 'REAL MONEY' : 'PAPER SIM'}`);
     lines.push(`- Starting Bankroll: ${fmtUsd(initC / 100)} | Current Equity: ${fmtUsd(eqC / 100)} | Available Cash: ${fmtUsd((a.available_cents || 0) / 100)} | Invested: ${fmtUsd((a.invested_cents || 0) / 100)} | Potential Total (All Win): ${fmtUsd(potAllWin / 100)}`);
     lines.push(`- Realized P&L: ${fmtSignedUsd((a.realized_net_cents || 0) / 100)} | Est. Unrealized (Resale): ${unrealStr} | Est. Net Liquidation: ${netSellStr} | Fees Paid: ${fmtUsd((a.fees_cents || 0) / 100)}`);
     lines.push(`- Open: ${actH.length} | Settling: ${awtH.length} | Settled Wins: ${a.wins ?? 0} | Settled Losses: ${a.losses ?? 0} | Contracts Held: ${contractsHeld}`);
@@ -1970,7 +1972,169 @@ function buildStatusReportText(snap) {
     }
     lines.push('');
   });
-  return lines.join('\n');
+  return lines.concat(buildStatusReportSections(snap, nowSec)).join('\n');
+}
+
+// Status vocabulary shared by every report section: ACTIVE, PAUSED, RETIRED, TRAINING, BLOCKED, INACTIVE; STALE/UNKNOWN when freshness/data is missing.
+function reportStatus(raw) {
+  const u = String(raw == null ? '' : raw).trim().toUpperCase();
+  if (!u) return 'UNKNOWN';
+  if (['ACTIVE', 'RUNNING', 'LIVE'].includes(u)) return 'ACTIVE';
+  if (['STOPPED', 'DISABLED', 'IDLE', 'NOT_REGISTERED'].includes(u)) return 'INACTIVE';
+  if (['HALTED', 'FAILED', 'ERROR'].includes(u)) return 'BLOCKED';
+  return u;
+}
+function reportLiveStatus(alive, tsSec, staleS, onLabel, nowSec) {
+  if (alive == null) return 'UNKNOWN';
+  if (!alive) return 'INACTIVE';
+  if (tsSec == null) return 'UNKNOWN';
+  return (nowSec - tsSec) > staleS ? 'STALE' : (onLabel || 'ACTIVE');
+}
+
+// Everything the site shows outside three_accounts, written from the same snapshot keys the panels read (no second data path).
+function buildStatusReportSections(snap, nowSec) {
+  const L = [];
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const at = t => (t ? `${fmtEt(t)} (${ago(t)})` : 'UNKNOWN (no timestamp)');
+  const usd = v => (v == null ? 'UNAVAILABLE' : fmtSignedUsd(Number(v)));
+  const cash = v => (v == null ? 'UNAVAILABLE' : fmtUsd(Number(v)));
+  const n0 = v => (v == null ? 'UNAVAILABLE' : Number(v).toLocaleString());
+  const pl = snap.paper_lab, lp = pl && pl.live_paper, svc = (pl && pl.forward_service) || {};
+  const fwdTick = svc.last_tick_ts || null;
+  const fwdSt = reportLiveStatus(fwdTick != null, fwdTick, 300, 'ACTIVE', nowSec);
+  const os = snap.os_services || {};
+  const osRow = k => os[k] || null;
+
+  L.push('---', '# STATUS LEGEND',
+    'States: ACTIVE, PAUSED, RETIRED, TRAINING, BLOCKED, INACTIVE; STALE = reporting but not updated recently; UNKNOWN = no data published. Nothing is omitted when data is missing.',
+    'Result kinds: REAL MONEY (live account), LIVE PAPER (forward paper, simulated fills), SHADOW / MODELED (not exchange-confirmed), HISTORICAL REPLAY / HISTORICAL ANALYSIS (past data, never trading performance).',
+    'Sections below use the same snapshot keys as the website panels. A system missing from a section is not published to the relay, which does not mean it is stopped; unpublished systems are listed as UNKNOWN.', '');
+
+  // ---- Paper forward accounts / experiments
+  L.push('# CATEGORY: PAPER FORWARD EXPERIMENTS (LIVE PAPER, NO REAL MONEY)');
+  if (!lp) {
+    L.push('- paper_lab: UNKNOWN (not published in this snapshot)', '');
+  } else {
+    const T = lp.totals || {};
+    L.push(`- Forward paper service: ${fwdSt} | last tick: ${at(fwdTick)} | ticks: ${n0(svc.ticks)} | errors: ${n0(svc.errors)}`);
+    L.push(`- Totals: ${n0(T.accounts)} accounts (${n0(T.active_accounts)} active), ${n0(T.open_positions)} open positions, ${n0(T.closed_trades)} closed trades`);
+    L.push('### Experiments');
+    (lp.experiments || []).forEach(e => {
+      const st = reportStatus(e.status);
+      const eff = st === 'ACTIVE' && fwdSt !== 'ACTIVE' ? fwdSt : st;
+      L.push(`- ${e.name || e.id} [${e.id}] | ${eff} | accounts ${e.active_accounts}/${e.accounts} active | Bankroll ${cash(e.bankroll)} | Equity ${cash(e.equity)} | Realized ${usd(e.realized_pnl)} | Open ${n0(e.open_positions)} | Closed ${n0(e.closed_trades)} | Win rate ${e.win_rate == null ? 'UNAVAILABLE' : (e.win_rate * 100).toFixed(0) + '%'} | LIVE PAPER`);
+    });
+    const ALIAS = { xp_b8f53a9912: 'ZEUS-001' };
+    const named = (lp.accounts || []).filter(a => ALIAS[a.strategy]);
+    L.push('### Named strategy accounts');
+    if (!named.length) L.push('- ZEUS-001: UNKNOWN (strategy xp_b8f53a9912 not present in published accounts)');
+    named.forEach(a => {
+      const st = reportStatus(((lp.experiments || []).find(e => e.id === a.experiment) || {}).status);
+      const eff = st === 'ACTIVE' && fwdSt !== 'ACTIVE' ? fwdSt : st;
+      L.push(`- ${ALIAS[a.strategy]} (${a.strategy} v${a.version}, ${a.experiment}) | ${eff} | Bankroll ${cash(a.bankroll)} | Cash ${cash(a.cash)} | Equity ${cash(a.equity)} | Realized ${usd(a.realized_pnl)} | Open ${n0(a.open_positions)} | Closed ${n0(a.closed_trades)} (wins ${n0(a.wins)}) | Last activity: ${at(a.last_activity_ts)} | LIVE PAPER`);
+    });
+    const z = snap.zeus_execution_comparison;
+    L.push('### ZEUS Maker vs Taker head-to-head ($100 each)');
+    if (!z) L.push('- UNKNOWN (zeus_execution_comparison not published)');
+    else {
+      const series = z.series || {};
+      const lastTs = lbl => { const a = series[lbl]; return a && a.length ? a[a.length - 1].ts : null; };
+      const runner = osRow('zeus_head_to_head');
+      [['taker', 'ZEUS-TAKER', 'LIVE PAPER (simulated taker fills, forward store)'], ['maker', 'ZEUS-MAKER', 'MODELED SHADOW (queue-modeled maker fills, not exchange-confirmed)']].forEach(([k, lbl, kind]) => {
+        const a = z[k];
+        if (!a) { L.push(`- ${lbl}: UNKNOWN (not published)`); return; }
+        const t = lastTs(lbl);
+        let st;
+        if (k === 'maker') st = runner && runner.alive === false ? 'INACTIVE' : (runner && runner.alive ? reportLiveStatus(true, t, 900, 'ACTIVE', nowSec) : 'UNKNOWN');
+        else st = fwdSt;
+        const why = k === 'maker' && runner && runner.alive === false ? ' | maker runner process not running; figures frozen at last update' : '';
+        L.push(`- ${lbl} | ${st} | ${a.execution_mode} | Start ${cash(a.starting_bankroll_usd)} | Equity ${cash(a.current_equity_usd)} | Cash ${cash(a.available_cash_usd)} | Realized ${usd(a.realized_net_pnl_usd)} (${a.return_pct == null ? 'UNAVAILABLE' : Number(a.return_pct).toFixed(2) + '%'}) | W/L ${a.wins}/${a.losses} | Executed contracts ${n0(a.executed_contracts)} | Unfilled ${n0(a.unfilled_orders)} | Fees ${cash(a.fees_usd)} | Last update: ${at(k === 'taker' ? fwdTick : t)} (${k === 'taker' ? 'forward store tick' : 'maker runner sample'}); comparison chart last sample ${at(t)} | ${kind}${why}`);
+      });
+      L.push(`- Note: ${z.modeled_note || 'ZEUS-MAKER fills are modeled estimates.'}`);
+    }
+    const rx = pl.resting_exits;
+    L.push('### Resting sell-order execution experiment (live paper)');
+    if (!rx) L.push('- UNKNOWN (resting_exits not published)');
+    else {
+      const bs = Object.entries(rx.by_status || {}).map(([k, v]) => `${k} ${n0(v)}`).join(', ') || 'none';
+      const ev = Object.entries(rx.evidence_status || {}).map(([k, v]) => `${k} ${n0(v)}`).join(', ') || 'none';
+      L.push(`- ${fwdSt} | orders posted ${n0(rx.orders_total)} (${bs}) | open now ${n0(rx.open_now)} | fills credited ${n0(rx.fills_total)} | first fill: ${at(rx.first_fill_ts)} | evidence: ${ev}`);
+      L.push(`- ${rx.note || 'Fills credited only on verified recorded-trade evidence.'}`);
+    }
+    L.push('');
+  }
+
+  // ---- Adaptive training
+  L.push('# CATEGORY: ADAPTIVE TRAINING / MODEL LEARNING');
+  const cs = snap.cmos_sync;
+  if (!cs || cs.available === false) L.push('- CMOS Progressive / Adaptive: UNKNOWN (cmos_sync not published)');
+  else {
+    const al = cs.adaptive_learning || {};
+    const alive = cs.worker_pid_alive === undefined ? null : !!cs.worker_pid_alive;
+    const hb = cs.heartbeat_ts || null;
+    let syncSt = reportLiveStatus(alive, hb, Math.max(60, 6 * Number(cs.heartbeat_interval_s || 10)), 'ACTIVE', nowSec);
+    if (syncSt === 'ACTIVE' && /train/i.test(String(al.operation || ''))) syncSt = 'TRAINING';
+    L.push(`- CMOS Progressive (historical recovery + monthly training worker) | ${syncSt} | reported status ${cs.status || 'UNKNOWN'}${cs.status_reason ? ' - ' + cs.status_reason : ''} | operation ${cs.operation || 'UNKNOWN'} | month ${cs.current_month || 'UNKNOWN'} (${cs.current_month_pct == null ? 'UNAVAILABLE' : cs.current_month_pct + '%'}) | last heartbeat ${at(hb)} | records verified ${n0(cs.records_verified)} / expected ${n0(cs.records_expected)} | errors ${n0(cs.error_count)} | HISTORICAL DATA RECOVERY (not trading)`);
+    const alSt = (syncSt === 'INACTIVE' || syncSt === 'UNKNOWN' || syncSt === 'STALE') ? syncSt : (/train/i.test(String(al.operation || '')) ? 'TRAINING' : 'ACTIVE');
+    L.push(`- CMOS Adaptive learning loop | ${alSt} | ${al.status || 'UNKNOWN'} / ${al.operation || 'UNKNOWN'}${al.status_reason ? ' - ' + al.status_reason : ''} | cycles ${n0(al.cycles_completed)} | models tested ${n0(al.models_tested)} / promoted ${n0(al.models_promoted)} / rejected ${n0(al.models_rejected)} | independent events ${n0(al.independent_events)} (next trigger in ${n0(al.next_trigger_events)}) | latest challenger ${al.latest_challenger_version || 'none'} | last cycle ${at(al.last_cycle_ts)} | last heartbeat ${at(al.heartbeat_ts || hb)} | HISTORICAL TRAINING (not trading)`);
+    L.push(`- CMOS-V1 deployed paper model: ${al.deployed_paper_model_version || 'UNKNOWN'} | adaptive model deployed to paper: ${al.deployed_adaptive_model_version || 'NONE'} | auto-promotion ${al.auto_promotion_enabled ? 'enabled' : 'disabled'} | paper auto-reload ${al.paper_auto_reload_enabled ? 'enabled' : 'disabled'} | last error ${al.last_error || 'none'}`);
+    const ev = al.eval && al.eval.train;
+    if (ev) L.push(`- Latest training evaluation (historical, not trading): ${n0(ev.trades)} trades, win rate ${ev.win_rate == null ? 'UNAVAILABLE' : (ev.win_rate * 100).toFixed(1) + '%'}, net ${usd(ev.realized_net_pnl_usd)}, max drawdown ${cash(ev.max_drawdown_usd)}`);
+  }
+  const mi = snap.model_isolation;
+  if (mi) Object.entries(mi).forEach(([k, v]) => { if (v && v.classification) L.push(`- Model isolation - ${k}: ${v.classification}${v.consumes_cmos === false ? ' (does not consume CMOS)' : ''}`); });
+  L.push('');
+
+  // ---- Data collection / services
+  L.push('# CATEGORY: DATA COLLECTION & SERVICES');
+  const SVC = { cmos_progressive: 'CMOS Progressive worker', live_money_worker: 'Live-money worker / publisher (real-money lane stays DISARMED unless the account section says otherwise)', fwd_serve: 'Forward paper evaluator (fwd serve)', zeus_head_to_head: 'ZEUS head-to-head maker runner', cmos_paper_runner: 'CMOS paper runner (legacy standalone script)', ws_critical: 'WebSocket critical-feed collector', dashboard: 'Local dashboard' };
+  if (!Object.keys(os).length) L.push('- os_services: UNKNOWN (not published)');
+  Object.keys(SVC).forEach(k => {
+    const o = osRow(k);
+    if (!o) { L.push(`- ${SVC[k]}: UNKNOWN (not reported)`); return; }
+    const st = o.alive === null || o.alive === undefined ? 'UNKNOWN' : (o.alive ? 'ACTIVE' : 'INACTIVE');
+    L.push(`- ${SVC[k]} | ${st}${o.alive ? ` | pid ${o.pid} | running since ${fmtEt(o.start_ts)}` : ''} | process scan at snapshot time`);
+  });
+  if (cs && cs.available !== false) {
+    L.push(`- Historical API recovery: ${n0(cs.api_requests_done)} API requests done, ${n0(cs.contracts_done)}/${n0(cs.contracts_total)} contracts, ${cs.bytes_downloaded == null ? 'UNAVAILABLE' : (cs.bytes_downloaded / 1e6).toFixed(1) + ' MB'} downloaded, ${n0(cs.rate_limit_429_count)} rate-limit responses, ${n0(cs.retry_count)} retries | last download ${at(cs.last_download_ts)} | last commit ${at(cs.last_commit_ts)}`);
+    if (cs.storage) L.push(`- Storage (${cs.storage.drive || 'drive UNKNOWN'}): ${cs.storage.free_gb == null ? 'UNAVAILABLE' : cs.storage.free_gb + ' GB free'} of ${cs.storage.total_gb == null ? 'UNAVAILABLE' : cs.storage.total_gb} GB${cs.storage.critical ? ' - CRITICAL' : ''}${cs.storage.warning ? ' - ' + cs.storage.warning : ''}`);
+  }
+  L.push('- Other collectors (micro-record order books, market catalog, trade evidence, BTC reference feeds, weather): UNKNOWN - not published to the relay; see the local Info Center for those.', '');
+
+  // ---- Research experiments (not trading)
+  L.push('# CATEGORY: RESEARCH EXPERIMENTS (SHADOW / HISTORICAL, NOT TRADING PERFORMANCE)');
+  const hs = snap.hunter_shadow;
+  if (!hs) L.push('- Hunter shadow: UNKNOWN (not published)');
+  else {
+    const st = hs.status || {};
+    const hsSt = st.process_running == null ? 'UNKNOWN' : (!st.process_running ? 'INACTIVE' : (st.stale ? 'STALE' : 'ACTIVE'));
+    const lv = hs.live || {};
+    L.push(`- Hunter shadow search | ${hsSt} | ${st.label || 'UNKNOWN'} | last heartbeat ${at(st.heartbeat_ts)} | results generated ${at(hs.generated_ts)} | contracts examined ${n0(lv.contracts_examined)} / meets price rules ${n0(lv.meets_price_requirements)} / meets profitability rules ${n0(lv.meets_profitability_requirements)} | SHADOW SEARCH + HISTORICAL REPLAY (no orders)`);
+  }
+  if (!pl) L.push('- Execution sandbox replay / calibration: UNKNOWN (paper_lab not published)');
+  else {
+    const sb = pl.sandbox_replay;
+    if (!sb) L.push('- Execution sandbox replay: UNKNOWN (no results published)');
+    else {
+      L.push(`- Execution sandbox replay | HISTORICAL REPLAY | results generated ${at(sb.generated_ts)} | ${sb.scope || ''}`);
+      Object.entries(sb.runs || {}).forEach(([q, run]) => (run.variants || []).forEach(v => L.push(`  - ${q}/${v.variant}: start ${cash(v.start_cash)} -> equity ${cash(v.equity_marked)} | net (replay) ${usd(v.realized_net)} | entries filled ${n0(v.entries_filled)} | exits filled ${n0(v.exits_filled)} | capital recycling events ${n0(v.capital_recycling_events)} | cash conservation ${v.conservation_audit_ok ? 'OK' : 'AUDIT FAILED'}`)));
+      if (sb.note) L.push(`  - ${sb.note}`);
+    }
+    const cal = pl.calibration;
+    if (!cal) L.push('- Calibration layer: UNKNOWN (no results published)');
+    else {
+      L.push(`- Calibration layer | HISTORICAL ANALYSIS | results generated ${at(cal.generated_ts)} | ${cal.scope || ''} | entries ${n0(cal.entries)}`);
+      (cal.exit_policies || []).forEach(x => L.push(`  - exit policy ${x.policy}: ${n0(x.entries)} entries, mean net/contract ${x.mean_net_per_contract == null ? 'UNAVAILABLE' : Number(x.mean_net_per_contract).toFixed(4)}, net per capital-hour ${x.net_per_capital_hour == null ? 'UNAVAILABLE' : Number(x.net_per_capital_hour).toFixed(5)}`));
+    }
+  }
+  const wf = snap.walk_forward_research;
+  if (!wf) L.push('- Walk-forward research: UNKNOWN (not published)');
+  else Object.entries(wf).forEach(([k, v]) => { const o = (v && v.oos_weeks_2_to_5) || {}; L.push(`- Walk-forward ${k} | ARCHIVED HISTORICAL RESEARCH | ${(v && v.execution_model) || 'UNKNOWN model'} | OOS weeks 2-5: baseline ${usd(o.baseline_net_pnl)} vs learned ${usd(o.learned_net_pnl)} (from $100)`); });
+  const hv = snap.hermes_savings;
+  if (!hv || hv.available === false) L.push('- HERMES savings sweep: UNKNOWN (not published)');
+  else L.push(`- HERMES savings sweep (paper account) | since ${fmtEt(hv.activated_ts)} | trading equity ${cash(hv.trading_equity_usd)} | savings ${cash(hv.total_savings_usd)} | combined ${cash(hv.combined_equity_usd)} | realized since activation ${usd(hv.realized_since_activation_usd)} | PAPER`);
+  L.push('', `Report sections generated from snapshot published ${at(snap.published_ts)}.`);
+  return L;
 }
 
 function wireControls() {
