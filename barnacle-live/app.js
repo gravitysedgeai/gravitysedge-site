@@ -1329,6 +1329,17 @@ function _svgSparkline(vals, color, label, fmtFn) {
     <div class="muted mono" style="font-size:11px">Min: ${fmtFn(mn)} · Max: ${fmtFn(mx)} (${vals.length} ckpts)</div>`;
 }
 
+// Counts promotions by the checkpoint's CURRENT validation status, so invalidated historical promotions are never shown as valid models.
+function cmosPromotionSummary(cs) {
+  const al = (cs && cs.adaptive_learning) || {};
+  const ck = (cs && cs.checkpoints) || [];
+  if (!ck.length) return { known: false, historical: al.models_promoted || 0, validNow: null, invalidated: null, failed: null, text: `${al.models_promoted || 0} promoted (validity UNKNOWN: no checkpoint list)` };
+  const invalidated = ck.filter(c => c.validation_status === 'MODEL_INVALIDATED').length;
+  const failed = ck.filter(c => c.validation_status === 'VALIDATION_FAILED').length;
+  const validNow = ck.filter(c => c.validation_status === 'PROMOTED' && c.deployment_status !== 'SUPERSEDED_INVALID').length;
+  return { known: true, historical: al.models_promoted || 0, validNow, invalidated, failed, text: `${validNow} currently valid (${invalidated} historical promotions invalidated, ${failed} failed validation)` };
+}
+
 function renderAdaptiveTrackB(cs) {
   const al = cs?.adaptive_learning || {};
   const kpis = $('cmos-sync-adaptive-kpis');
@@ -1361,7 +1372,7 @@ function renderAdaptiveTrackB(cs) {
       <div class="mono" style="font-size:13px">Brier: <b>${oos.brier_score ?? '–'}</b> · LogLoss: <b>${oos.log_loss ?? '–'}</b> · Net: <b>$${(oos.realized_net_pnl_usd ?? 0).toFixed(2)}</b></div>
       <div class="muted mono" style="font-size:12px">Exp: $${(oos.expected_net_pnl_usd ?? 0).toFixed(2)} · W/L: ${oos.wins || 0}/${oos.losses || 0} · DD: $${(oos.max_drawdown_usd ?? 0).toFixed(2)} · ΔPnL: ${dlt.net_pnl_delta_usd != null ? (dlt.net_pnl_delta_usd >= 0 ? '+' : '') + '$' + dlt.net_pnl_delta_usd.toFixed(2) : '–'}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Challenger Gate &amp; Paper</span><span class="tag">Separated</span></div>
-      <div class="mono" style="font-size:13px">Tested: <b>${al.models_tested || 0}</b> · Promoted: <b>${al.models_promoted || 0}</b> · Rejected: <b>${al.models_rejected || 0}</b></div>
+      <div class="mono" style="font-size:13px">Tested: <b>${al.models_tested || 0}</b> · Currently valid: <b>${cmosPromotionSummary(cs).validNow ?? '?'}</b> · Invalidated: <b>${cmosPromotionSummary(cs).invalidated ?? '?'}</b> · Failed: <b>${cmosPromotionSummary(cs).failed ?? '?'}</b></div>
       <div class="muted mono" style="font-size:12px">Prospective Paper: ${pp.trades || 0} trades · Net $${(pp.net_pnl_usd || 0).toFixed(2)} · Open ${pp.open_positions || 0}</div></div>`;
 }
 
@@ -1425,7 +1436,7 @@ function renderTrainingCmos(snap) {
       <div class="muted mono" style="font-size:12px">RAR: ${oos.risk_adjusted_return ?? '–'} · $/Trade: $${(oos.profit_per_trade_usd ?? 0).toFixed(2)} · Turnover: ${oos.capital_turnover ?? '–'}x</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Δ vs Previous Checkpoint</span><span class="tag">Gate</span></div>
       <div class="mono" style="font-size:13px">ΔBrier: <b>${dlt.brier_delta ?? '–'}</b> · ΔPnL: <b>${dlt.net_pnl_delta_usd != null ? (dlt.net_pnl_delta_usd >= 0 ? '+' : '') + '$' + dlt.net_pnl_delta_usd.toFixed(2) : '–'}</b></div>
-      <div class="muted mono" style="font-size:12px">Tested: ${al.models_tested || 0} · Promoted: ${al.models_promoted || 0} · Rejected: ${al.models_rejected || 0}</div></div>`;
+      <div class="muted mono" style="font-size:12px">Tested: ${al.models_tested || 0} · Currently valid: ${cmosPromotionSummary(cs).validNow ?? '?'} · Invalidated: ${cmosPromotionSummary(cs).invalidated ?? '?'} · Failed: ${cmosPromotionSummary(cs).failed ?? '?'}</div></div>`;
 
   if ($('tcmos-ckpt-count-pill')) $('tcmos-ckpt-count-pill').textContent = `${(cs.checkpoints || []).length} checkpoints`;
 
@@ -1721,7 +1732,7 @@ function renderCmosPortfolioPanel(snap) {
       <div class="mono" style="font-size:12px">Month <b>${esc(cs.current_month || '–')}</b>: ${cs.contracts_done || 0} completed (${cs.workload_discovered ? `${cs.contracts_total} total` : 'discovering total…'})</div>
       <div class="muted mono" style="font-size:11px">Training: ${esc(al.status || 'IDLE')} · Cycles: ${al.cycles_completed || 0} · Events: ${al.independent_events || 0}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Model &amp; Validation Gate</span><span class="tag ${valCls}">${valTxt}</span></div>
-      <div class="mono" style="font-size:12px">Latest Challenger: <b>${esc(al.latest_challenger_version || '–')}</b> · Validated: <b>${al.models_promoted || 0}</b></div>
+      <div class="mono" style="font-size:12px">Latest Challenger: <b>${esc(al.latest_challenger_version || '–')}</b> · Currently valid: <b>${cmosPromotionSummary(cs).validNow ?? '?'}</b></div>
       <div class="muted mono" style="font-size:11px">Latest OOS: Brier ${oos.brier_score ?? '–'} · Net $${oos.realized_net_pnl_usd != null ? Number(oos.realized_net_pnl_usd).toFixed(2) : '–'} · ${esc(al.status_reason || '–')}</div></div>
     <div class="acct-card"><div class="acct-head"><span class="acct-title">Paper Isolation</span><span class="tag">${esc(ap.status || 'PREPARED_INACTIVE')}</span></div>
       <div class="mono" style="font-size:12px">Adaptive Paper (<code>cmos_adaptive_100</code>): <b>${esc(ap.status || 'PREPARED_INACTIVE')}</b> ($${Number(ap.bankroll_usd || 100).toFixed(0)})</div>
@@ -1860,6 +1871,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderHermesSavings(snap);
   renderHunterShadow(snap);
   renderPaperLab(snap);
+  renderCollectors(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
@@ -2045,9 +2057,12 @@ function buildStatusReportSections(snap, nowSec) {
         if (!a) { L.push(`- ${lbl}: UNKNOWN (not published)`); return; }
         const t = lastTs(lbl);
         let st;
-        if (k === 'maker') st = runner && runner.alive === false ? 'INACTIVE' : (runner && runner.alive ? reportLiveStatus(true, t, 900, 'ACTIVE', nowSec) : 'UNKNOWN');
+        if (k === 'maker') st = runner && runner.alive === false ? 'INACTIVE' : (runner && runner.alive ? reportLiveStatus(true, t, 180, 'ACTIVE', nowSec) : 'UNKNOWN');
         else st = fwdSt;
-        const why = k === 'maker' && runner && runner.alive === false ? ' | maker runner process not running; figures frozen at last update' : '';
+        const lastQual = (z.recent_orders && z.recent_orders[0] && z.recent_orders[0].decision_ts) || null;
+        const why = k !== 'maker' ? '' : (runner && runner.alive === false ? ' | maker runner process not running; figures frozen at last update'
+          : st === 'ACTIVE' ? ` | runner cycling (chart sample ${ago(t)}); idle until the next qualifying ZEUS decision, last one ${at(lastQual)}`
+          : st === 'STALE' ? ' | runner process present but NOT cycling (no recent sample): possible disconnect' : '');
         L.push(`- ${lbl} | ${st} | ${a.execution_mode} | Start ${cash(a.starting_bankroll_usd)} | Equity ${cash(a.current_equity_usd)} | Cash ${cash(a.available_cash_usd)} | Realized ${usd(a.realized_net_pnl_usd)} (${a.return_pct == null ? 'UNAVAILABLE' : Number(a.return_pct).toFixed(2) + '%'}) | W/L ${a.wins}/${a.losses} | Executed contracts ${n0(a.executed_contracts)} | Unfilled ${n0(a.unfilled_orders)} | Fees ${cash(a.fees_usd)} | Last update: ${at(k === 'taker' ? fwdTick : t)} (${k === 'taker' ? 'forward store tick' : 'maker runner sample'}); comparison chart last sample ${at(t)} | ${kind}${why}`);
       });
       L.push(`- Note: ${z.modeled_note || 'ZEUS-MAKER fills are modeled estimates.'}`);
@@ -2076,7 +2091,7 @@ function buildStatusReportSections(snap, nowSec) {
     if (syncSt === 'ACTIVE' && /train/i.test(String(al.operation || ''))) syncSt = 'TRAINING';
     L.push(`- CMOS Progressive (historical recovery + monthly training worker) | ${syncSt} | reported status ${cs.status || 'UNKNOWN'}${cs.status_reason ? ' - ' + cs.status_reason : ''} | operation ${cs.operation || 'UNKNOWN'} | month ${cs.current_month || 'UNKNOWN'} (${cs.current_month_pct == null ? 'UNAVAILABLE' : cs.current_month_pct + '%'}) | last heartbeat ${at(hb)} | records verified ${n0(cs.records_verified)} / expected ${n0(cs.records_expected)} | errors ${n0(cs.error_count)} | HISTORICAL DATA RECOVERY (not trading)`);
     const alSt = (syncSt === 'INACTIVE' || syncSt === 'UNKNOWN' || syncSt === 'STALE') ? syncSt : (/train/i.test(String(al.operation || '')) ? 'TRAINING' : 'ACTIVE');
-    L.push(`- CMOS Adaptive learning loop | ${alSt} | ${al.status || 'UNKNOWN'} / ${al.operation || 'UNKNOWN'}${al.status_reason ? ' - ' + al.status_reason : ''} | cycles ${n0(al.cycles_completed)} | models tested ${n0(al.models_tested)} / promoted ${n0(al.models_promoted)} / rejected ${n0(al.models_rejected)} | independent events ${n0(al.independent_events)} (next trigger in ${n0(al.next_trigger_events)}) | latest challenger ${al.latest_challenger_version || 'none'} | last cycle ${at(al.last_cycle_ts)} | last heartbeat ${at(al.heartbeat_ts || hb)} | HISTORICAL TRAINING (not trading)`);
+    L.push(`- CMOS Adaptive learning loop | ${alSt} | ${al.status || 'UNKNOWN'} / ${al.operation || 'UNKNOWN'}${al.status_reason ? ' - ' + al.status_reason : ''} | cycles ${n0(al.cycles_completed)} | models tested ${n0(al.models_tested)} | promotions: ${cmosPromotionSummary(cs).text} | ${al.deployed_adaptive_model_version ? 'adaptive model deployed: ' + al.deployed_adaptive_model_version : 'no adaptive model currently deployed'} | independent events ${n0(al.independent_events)} (next trigger in ${n0(al.next_trigger_events)}) | latest challenger ${al.latest_challenger_version || 'none'} | last cycle ${at(al.last_cycle_ts)} | last heartbeat ${at(al.heartbeat_ts || hb)} | HISTORICAL TRAINING (not trading)`);
     L.push(`- CMOS-V1 deployed paper model: ${al.deployed_paper_model_version || 'UNKNOWN'} | adaptive model deployed to paper: ${al.deployed_adaptive_model_version || 'NONE'} | auto-promotion ${al.auto_promotion_enabled ? 'enabled' : 'disabled'} | paper auto-reload ${al.paper_auto_reload_enabled ? 'enabled' : 'disabled'} | last error ${al.last_error || 'none'}`);
     const ev = al.eval && al.eval.train;
     if (ev) L.push(`- Latest training evaluation (historical, not trading): ${n0(ev.trades)} trades, win rate ${ev.win_rate == null ? 'UNAVAILABLE' : (ev.win_rate * 100).toFixed(1) + '%'}, net ${usd(ev.realized_net_pnl_usd)}, max drawdown ${cash(ev.max_drawdown_usd)}`);
@@ -2099,7 +2114,12 @@ function buildStatusReportSections(snap, nowSec) {
     L.push(`- Historical API recovery: ${n0(cs.api_requests_done)} API requests done, ${n0(cs.contracts_done)}/${n0(cs.contracts_total)} contracts, ${cs.bytes_downloaded == null ? 'UNAVAILABLE' : (cs.bytes_downloaded / 1e6).toFixed(1) + ' MB'} downloaded, ${n0(cs.rate_limit_429_count)} rate-limit responses, ${n0(cs.retry_count)} retries | last download ${at(cs.last_download_ts)} | last commit ${at(cs.last_commit_ts)}`);
     if (cs.storage) L.push(`- Storage (${cs.storage.drive || 'drive UNKNOWN'}): ${cs.storage.free_gb == null ? 'UNAVAILABLE' : cs.storage.free_gb + ' GB free'} of ${cs.storage.total_gb == null ? 'UNAVAILABLE' : cs.storage.total_gb} GB${cs.storage.critical ? ' - CRITICAL' : ''}${cs.storage.warning ? ' - ' + cs.storage.warning : ''}`);
   }
-  L.push('- Other collectors (micro-record order books, market catalog, trade evidence, BTC reference feeds, weather): UNKNOWN - not published to the relay; see the local Info Center for those.', '');
+  const col = snap.collectors && snap.collectors.collectors;
+  if (!col) L.push('- Collectors (micro-record, market catalog, trade evidence, BTC reference, weather, BTC contract evidence): UNKNOWN - collector health not published in this snapshot.', '');
+  else {
+    col.forEach(r => L.push(`- ${r.label} | ${r.state} | process ${r.process_alive == null ? 'UNKNOWN' : r.process_alive ? 'running' : 'not running'} | ${r.data_kind}: ${at(r.data_ts)} (${collectorAgeText(r.data_age_s)} old, expected within ${collectorAgeText(r.max_age_s)}) | ${r.note}${r.last_error ? ' | last error: ' + r.last_error : ''}`));
+    L.push('');
+  }
 
   // ---- Research experiments (not trading)
   L.push('# CATEGORY: RESEARCH EXPERIMENTS (SHADOW / HISTORICAL, NOT TRADING PERFORMANCE)');
@@ -2231,6 +2251,28 @@ renderAll(initialSnap, 'WAITING', true);
 
 // ---- Paper Strategies & Experiments (read-only). Three kinds are kept apart and labelled: LIVE PAPER accounts, HISTORICAL REPLAY (isolated sandbox), HISTORICAL ANALYSIS (calibration).
 // Nothing here is real-money performance; paper fills are modelled by the paper broker.
+// Collector health: process alive is shown separately from whether data is actually advancing.
+function collectorAgeText(sec) {
+  if (sec == null) return 'no data';
+  return sec < 90 ? sec + ' s' : sec < 5400 ? Math.round(sec / 60) + ' min' : sec < 172800 ? (sec / 3600).toFixed(1) + ' h' : (sec / 86400).toFixed(1) + ' days';
+}
+function renderCollectors(snap) {
+  const panel = $('collectors-panel'), body = $('collectors-body');
+  if (!panel || !body) return;
+  const c = snap && snap.collectors;
+  if (!c || !c.collectors) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const cls = st => (st === 'ACTIVE' ? 'ok' : (st === 'STALE' || st === 'UNKNOWN') ? 'warn' : 'bad');
+  const rows = c.collectors.map(r => `<tr><td>${esc(r.label)}</td><td><span class="tag ${cls(r.state)}">${esc(r.state)}</span></td>
+      <td class="mono">${r.process_alive == null ? 'UNKNOWN' : r.process_alive ? 'running' : 'not running'}</td>
+      <td class="mono">${esc(r.data_kind)}: ${esc(collectorAgeText(r.data_age_s))} old (expected within ${esc(collectorAgeText(r.max_age_s))})</td>
+      <td class="muted" style="font-size:12px">${esc(r.note)}${r.last_error ? ' &middot; last error: ' + esc(r.last_error) : ''}</td></tr>`).join('');
+  body.innerHTML = `<div class="acct-card" style="padding:14px 16px">
+      <div class="acct-head"><span class="acct-title">Data collectors</span><span class="tag">HEALTH ONLY &mdash; NOT TRADING</span></div>
+      <div class="muted" style="font-size:12px;margin:6px 0 10px">A collector is ACTIVE only when its process is running and its newest data is within the expected interval. A running process with old data is STALE.</div>
+      <div class="table-wrap"><table><thead><tr><th>COLLECTOR</th><th>STATE</th><th>PROCESS</th><th>NEWEST DATA</th><th>NOTE</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
 function renderPaperLab(snap) {
   const panel = $('paperlab-panel'), body = $('paperlab-body');
   if (!panel || !body) return;

@@ -7,9 +7,9 @@
   <title>Barnacle Live Run #001 — Portfolio Analytics</title>
   <meta name="description"
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
-  <link rel="stylesheet" href="styles.css?v=20261119d">
+  <link rel="stylesheet" href="styles.css?v=20261119e">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261119d" defer></script>
+  <script src="app.js?v=20261119e" defer></script>
 </head>
 
 <body>
@@ -99,6 +99,11 @@
     <!-- 1B-1b. PAPER STRATEGIES & EXPERIMENTS (read-only: live paper accounts, resting-sell fills, labelled historical replay / analysis) -->
     <section id="paperlab-panel" class="panel" aria-label="Paper Strategies and Experiments" style="display:none">
       <div id="paperlab-body"></div>
+    </section>
+
+    <!-- 1B-1c. DATA COLLECTORS (read-only health: process alive vs data advancing) -->
+    <section id="collectors-panel" class="panel" aria-label="Data Collectors" style="display:none">
+      <div id="collectors-body"></div>
     </section>
 
     <!-- 1B-2. HERMES SAVINGS ($1,000 FIXED-PRINCIPAL PROFIT-SWEEP) -->
