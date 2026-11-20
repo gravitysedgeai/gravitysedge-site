@@ -9,7 +9,7 @@
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
   <link rel="stylesheet" href="styles.css?v=20261119e">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261119e" defer></script>
+  <script src="app.js?v=20261120a" defer></script>
 </head>
 
 <body>
@@ -45,6 +45,11 @@
     <section id="sys-activity-strip" class="panel" aria-label="Live System Activity Strip" style="padding:10px 14px;margin-bottom:12px;display:none"></section>
 
     <div id="view-portfolio">
+
+    <!-- 0. SYSTEM COMPONENTS: everything running, what it is doing, whether it is making progress (same data as the Status Report) -->
+    <section id="components-panel" class="panel" aria-label="System Components" style="display:none">
+      <div id="components-body"></div>
+    </section>
 
     <!-- 1. ACTIVE SCOREBOARD -->
     <section aria-label="Portfolio Scoreboard">

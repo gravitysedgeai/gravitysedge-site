@@ -1872,6 +1872,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderHunterShadow(snap);
   renderPaperLab(snap);
   renderCollectors(snap);
+  renderComponents(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
@@ -2154,6 +2155,32 @@ function buildStatusReportSections(snap, nowSec) {
   if (!hv || hv.available === false) L.push('- HERMES savings sweep: UNKNOWN (not published)');
   else L.push(`- HERMES savings sweep (paper account) | since ${fmtEt(hv.activated_ts)} | trading equity ${cash(hv.trading_equity_usd)} | savings ${cash(hv.total_savings_usd)} | combined ${cash(hv.combined_equity_usd)} | realized since activation ${usd(hv.realized_since_activation_usd)} | PAPER`);
   L.push('', `Report sections generated from snapshot published ${at(snap.published_ts)}.`);
+  // ===== ALL COMPONENTS: one roll-up, identical to the System Components panel =====
+  {
+    const cm = snap.components;
+    L.push('# CATEGORY: ALL COMPONENTS (single roll-up of everything running; same data as the System Components panel)');
+    if (!cm || !cm.components) {
+      L.push('- UNKNOWN - component roll-up not published in this snapshot.', '');
+    } else {
+      const order = ['TRADING', 'EVALUATING', 'TRAINING', 'COLLECTING', 'IDLE', 'BLOCKED', 'STALE', 'ERROR', 'STOPPED'];
+      const tally = {}; cm.components.filter(c => c.view === 'active').forEach(c => { tally[c.status] = (tally[c.status] || 0) + 1; });
+      L.push('Statuses: TRADING, EVALUATING, TRAINING, COLLECTING (doing work now); IDLE (running, nothing to do - reason given); BLOCKED (a gate is holding it); STALE (alive but nothing new); STOPPED; ERROR. Enabled is not the same as working.');
+      L.push(`Live view: ${order.filter(k => tally[k]).map(k => k + ' ' + tally[k]).join(', ') || 'none'}. Inactive/retired: ${cm.components.filter(c => c.view !== 'active').length}. Generated ${at(cm.generated_ts)}.`, '');
+      const line = c => `- ${c.name} | ${c.status} | ${c.reason || '-'} | last activity: ${c.last_activity_ts ? at(c.last_activity_ts) : 'none observed'}${c.last_activity ? ' (' + c.last_activity + ')' : ''}` +
+        `${componentProgress(c) ? ' | progress: ' + componentProgress(c) : ''}${c.performance ? ' | result: ' + c.performance : ''}${(c.recent || []).length ? ' | recent: ' + c.recent.join('; ') : ''}`;
+      [...new Set(cm.components.filter(c => c.view === 'active').map(c => c.category))].forEach(cat => {
+        L.push(`## ${cat} (live view)`);
+        cm.components.filter(c => c.view === 'active' && c.category === cat).forEach(c => L.push(line(c)));
+        L.push('');
+      });
+      const ina = cm.components.filter(c => c.view !== 'active');
+      if (ina.length) {
+        L.push(`## Inactive, stopped and retired (${ina.length})`);
+        ina.forEach(c => L.push(`- ${c.name} | ${c.status} | ${c.category} | ${c.reason || '-'}`));
+        L.push('');
+      }
+    }
+  }
   return L;
 }
 
@@ -2256,6 +2283,53 @@ function collectorAgeText(sec) {
   if (sec == null) return 'no data';
   return sec < 90 ? sec + ' s' : sec < 5400 ? Math.round(sec / 60) + ' min' : sec < 172800 ? (sec / 3600).toFixed(1) + ' h' : (sec / 86400).toFixed(1) + ' days';
 }
+// System components: ONE roll-up of everything running (accounts, experiments, models, collectors, workers, services), built by the publisher
+// from the same data the other sections use. Status says whether a component is accomplishing work, not whether it is enabled.
+function componentAgo(ts, nowSec) {
+  if (!ts) return 'no activity observed';
+  const sec = Math.max(0, nowSec - ts);
+  return (sec < 90 ? Math.round(sec) + ' s' : sec < 5400 ? Math.round(sec / 60) + ' min' : sec < 172800 ? (sec / 3600).toFixed(1) + ' h' : (sec / 86400).toFixed(1) + ' days') + ' ago';
+}
+function componentProgress(c) {
+  if (c.work == null) return '';
+  const label = c.work_label || 'units';
+  const val = typeof c.work === 'number' && c.work > 1e9 ? '' : Number(c.work).toLocaleString();
+  if (c.work_delta == null) return val ? `${val} ${label}; since previous update: not yet measured` : '';
+  const win = c.work_window_s ? Math.round(c.work_window_s / 60) : 0;
+  const d = (c.work_delta > 0 ? '+' : '') + Number(c.work_delta).toLocaleString();
+  return `${val ? val + ' ' + label + '; ' : ''}${d} in last ${win || '<1'} min`;
+}
+function componentTagClass(st) {
+  return ({ TRADING: 'ok', EVALUATING: 'ok', TRAINING: 'ok', COLLECTING: 'ok', IDLE: 'warn', STALE: 'warn', BLOCKED: 'bad', ERROR: 'bad', STOPPED: 'legacy' })[st] || 'warn';
+}
+function renderComponents(snap) {
+  const panel = $('components-panel'), body = $('components-body');
+  if (!panel || !body) return;
+  const cm = snap && snap.components;
+  if (!cm || !cm.components) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const nowSec = snap.published_ts || Math.floor(Date.now() / 1000);
+  const act = cm.components.filter(c => c.view === 'active'), inact = cm.components.filter(c => c.view !== 'active');
+  const order = ['TRADING', 'EVALUATING', 'TRAINING', 'COLLECTING', 'IDLE', 'BLOCKED', 'STALE', 'ERROR', 'STOPPED'];
+  const cnt = {}; act.forEach(c => { cnt[c.status] = (cnt[c.status] || 0) + 1; });
+  const chips = order.filter(k => cnt[k]).map(k => `<span class="tag ${componentTagClass(k)}" title="${esc(k)}">${esc(k)} ${cnt[k]}</span>`).join(' ');
+  const cats = [...new Set(act.map(c => c.category))];
+  const row = c => `<tr><td><span class="tag ${componentTagClass(c.status)}">${esc(c.status)}</span></td>
+      <td><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${esc(c.kind || '')}</div></td>
+      <td style="font-size:12px">${esc(c.reason || '')}</td>
+      <td class="mono" style="font-size:12px">last: ${esc(componentAgo(c.last_activity_ts, nowSec))}${c.last_activity ? '<div class="muted">' + esc(c.last_activity) + '</div>' : ''}${componentProgress(c) ? '<div class="muted">' + esc(componentProgress(c)) + '</div>' : ''}</td>
+      <td style="font-size:12px">${esc(c.performance || '')}${(c.recent || []).length ? '<details><summary class="muted">recent</summary>' + c.recent.map(r => '<div>' + esc(r) + '</div>').join('') + '</details>' : ''}</td></tr>`;
+  const table = rows => `<div class="table-wrap"><table><thead><tr><th>STATUS</th><th>COMPONENT</th><th>WHY / WHAT IT IS DOING</th><th>LAST ACTIVITY / PROGRESS</th><th>RESULT / RECENT</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table></div>`;
+  const groups = cats.map(cat => `<details open><summary style="cursor:pointer;margin:10px 0 4px"><b>${esc(cat)}</b> <span class="muted">(${act.filter(c => c.category === cat).length})</span></summary>${table(act.filter(c => c.category === cat))}</details>`).join('');
+  const inCats = [...new Set(inact.map(c => c.category))];
+  const inactiveHtml = inact.length ? `<details style="margin-top:12px"><summary style="cursor:pointer"><b>Inactive, stopped and retired</b> <span class="muted">(${inact.length}) &mdash; kept separate so the live view stays readable</span></summary>${inCats.map(cat => `<div style="margin:8px 0 2px" class="muted">${esc(cat)}</div>${table(inact.filter(c => c.category === cat))}`).join('')}</details>` : '';
+  body.innerHTML = `<div class="acct-card" style="padding:14px 16px">
+      <div class="acct-head"><span class="acct-title">System components &mdash; what is running and whether it is making progress</span><span class="tag">${act.length} LIVE VIEW</span></div>
+      <div style="margin:8px 0">${chips}</div>
+      <div class="muted" style="font-size:12px;margin-bottom:6px">${esc(cm.note || '')} Updated ${esc(componentAgo(cm.generated_ts, nowSec))}.</div>
+      ${groups}${inactiveHtml}</div>`;
+}
+
 function renderCollectors(snap) {
   const panel = $('collectors-panel'), body = $('collectors-body');
   if (!panel || !body) return;
