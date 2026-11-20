@@ -663,6 +663,52 @@ function renderZeusExecutionComparison(snap) {
   }
 }
 
+function renderZeusCapitalScaling(snap) {
+  const cardsEl = $('zeus-scaling-cards'), cmpEl = $('zeus-scaling-compare'), noteEl = $('zeus-scaling-note');
+  if (!cardsEl) return;
+  const z = snap?.zeus_capital_scaling;
+  if (!z || !(z.accounts || []).length) {
+    cardsEl.innerHTML = '';
+    if (cmpEl) cmpEl.innerHTML = '<div class="acct-card"><b>UNKNOWN</b> &mdash; the ZEUS capital-scaling experiment is not in the published snapshot. Its accounts may exist and run locally; the relay publishes them only after it is restarted with this version. Nothing is shown rather than a guess.</div>';
+    return;
+  }
+  if (noteEl && z.note) noteEl.textContent = z.note;
+  const usd2 = v => `$${Number(v || 0).toFixed(2)}`;
+  const pct = v => `${Number(v || 0).toFixed(2)}%`;
+  const eqv = a => /EQUILIBRIUM/.test(a.label);
+  const cardHtml = a => `
+    <div class="acct-card ${eqv(a) ? 'validation-card' : ''}">
+      <div class="acct-head">
+        <span class="acct-title">${esc(a.label)}</span>
+        <span class="tag ${eqv(a) ? 'validation' : (/MAKER/.test(a.label) ? 'warn' : 'validation')}">${eqv(a) ? 'EQUILIBRIUM-MANAGED (PAPER)' : (/MAKER/.test(a.label) ? 'CONSERVATIVE MODELED MAKER' : 'PAPER TAKER (ZEUS)')}</span>
+      </div>
+      <div class="muted" style="font-size:12px;margin:4px 0 8px">${esc(a.controller || '')} &middot; ${esc(a.execution_mode || '')}</div>
+      <div class="acct-metrics" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px">
+        <div><span class="muted">Equity:</span> <b class="mono">${usd2(a.current_equity_usd)}</b></div>
+        <div><span class="muted">Realized Net:</span> <b class="mono ${a.realized_net_pnl_usd >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(a.realized_net_pnl_usd)}</b></div>
+        <div><span class="muted">Return:</span> <b class="mono">${pct(a.return_pct)}</b></div>
+        <div><span class="muted">Max Drawdown:</span> <b class="mono">${pct(a.max_drawdown_pct)}</b></div>
+        <div><span class="muted">Available Cash:</span> <b class="mono">${usd2(a.available_cash_usd)}</b></div>
+        <div><span class="muted">Exposure:</span> <b class="mono">${usd2(a.invested_capital_usd)} (${pct(a.exposure_pct)})</b></div>
+        <div><span class="muted">Settled W / L:</span> <b class="mono">${a.wins}W / ${a.losses}L</b></div>
+        <div><span class="muted">Open / Unfilled:</span> <b class="mono">${a.open_orders} / ${a.unfilled_orders}</b></div>
+        <div><span class="muted">Fees:</span> <b class="mono">${usd2(a.fees_usd)}</b></div>
+        <div><span class="muted">Missed Opps:</span> <b class="mono">${a.missed_opportunities}</b></div>
+        <div><span class="muted">Executed Qty:</span> <b class="mono">${a.executed_contracts}</b></div>
+        <div><span class="muted">${eqv(a) ? 'Allocation cuts:' : 'Profit / Contract:'}</span> <b class="mono">${eqv(a) ? `${a.allocation_reductions || 0} of ${a.allocation_decisions || 0}` : fmtSignedUsd(a.profit_per_executed_contract)}</b></div>
+      </div>
+    </div>`;
+  cardsEl.innerHTML = z.accounts.map(cardHtml).join('');
+  const rows = (z.comparison || []).map(c => `<tr><td>$${Number(c.size_usd).toLocaleString()}</td><td>${esc(c.venue.toUpperCase())}</td>
+      <td class="mono">${fmtSignedUsd(c.baseline.realized_net_pnl_usd)} / ${pct(c.baseline.return_pct)}</td><td class="mono">${fmtSignedUsd(c.equilibrium.realized_net_pnl_usd)} / ${pct(c.equilibrium.return_pct)}</td>
+      <td class="mono">${pct(c.baseline.max_drawdown_pct)} &rarr; ${pct(c.equilibrium.max_drawdown_pct)}</td><td class="mono">${pct(c.baseline.exposure_pct)} &rarr; ${pct(c.equilibrium.exposure_pct)}</td>
+      <td class="mono">${c.equilibrium.allocation_reductions} cuts</td><td class="mono">${usd2(c.baseline.fees_usd)} &rarr; ${usd2(c.equilibrium.fees_usd)}</td>
+      <td class="mono">${c.baseline.missed_opportunities} &rarr; ${c.equilibrium.missed_opportunities}</td></tr>`).join('');
+  const dec = (z.recent_allocation_decisions || []).slice(0, 8).map(d => `<div class="mono" style="font-size:11px">${fmtEt(d.ts)} &middot; ${esc(d.account_id)} &middot; ${esc(d.ticker)} &middot; ${esc(d.outcome)} ${d.approved_qty}/${d.baseline_qty} &middot; ${esc(d.reasons || 'no constraint binding')} &middot; ${esc(d.allocation_id)}</div>`).join('');
+  if (cmpEl) cmpEl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>SIZE</th><th>VENUE</th><th>ORIGINAL net / return</th><th>EQUILIBRIUM net / return</th><th>DRAWDOWN</th><th>EXPOSURE</th><th>ALLOCATION</th><th>FEES</th><th>MISSED</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <details style="margin:6px 0"><summary class="muted">Recent EQUILIBRIUM allocation decisions with reasons (policy ${esc(z.policy || '')})</summary>${dec || '<div class="muted">none yet</div>'}</details>`;
+}
+
 function renderWalkForwardResearch(snap) {
   const panel = $('wf-research-panel');
   const body = $('wf-research-body');
@@ -2000,6 +2046,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderScoreboard(snap, force);
   renderCmosPortfolioPanel(snap);
   renderZeusExecutionComparison(snap);
+  renderZeusCapitalScaling(snap);
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
   renderHunterShadow(snap);
@@ -2487,6 +2534,15 @@ function buildReportDetailSections(snap, nowSec, lite) {
 
   // ---------------- CMOS SYNC PAGE ----------------
   const cs = snap.cmos_sync;
+  { const zs = snap.zeus_capital_scaling;
+    L.push('# CATEGORY: ZEUS CAPITAL SCALING ($1,000 / $5,000 baselines vs EQUILIBRIUM-managed variants)');
+    if (!zs || !(zs.accounts || []).length) L.push('- UNKNOWN (zeus_capital_scaling not published)');
+    else {
+      zs.accounts.forEach(x => L.push(`- ${x.label} | ${x.controller} | Equity ${usd(x.current_equity_usd)} | Realized ${sg(x.realized_net_pnl_usd)} | Return ${x.return_pct}% | MaxDD ${x.max_drawdown_pct}% | Exposure ${x.exposure_pct}% | Fees ${usd(x.fees_usd)} | Missed ${x.missed_opportunities} | Cuts ${x.allocation_reductions || 0}`));
+      if (lite) L.push(`- (LITE: ${(zs.recent_allocation_decisions || []).length} recent allocation decisions omitted)`);
+      else (zs.recent_allocation_decisions || []).forEach(d => L.push(`  - ${fmtEt(d.ts)} | ${d.account_id} | ${d.ticker} | ${d.outcome} ${d.approved_qty}/${d.baseline_qty} | ${d.reasons || 'no constraint binding'} | ${d.allocation_id}`));
+    }
+    L.push(''); }
   L.push('# CATEGORY: CMOS SYNC PAGE (#cmos-sync) - HISTORICAL DATA RECOVERY + ADAPTIVE LEARNING, NOT TRADING');
   if (!cs || !cs.available) {
     L.push(`- UNKNOWN or PAUSED: ${(cs && cs.status_reason) || 'cmos_sync not published'}`, '');

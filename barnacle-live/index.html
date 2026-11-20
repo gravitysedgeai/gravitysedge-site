@@ -9,7 +9,7 @@
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
   <link rel="stylesheet" href="styles.css?v=20261119e">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261120f" defer></script>
+  <script src="app.js?v=20261120g" defer></script>
 </head>
 
 <body>
@@ -79,6 +79,18 @@
       <div class="chart-wrap" style="margin-top:12px">
         <div id="zeus-h2h-chart" class="echarts-box" style="height:260px"></div>
       </div>
+    </section>
+
+    <!-- 1A2. ZEUS CAPITAL SCALING ($1,000 / $5,000 baselines + EQUILIBRIUM-controlled variants) -->
+    <section id="zeus-scaling-panel" class="panel" aria-label="ZEUS capital scaling">
+      <div class="panel-head">
+        <div>
+          <h2>ZEUS capital scaling <span class="count-pill">$1,000 / $5,000 &middot; ORIGINAL vs EQUILIBRIUM-MANAGED</span></h2>
+          <p id="zeus-scaling-note" class="muted">Same ZEUS rules, only the bankroll differs; the EQUILIBRIUM variants replay the same opportunities with risk-managed sizing. Paper only; the original $100 accounts are unchanged.</p>
+        </div>
+      </div>
+      <div id="zeus-scaling-compare"></div>
+      <div id="zeus-scaling-cards" class="scoreboard-grid"></div>
     </section>
 
     <!-- 1B. DECEMBER 2025 BTC WALK-FORWARD LEARNING RUN -->
