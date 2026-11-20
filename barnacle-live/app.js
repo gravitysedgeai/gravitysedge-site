@@ -1859,6 +1859,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
   renderHunterShadow(snap);
+  renderPaperLab(snap);
   renderChart(snap, force);
   renderHoldings(snap);
   renderCompleted(snap);
@@ -2063,6 +2064,88 @@ initNavTabs();
 prevSnap = loadJson(PREV_KEY, null);
 const initialSnap = loadJson(CACHE_KEY, null) || emptySnapshot();
 renderAll(initialSnap, 'WAITING', true);
+
+// ---- Paper Strategies & Experiments (read-only). Three kinds are kept apart and labelled: LIVE PAPER accounts, HISTORICAL REPLAY (isolated sandbox), HISTORICAL ANALYSIS (calibration).
+// Nothing here is real-money performance; paper fills are modelled by the paper broker.
+function renderPaperLab(snap) {
+  const panel = $('paperlab-panel'), body = $('paperlab-body');
+  if (!panel || !body) return;
+  const p = snap?.paper_lab;
+  if (!p || !p.live_paper) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const lp = p.live_paper, rx = p.resting_exits || {}, sb = p.sandbox_replay, cal = p.calibration;
+  const usd = v => (v == null ? '–' : (Number(v) < 0 ? '-$' : '$') + Math.abs(Number(v)).toFixed(2));
+  const pnlCls = v => (v == null || Number(v) === 0 ? '' : Number(v) > 0 ? 'pos' : 'neg');
+  const pct = v => (v == null ? '–' : (Number(v) * 100).toFixed(0) + '%');
+  const n0 = v => (v == null ? '–' : Number(v).toLocaleString());
+  const ts = t => (t ? new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, Date.now() / 1000 - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const svc = p.forward_service || {};
+  const stale = svc.last_tick_ts ? (Date.now() / 1000 - svc.last_tick_ts) > 300 : true;
+  const T = lp.totals || {};
+  const expRows = (lp.experiments || []).map(e => `<tr><td>${esc(e.name)}<div class="muted mono" style="font-size:11px">${esc(e.id)} · ${esc(e.mode || '')}</div></td>
+      <td><span class="tag ${e.status === 'active' ? 'ok' : ''}">${esc((e.status || '').toUpperCase())}</span></td>
+      <td class="mono">${e.active_accounts}/${e.accounts}</td><td class="mono">${usd(e.bankroll)}</td><td class="mono">${usd(e.equity)}</td>
+      <td class="mono ${pnlCls(e.realized_pnl)}">${usd(e.realized_pnl)}</td><td class="mono">${e.open_positions}</td><td class="mono">${n0(e.closed_trades)}</td><td class="mono">${pct(e.win_rate)}</td></tr>`).join('');
+  const accRows = (lp.accounts || []).slice().sort((a, b) => (a.experiment === b.experiment ? (b.closed_trades - a.closed_trades) : a.experiment.localeCompare(b.experiment)))
+    .map(a => `<tr><td class="mono" title="${esc(a.account)}">${esc(a.strategy)} v${esc(a.version)}<div class="muted" style="font-size:11px">${esc(a.experiment)}</div></td><td class="mono">${usd(a.bankroll)}</td><td class="mono">${usd(a.cash)}</td>
+      <td class="mono">${usd(a.equity)}</td><td class="mono ${pnlCls(a.realized_pnl)}">${usd(a.realized_pnl)}</td><td class="mono">${a.open_positions}</td><td class="mono">${a.closed_trades}</td>
+      <td class="mono">${a.closed_trades ? pct(a.wins / a.closed_trades) : '–'}</td></tr>`).join('');
+  const openRows = (lp.open_positions || []).map(o => `<tr><td class="mono">${esc(o.account)}</td><td class="mono">${esc(o.ticker)}</td><td class="mono">${esc(String(o.side).toUpperCase())} ×${o.qty}</td>
+      <td class="mono">${o.entry_price == null ? '–' : Number(o.entry_price).toFixed(2)}</td><td class="mono">${ts(o.entry_ts)}</td>
+      <td class="mono">${o.resting_sell ? `resting sell @ ${Number(o.resting_sell.price).toFixed(2)} (${esc(o.resting_sell.status)}${o.resting_sell.filled ? ', ' + o.resting_sell.filled + ' filled' : ''}) · ${esc(o.resting_sell.evidence)}` : 'none posted'}</td></tr>`).join('');
+  const closedRows = (lp.recent_closed || []).map(t => `<tr><td class="mono">${ts(t.exit_ts)}</td><td class="mono">${esc(t.account)}</td><td class="mono">${esc(t.ticker)}</td><td class="mono">${esc(String(t.side).toUpperCase())} ×${t.qty}</td>
+      <td class="mono">${t.entry_price == null ? '–' : Number(t.entry_price).toFixed(2)} → ${t.exit_price == null ? '–' : Number(t.exit_price).toFixed(2)}</td><td class="mono">${esc(t.exit_kind || '')}</td><td class="mono ${pnlCls(t.net_pnl)}">${usd(t.net_pnl)}</td></tr>`).join('');
+  const bs = rx.by_status || {};
+  const ev = Object.entries(rx.evidence_status || {}).map(([k, v]) => `<li>${esc(k)}: <b>${n0(v)}</b></li>`).join('');
+  const dayRows = (rx.by_day || []).map(d => `<tr><td class="mono">${esc(d.date)} UTC</td><td class="mono">${n0(d.posted)}</td><td class="mono">${n0(d.verified)}</td><td class="mono">${n0(d.unverified_no_trade_store)}</td><td class="mono">${n0(d.unverified_no_coverage)}</td></tr>`).join('');
+  const fillRows = (rx.recent_fills || []).map(f => `<tr><td class="mono">${ts(f.ts)}</td><td class="mono">${esc(f.account)}</td><td class="mono">${esc(f.ticker)}</td><td class="mono">${f.qty} @ ${Number(f.price).toFixed(2)}</td>
+      <td class="mono">${usd(f.proceeds_net)}</td><td class="mono ${pnlCls(f.pnl)}">${usd(f.pnl)}</td><td class="mono">${esc(f.evidence)}</td></tr>`).join('');
+  const rd = rx.evidence_reader || {};
+  const sbHtml = !sb ? '' : Object.entries(sb.runs || {}).map(([q, run]) => `<div class="muted mono" style="margin-top:8px">Queue assumption: <b>${esc(run.queue_bound)}</b> · ${run.markets} recorded markets</div>
+      <div class="table-wrap"><table><thead><tr><th>VARIANT (isolated test)</th><th>START</th><th>END EQUITY</th><th>NET (REPLAY)</th><th>ENTRIES FILLED</th><th>EXITS FILLED</th><th>FAILED EXITS</th><th>CAPITAL RECYCLING</th><th>AUDIT</th></tr></thead><tbody>
+      ${(run.variants || []).map(v => `<tr><td class="mono">${esc(v.variant)}</td><td class="mono">${usd(v.start_cash)}</td><td class="mono">${usd(v.equity_marked)}</td><td class="mono ${pnlCls(v.realized_net)}">${usd(v.realized_net)}</td>
+        <td class="mono">${n0(v.entries_filled)}</td><td class="mono">${n0(v.exits_filled)}</td><td class="mono">${n0(v.failed_exits)}</td><td class="mono">${n0(v.capital_recycling_events)}</td><td><span class="tag ${v.conservation_audit_ok ? 'ok' : 'bad'}">${v.conservation_audit_ok ? 'cash conserved' : 'AUDIT FAILED'}</span></td></tr>`).join('')}</tbody></table></div>`).join('');
+  const calFolds = !cal ? '' : Object.entries(cal.folds || {}).map(([k, f]) => `<tr><td class="mono">${esc(k)}</td><td class="mono">${n0(f.test_entries)}</td><td class="mono">${f.frozen_cells ?? '–'}</td><td class="mono">${f.replicated_cells ?? '–'}</td><td class="mono">${f.net_positive_after_fee_cells ?? '–'}</td><td class="mono">${f.brier_gain == null ? '–' : Number(f.brier_gain).toFixed(5)}</td></tr>`).join('');
+  const calPol = !cal ? '' : (cal.exit_policies || []).map(x => `<tr><td class="mono">${esc(x.policy)}</td><td class="mono">${n0(x.entries)}</td><td class="mono ${pnlCls(x.mean_net_per_contract)}">${x.mean_net_per_contract == null ? '–' : Number(x.mean_net_per_contract).toFixed(4)}</td><td class="mono">${x.net_per_capital_hour == null ? '–' : Number(x.net_per_capital_hour).toFixed(5)}</td></tr>`).join('');
+  body.innerHTML = `
+    <div class="acct-card paper-card" style="padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+        <h2 style="margin:0">Paper Strategies &amp; Experiments</h2>
+        <span><span class="tag paper">PAPER — NO REAL MONEY</span>${stale ? ' <span class="tag bad">FORWARD SERVICE STALE</span>' : ''}</span>
+      </div>
+      <div class="muted mono" style="font-size:12px;margin-top:6px">Generated ${ago(p.generated_ts)}; forward paper evaluator last ticked ${ago(svc.last_tick_ts)}. These are simulated accounts on recorded Kalshi books. They are separate from the real-money account above and are not its performance.</div>
+      <div class="muted mono" style="font-size:12px;margin-top:6px"><span class="tag paper">LIVE PAPER</span> forward accounts running now &nbsp; <span class="tag legacy">HISTORICAL REPLAY</span> isolated test on a past window &nbsp; <span class="tag validation">HISTORICAL ANALYSIS</span> research on past prints. Only the first is a live experiment; none is trading performance.</div>
+    </div>
+    <div class="acct-card paper-card" style="padding:14px 16px;margin-top:10px">
+      <h3 style="margin:0 0 6px">Live paper experiments <span class="tag paper">LIVE PAPER</span></h3>
+      <div class="muted mono" style="font-size:12px">${n0(T.accounts)} paper accounts (${n0(T.active_accounts)} have traded) · ${n0(T.open_positions)} open positions · ${n0(T.closed_trades)} completed trades. Bankroll, equity and realized P&amp;L are per experiment, fees included.</div>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>EXPERIMENT</th><th>STATUS</th><th>ACCOUNTS (TRADED/ALL)</th><th>BANKROLL</th><th>EQUITY</th><th>REALIZED P&amp;L</th><th>OPEN</th><th>COMPLETED</th><th>WIN %</th></tr></thead><tbody>${expRows}</tbody></table></div>
+    </div>
+    <details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Every paper account (${n0(T.accounts)}) — strategy, bankroll, equity, P&amp;L</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="table-wrap"><table><thead><tr><th>STRATEGY</th><th>BANKROLL</th><th>CASH</th><th>EQUITY</th><th>REALIZED P&amp;L</th><th>OPEN</th><th>COMPLETED</th><th>WIN %</th></tr></thead><tbody>${accRows}</tbody></table></div></details>
+    <details class="pos-details panel-details" style="margin-top:10px" open><summary class="panel-summary"><div><h2>Open paper positions (${n0(lp.open_positions_total)})</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="table-wrap"><table><thead><tr><th>ACCOUNT</th><th>MARKET</th><th>SIDE</th><th>ENTRY</th><th>OPENED</th><th>RESTING SELL ORDER</th></tr></thead><tbody>${openRows || '<tr><td colspan="6" class="muted">No open paper positions.</td></tr>'}</tbody></table></div></details>
+    <details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Recent completed paper trades (last ${(lp.recent_closed || []).length})</h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="table-wrap"><table><thead><tr><th>CLOSED</th><th>ACCOUNT</th><th>MARKET</th><th>SIDE</th><th>ENTRY → EXIT</th><th>EXIT TYPE</th><th>NET P&amp;L</th></tr></thead><tbody>${closedRows}</tbody></table></div></details>
+    <div class="acct-card paper-card" style="padding:14px 16px;margin-top:10px">
+      <h3 style="margin:0 0 6px">Are resting sell orders filling? <span class="tag paper">LIVE PAPER</span></h3>
+      <div class="mono" style="display:flex;gap:18px;flex-wrap:wrap">
+        <span>Orders posted: <b>${n0(rx.orders_total)}</b></span><span>Filled: <b>${n0(bs.filled)}</b></span><span>Cancelled: <b>${n0(bs.cancelled)}</b></span><span>Expired: <b>${n0(bs.expired)}</b></span>
+        <span>Open now: <b>${n0(rx.open_now)}</b></span><span>Fill events recorded: <b>${n0(rx.fills_total)}</b></span><span>First fill: <b>${ts(rx.first_fill_ts)}</b></span></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">${esc(rx.note || '')}</div>
+      <div class="muted mono" style="font-size:12px;margin-top:6px">Trade-evidence reader (follows tickers with open resting orders): heartbeat ${ago(rd.heartbeat_ts)}${rd.order_trades ? ` · last cycle: ${rd.order_trades.open_order_tickers ?? 0} open-order tickers, ${rd.order_trades.read ?? 0} read, ${rd.order_trades.already_covered ?? 0} already covered, ${rd.order_trades.errors ?? 0} errors` : ''}</div>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>DAY</th><th>ORDERS</th><th>VERIFIED WINDOW</th><th>UNVERIFIED (ROUTING DEFECT, FIXED NOV 19)</th><th>UNVERIFIED (NO TRADE COVERAGE)</th></tr></thead><tbody>${dayRows}</tbody></table></div>
+      <ul class="muted" style="margin:6px 0 0 18px;font-size:12px">${ev}</ul>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>FILLED</th><th>ACCOUNT</th><th>MARKET</th><th>FILL</th><th>NET PROCEEDS</th><th>P&amp;L</th><th>EVIDENCE</th></tr></thead><tbody>${fillRows || '<tr><td colspan="7" class="muted">No resting-sell fills recorded yet.</td></tr>'}</tbody></table></div>
+    </div>
+    ${sb ? `<details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Execution sandbox — capital recycling &amp; resting orders <span class="tag legacy">HISTORICAL REPLAY</span></h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="muted" style="font-size:12px;margin:6px 0">${esc(sb.label)}. Generated ${ago(sb.generated_ts)}. ${esc(sb.note)} Isolated: not a live account, not trading performance.</div>${sbHtml}</details>` : ''}
+    ${cal ? `<details class="pos-details panel-details" style="margin-top:10px"><summary class="panel-summary"><div><h2>Probability calibration <span class="tag validation">HISTORICAL ANALYSIS</span></h2></div><span class="expand-lbl">▸ Expand</span></summary>
+      <div class="muted" style="font-size:12px;margin:6px 0">${esc(cal.label)}. Generated ${ago(cal.generated_ts)}. ${n0(cal.entries)} point-in-time entries over ${n0(cal.events)} events. ${esc(cal.verdict)}</div>
+      <div class="table-wrap"><table><thead><tr><th>TEST PERIOD</th><th>TEST ENTRIES</th><th>FROZEN CELLS</th><th>REPLICATED</th><th>NET + AFTER FEES</th><th>BRIER GAIN</th></tr></thead><tbody>${calFolds}</tbody></table></div>
+      <div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>EXIT POLICY (HISTORICAL)</th><th>ENTRIES</th><th>MEAN NET / CONTRACT</th><th>NET / CAPITAL-HOUR</th></tr></thead><tbody>${calPol}</tbody></table></div></details>` : ''}`;
+}
 
 // Single set of background timers (never duplicated on SSE reconnect)
 pollSnapshot();
