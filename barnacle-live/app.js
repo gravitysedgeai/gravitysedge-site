@@ -2070,7 +2070,8 @@ function connectStream() {
   }
 }
 
-function buildStatusReportText(snap) {
+function buildStatusReportText(snap, opts) {
+  const lite = !!(opts && opts.lite);
   if (!snap) return 'No snapshot loaded yet.';
   const pubTs = snap.published_ts || (snap.published_at_utc ? Date.parse(snap.published_at_utc) / 1000 : null);
   const ageS = pubTs ? Math.max(0, Math.round(Date.now() / 1000 - pubTs)) : null;
@@ -2120,7 +2121,7 @@ function buildStatusReportText(snap) {
     }
     lines.push('');
   });
-  return lines.concat(buildStatusReportSections(snap, nowSec)).join('\n');
+  return lines.concat(buildStatusReportSections(snap, nowSec, lite)).join('\n');
 }
 
 // Status vocabulary shared by every report section: ACTIVE, PAUSED, RETIRED, TRAINING, BLOCKED, INACTIVE; STALE/UNKNOWN when freshness/data is missing.
@@ -2140,7 +2141,7 @@ function reportLiveStatus(alive, tsSec, staleS, onLabel, nowSec) {
 }
 
 // Everything the site shows outside three_accounts, written from the same snapshot keys the panels read (no second data path).
-function buildStatusReportSections(snap, nowSec) {
+function buildStatusReportSections(snap, nowSec, lite) {
   const L = [];
   const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
   const at = t => (t ? `${fmtEt(t)} (${ago(t)})` : 'UNKNOWN (no timestamp)');
@@ -2369,13 +2370,14 @@ function buildStatusReportSections(snap, nowSec) {
     }
   }
   // ===== Page detail: everything the three pages show that the sections above only summarise =====
-  try { buildReportDetailSections(snap, nowSec).forEach(x => L.push(x)); } catch (e) { L.push('# CATEGORY: PAGE DETAIL', `- Detail sections could not be built: ${e && e.message}`, ''); }
+  try { buildReportDetailSections(snap, nowSec, lite).forEach(x => L.push(x)); } catch (e) { L.push('# CATEGORY: PAGE DETAIL', `- Detail sections could not be built: ${e && e.message}`, ''); }
   return L;
 }
 
 // Detail written from the same snapshot keys the three pages render (Portfolio, #cmos-sync, #training-cmos). No second data path.
-function buildReportDetailSections(snap, nowSec) {
+function buildReportDetailSections(snap, nowSec, lite) {
   const L = [];
+  const skip = (what, n) => L.push(`- ${what}: ${n} rows omitted in the LITE report (counts only); use Copy Status Report for the full list.`);
   const ref = snapNow(snap);
   const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
   const at = t => (t ? `${fmtEt(t)} (${ago(t)})` : 'never');
@@ -2387,6 +2389,7 @@ function buildReportDetailSections(snap, nowSec) {
   const pw = v => (v == null ? '–' : Number(v).toFixed(1) + '%');
 
   // ---------------- PORTFOLIO PAGE ----------------
+  if (lite) L.push('# LITE REPORT: full ledgers and long row lists are omitted below and replaced by counts; every summary, status and table of limited size is still included.', '');
   L.push('# CATEGORY: PORTFOLIO PAGE DETAIL (every table behind the website cards; kinds are labelled, none is real-money performance unless marked REAL)');
   const hs = snap.hunter_shadow;
   if (hs && Array.isArray(hs.comparison)) {
@@ -2431,13 +2434,13 @@ function buildReportDetailSections(snap, nowSec) {
   if (lp) {
     const accs = (lp.accounts || []).slice().sort((a, b) => (a.experiment === b.experiment ? (b.closed_trades - a.closed_trades) : String(a.experiment).localeCompare(String(b.experiment))));
     L.push(`## Every paper account (${accs.length}) - LIVE PAPER`);
-    accs.forEach(a => L.push(`- ${a.strategy} v${a.version} [${a.experiment}] ${a.account} | bankroll ${usd(a.bankroll)} | cash ${usd(a.cash)} | equity ${usd(a.equity)} | realized ${sg(a.realized_pnl)} | open ${a.open_positions} | closed ${a.closed_trades} | win ${a.closed_trades ? pc(a.wins / a.closed_trades) : '–'}`));
+    if (lite) skip('per-account rows', accs.length); else accs.forEach(a => L.push(`- ${a.strategy} v${a.version} [${a.experiment}] ${a.account} | bankroll ${usd(a.bankroll)} | cash ${usd(a.cash)} | equity ${usd(a.equity)} | realized ${sg(a.realized_pnl)} | open ${a.open_positions} | closed ${a.closed_trades} | win ${a.closed_trades ? pc(a.wins / a.closed_trades) : '–'}`));
     L.push('');
     L.push(`## Open paper positions (${n0(lp.open_positions_total)}; ${(lp.open_positions || []).length} listed) - LIVE PAPER`);
     (lp.open_positions || []).forEach(o => L.push(`- ${o.account} | ${o.ticker} ${String(o.side).toUpperCase()} x${o.qty} | entry ${fx(o.entry_price, 2)} at ${at(o.entry_ts)} | ${o.resting_sell ? `resting sell @ ${fx(o.resting_sell.price, 2)} (${o.resting_sell.status}${o.resting_sell.filled ? ', ' + o.resting_sell.filled + ' filled' : ''}; evidence ${o.resting_sell.evidence})` : 'no resting sell posted'}`));
     L.push('');
     L.push(`## Recent completed paper trades (${(lp.recent_closed || []).length}) - LIVE PAPER`);
-    (lp.recent_closed || []).forEach(t => L.push(`- closed ${at(t.exit_ts)} | ${t.account} | ${t.ticker} ${String(t.side).toUpperCase()} x${t.qty} | ${fx(t.entry_price, 2)} -> ${fx(t.exit_price, 2)} | ${t.exit_kind || ''} | net ${sg(t.net_pnl)}`));
+    if (lite) skip('recent completed paper trades', (lp.recent_closed || []).length); else (lp.recent_closed || []).forEach(t => L.push(`- closed ${at(t.exit_ts)} | ${t.account} | ${t.ticker} ${String(t.side).toUpperCase()} x${t.qty} | ${fx(t.entry_price, 2)} -> ${fx(t.exit_price, 2)} | ${t.exit_kind || ''} | net ${sg(t.net_pnl)}`));
     L.push('');
     const rx = pl.resting_exits;
     if (rx) {
@@ -2463,7 +2466,7 @@ function buildReportDetailSections(snap, nowSec) {
     const tx = hv.transactions || [];
     L.push(`## HERMES savings - transaction history (${tx.length}) | SIMULATED SAVINGS LEDGER`);
     L.push(`- initial transfer ${usd(hv.starting_savings_transfer_usd)} | new savings since activation ${sg(hv.post_activation_savings_usd)} | trading bankroll remaining ${usd(hv.trading_equity_usd)} (target ${usd(hv.target_principal_usd)}) | today ${sg(hv.today_savings_usd)} | week ${sg(hv.weekly_savings_usd)} | month ${sg(hv.monthly_savings_usd)} | conservation diff ${usd(hv.conservation_diff_usd)}`);
-    tx.forEach(t => L.push(`- ${at(t.ts)} | ${t.entry_type} | ${sg(t.amount_usd)} | savings balance after ${usd(t.balance_after_usd)} | trading equity after ${usd(t.trading_equity_after_usd)} | ${t.detail || ''}`));
+    if (lite) skip('savings transactions', tx.length); else tx.forEach(t => L.push(`- ${at(t.ts)} | ${t.entry_type} | ${sg(t.amount_usd)} | savings balance after ${usd(t.balance_after_usd)} | trading equity after ${usd(t.trading_equity_after_usd)} | ${t.detail || ''}`));
     L.push('');
   }
 
@@ -2475,7 +2478,7 @@ function buildReportDetailSections(snap, nowSec) {
 
   const ct = snap.completed_trades || [];
   L.push(`## Completed transactions ledger (${ct.length} transactions; newest first as published)`);
-  ct.forEach(t => L.push(`- ${fmtEt(t.closed_ts || t.ts)} | ${t.account_label || t.account_id} | ${t.ticker} ${t.side || '–'} x${t.contracts ?? 0} | invested ${usd(t.invested_usd)} | fee ${usd(t.fee_usd || 0)} | net ${sg(t.realized_net_usd ?? t.net_pnl_usd ?? 0)} | ${t.result || t.status || 'SETTLED'}${t.kind === 'REAL' ? ' | REAL-KIND' : ''}`));
+  if (lite) { const net = ct.reduce((a, t) => a + Number(t.realized_net_usd ?? t.net_pnl_usd ?? 0), 0), w = ct.filter(t => t.result === 'WIN').length; L.push(`- ${ct.length} completed transactions, ${w} wins, aggregate net ${sg(net)} (per-trade rows omitted in the LITE report)`); } else ct.forEach(t => L.push(`- ${fmtEt(t.closed_ts || t.ts)} | ${t.account_label || t.account_id} | ${t.ticker} ${t.side || '–'} x${t.contracts ?? 0} | invested ${usd(t.invested_usd)} | fee ${usd(t.fee_usd || 0)} | net ${sg(t.realized_net_usd ?? t.net_pnl_usd ?? 0)} | ${t.result || t.status || 'SETTLED'}${t.kind === 'REAL' ? ' | REAL-KIND' : ''}`));
   L.push('');
   L.push('## Page notes (static text on the Portfolio page)',
     '- Real vs. Simulated: ARES-005 (REAL) reflects reconciled Kalshi shard 2 cash, actual fills and exchange settlements. SIMULATED accounts model order-book fills on independent ledgers.',
@@ -2523,7 +2526,7 @@ function buildReportDetailSections(snap, nowSec) {
     L.push(cps.length ? `- latest checkpoint ${cps[0].version} (${cps[0].month}, ${n0(cps[0].train_bars)} bars)` : '- no versioned monthly checkpoint committed yet (baseline 2026-01)');
     const evs = cs.events || [];
     L.push(`- ${evs.length} events (all published, newest first):`);
-    evs.forEach(e => L.push(`  - ${fmtEt(e.ts)} | ${e.level} | ${e.month || '–'} | ${e.operation || '–'} | ${String(e.message || '').replace(/\s+/g, ' ')}`));
+    if (lite) { evs.filter(e => e.level !== 'INFO').slice(0, 5).forEach(e => L.push(`  - ${fmtEt(e.ts)} | ${e.level} | ${e.month || '–'} | ${e.operation || '–'} | ${String(e.message || '').replace(/\s+/g, ' ').slice(0, 160)}`)); L.push(`  - (LITE: ${evs.length} events omitted except up to 5 warnings/errors)`); } else evs.forEach(e => L.push(`  - ${fmtEt(e.ts)} | ${e.level} | ${e.month || '–'} | ${e.operation || '–'} | ${String(e.message || '').replace(/\s+/g, ' ')}`));
     L.push('');
 
     // ---------------- TRAINING -> CMOS PAGE ----------------
@@ -2581,7 +2584,7 @@ function buildReportDetailSections(snap, nowSec) {
     Object.entries(oos.by_family || {}).forEach(([ser, f]) => L.push(`  - OOS family ${ser}: ${f.trades} trades | net ${usd(f.net_pnl_usd || 0)} | Brier ${f.brier_score ?? '–'}`));
     if (!Object.keys(oos.by_family || {}).length) L.push('  - no family OOS breakdown yet');
     L.push('- Checkpoints (all, newest first): version | created | period | mode | events | OOS Brier | OOS net | max DD | validation | deployment | sha256 (first 12)');
-    cps.forEach(c => L.push(`  - ${c.version} | ${at(c.created_ts)} | ${c.training_period || c.month || '–'} | ${c.training_mode || '–'} | ${c.independent_events ?? '–'} | ${c.oos_brier ?? '–'} | ${c.oos_net_pnl_usd != null ? usd(c.oos_net_pnl_usd) + (c.validation_status === 'MODEL_INVALIDATED' ? ' INVALID (2c scaling artifact, not verified profit)' : '') : '–'} | ${c.max_drawdown_usd != null ? usd(c.max_drawdown_usd) : '–'} | ${c.validation_status || '–'} | ${c.deployment_status || '–'} | ${c.checkpoint_sha256 ? String(c.checkpoint_sha256).slice(0, 12) : '–'}`));
+    if (lite) { cps.slice(0, 3).forEach(c => L.push(`  - ${c.version} | ${at(c.created_ts)} | ${c.training_period || c.month || '–'} | OOS Brier ${c.oos_brier ?? '–'} | OOS net ${c.oos_net_pnl_usd != null ? usd(c.oos_net_pnl_usd) : '–'} | ${c.validation_status || '–'} | ${c.deployment_status || '–'}`)); L.push(`  - (LITE: ${Math.max(0, cps.length - 3)} older checkpoints omitted)`); } else cps.forEach(c => L.push(`  - ${c.version} | ${at(c.created_ts)} | ${c.training_period || c.month || '–'} | ${c.training_mode || '–'} | ${c.independent_events ?? '–'} | ${c.oos_brier ?? '–'} | ${c.oos_net_pnl_usd != null ? usd(c.oos_net_pnl_usd) + (c.validation_status === 'MODEL_INVALIDATED' ? ' INVALID (2c scaling artifact, not verified profit)' : '') : '–'} | ${c.max_drawdown_usd != null ? usd(c.max_drawdown_usd) : '–'} | ${c.validation_status || '–'} | ${c.deployment_status || '–'} | ${c.checkpoint_sha256 ? String(c.checkpoint_sha256).slice(0, 12) : '–'}`));
     const rb = al.rollback_audit || [];
     L.push(`### Checkpoint rollback audit log (${rb.length})`);
     if (!rb.length) L.push('- no rollbacks recorded');
@@ -2650,10 +2653,11 @@ function wireControls() {
   $('completed-q').oninput = () => { completedPage = 0; if (currentSnap) renderCompleted(currentSnap); };
   $('modal-close').onclick = () => $('trace-modal').close();
 
-  const copyBtn = $('copy-report-btn');
+  const wireCopy = (id, label, lite) => {
+  const copyBtn = $(id);
   if (copyBtn) {
     copyBtn.onclick = async () => {
-      const txt = buildStatusReportText(currentSnap);
+      const txt = buildStatusReportText(currentSnap, { lite });
       let ok = false;
       try {
         await navigator.clipboard.writeText(txt);
@@ -2671,9 +2675,12 @@ function wireControls() {
         } catch { }
       }
       copyBtn.textContent = ok ? '✓ Copied!' : '✗ Copy Failed';
-      setTimeout(() => { copyBtn.textContent = '📋 Copy Status Report'; }, 2500);
+      setTimeout(() => { copyBtn.textContent = label; }, 2500);
     };
   }
+  };
+  wireCopy('copy-report-btn', '📋 Copy Status Report', false);
+  wireCopy('copy-report-lite-btn', '📋 Copy LITE (no ledgers)', true);
 }
 
 // Init once
