@@ -1863,6 +1863,77 @@ function renderHunterShadow(snap) {
   if (sel) sel.onchange = () => { hunterSlipMode = sel.value; renderHunterShadow(currentSnap); };
 }
 
+
+// ===== Order-Book Bargain Hunter (shadow experiment card; same snapshot section feeds the Status Report) =====
+function renderBargainHunter(snap) {
+  const panel = $('bargain-panel'), body = $('bargain-body');
+  if (!panel || !body) return;
+  const b = snap && snap.bargain_hunter;
+  if (!b) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const st = b.status || {}, lv = b.live || {}, sc = lv.scanning || {}, sh = lv.shadow || {}, rt = b.retro || null;
+  const nowSec = snap.published_ts || Math.floor(Date.now() / 1000);
+  const ts = t => (t ? new Date(t * 1000).toLocaleString('en-US', { timeZone: 'America/New_York' }) : 'never');
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const usd = v => (v == null ? '–' : (Number(v) < 0 ? '-$' : '$') + Math.abs(Number(v)).toFixed(2));
+  const n0 = v => (v == null ? '–' : Number(v).toLocaleString());
+  const f2 = v => (v == null ? '–' : Number(v).toFixed(2));
+  const pct = v => (v == null ? '–' : (100 * Number(v)).toFixed(0) + '%');
+  const tag = (txt, cls) => `<span class="tag ${cls || ''}">${esc(txt)}</span>`;
+  const cands = (lv.candidates_recent || []);
+  const crow = c => `<tr><td class="mono">${esc(ts(c.ts))}</td><td class="mono">${esc(c.ticker)} ${esc(c.side.toUpperCase())}</td><td class="mono">${f2(c.ask)}</td><td class="mono">${n0(c.qty_top)} / ${n0(c.depth_within_2c)}</td><td class="mono">${f2(c.ref)}</td><td class="mono">-${c.discount_c}¢ (z ${c.z})</td><td class="mono">${c.spread_c}¢</td><td>${esc(c.status)}${c.reason ? ' — ' + esc(c.reason) : ''}</td></tr>`;
+  const rej = Object.entries(lv.rejections || {}).sort((a, c) => c[1] - a[1]).map(([k, v]) => `<li>${esc(k)}: <b>${v}</b></li>`).join('');
+  const orow = o => `<tr><td class="mono">${esc(o.ticker)} ${esc(o.side.toUpperCase())}</td><td class="mono">${esc(ts(o.entry_ts))}</td><td class="mono">${f2(o.entry_px)} × ${n0(o.qty)}</td><td class="mono">${usd(o.cost)}</td><td class="mono">resting sell ${f2(o.target)}</td><td class="mono">${esc(ts(o.deadline))}</td></tr>`;
+  const unfilled = (sh.open || []).length;
+  let retroHtml = '';
+  if (rt) {
+    const a = rt.answers || {};
+    const mkRows = arr => (arr || []).map(r => {
+      const c = r.conservative, o = r.optimistic;
+      const cell = x => (x ? `${usd(x.net_per_trade)} <span class="muted">[${(x.ci95_cluster_event || []).map(f2).join(', ')}] fill ${pct(x.tp_fill_rate)}, n ${x.n}</span>` : '–');
+      return `<tr><td class="mono">${esc(r.bucket)}</td><td class="mono">${n0(r.episodes)}</td><td class="mono">${pct(r.entry_rate_next)}</td><td class="mono">${cell(c)}</td><td class="mono">${cell(o)}</td></tr>`;
+    }).join('');
+    const dr = mkRows(rt.dose_response), drl = mkRows(rt.dose_response_liquid);
+    const best = a.q6_q7_best_cell_pessimistic_queue_conservative_entry;
+    const pos = a.cells_with_cluster_CI_above_zero || [];
+    retroHtml = `<details class="pos-details" style="margin-top:10px"><summary class="mono"><b>Retrospective feasibility on recorded books</b> ${tag('SIMULATED — not prospectively verified', 'warn')} <span class="muted">generated ${esc(ago(rt.generated_ts))}</span></summary>
+      <div class="muted" style="font-size:12px;margin:6px 0">${esc(rt.evidence_class || '')}</div>
+      <ul style="margin:4px 0 4px 18px;font-size:12px">
+        <li><b>1 Frequency:</b> ${esc(a.q1_frequency || '–')}</li>
+        <li><b>3 Typical quantity:</b> ${n0((a.q3_quantity || {}).top_level_median_contracts)} contracts at the top level; ${n0((a.q3_quantity || {}).within_2c_median_contracts)} within 2¢ (~${usd((a.q3_quantity || {}).dollars_within_2c_median)})</li>
+        <li><b>4 Accessible for:</b> median ${n0(((a.q4_accessible_for || {}).median))} s, p90 ${n0(((a.q4_accessible_for || {}).p90))} s (${pct((a.q4_accessible_for || {}).share_gone_within_15s)} gone within 15 s; resolution limited by recording cadence)</li>
+        <li><b>5 Buyable:</b> ${pct((a.q5_buyable || {}).decision_book_optimistic)} on the decision book (optimistic) vs ${pct((a.q5_buyable || {}).next_book_conservative)} still offered on the next recorded book (conservative)</li>
+        <li><b>6/7 Best resale cell (conservative entry, pessimistic queue):</b> ${best ? `${esc(best.scope)} / ${esc(best.bucket)} / ${esc(best.exit)}: net ${usd(best.net_per_trade)} per $10 trade, 95% CI [${(best.ci95_cluster_event || []).map(f2).join(', ')}], TP fill ${pct(best.tp_fill_rate)}, failed exits ${pct(best.failed_exit_rate)}, n ${best.n}` : '–'}</li>
+        <li><b>Cells with a 95% interval above zero:</b> ${pos.length ? esc(pos.join('; ')) : '<b>none</b>'}</li>
+      </ul>
+      <div class="table-wrap"><table><thead><tr><th>DISCOUNT BUCKET</th><th>EPISODES</th><th>BUYABLE NEXT BOOK</th><th>CONSERVATIVE: net per $10 trade (tp+3¢, 5 min)</th><th>OPTIMISTIC BOUND (same book, first in line)</th></tr></thead><tbody>${dr}</tbody></table></div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Most generous region only (ask 20–80¢, spread ≤ 2¢; relative round-trip cost ≲ 10%) — ${n0(rt.liquid_candidates)} candidate episodes:</div>
+      <div class="table-wrap"><table><thead><tr><th>DISCOUNT BUCKET</th><th>EPISODES</th><th>BUYABLE NEXT BOOK</th><th>CONSERVATIVE</th><th>OPTIMISTIC BOUND</th></tr></thead><tbody>${drl}</tbody></table></div>
+      <div class="muted" style="font-size:12px">Control = unselected entries with no discount. A bucket must beat the control, not just cost; a failed take-profit is sold at the bid at the deadline with a taker fee.</div></details>`;
+  }
+  body.innerHTML = `<details class="pos-details panel-details" open><summary class="panel-summary"><div><h2 style="margin:0">Order-Book Bargain Hunter — Shadow Experiment</h2></div><span class="expand-lbl">▸ Expand / collapse</span></summary>
+    <div class="acct-card" style="padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><span class="muted mono" style="font-size:12px">find underpriced offer → buy → resting take-profit → fill → reinvest</span>
+        <span>${tag(st.label || 'UNKNOWN', st.process_running ? 'ok' : '')}${st.stale ? ' ' + tag('STALE', 'bad') : ''}</span></div>
+      ${opsStrip(snap, 'shadow:bargain')}
+      <div class="muted" style="font-size:12px;margin:4px 0">Paper/shadow only — no real orders, no existing account touched. Labels: <b>OBSERVED</b> = recorded order books; <b>HYPOTHETICAL</b> = a candidate verdict on those books (nothing bought); <b>SIMULATED</b> = shadow purchases and resting sells modeled on later recorded books (book-touch, pessimistic queue). Modeled fills are not print-verified.</div>
+      <div class="mono" style="display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:12px">
+        <span>Markets monitored: <b>${n0(sc.markets_monitored)}</b></span><span>Books examined: <b>${n0(sc.books_examined)}</b></span><span>Candidates examined: <b>${n0(sc.candidates_examined)}</b></span>
+        <span>Last pass: <b>${esc(ago(sc.last_pass_ts))}</b></span><span>Last meaningful activity: <b>${esc(ago(sc.last_meaningful_activity_ts))}</b></span><span>Started: <b>${esc(ts(lv.prospective_start_ts))} ET</b></span></div>
+      <h3 style="margin:10px 0 4px">Shadow account ${tag('SIMULATED', 'warn')}</h3>
+      <div class="mono" style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px">
+        <span>Bankroll: <b>${usd(sh.bankroll)}</b></span><span>Cash: <b>${usd(sh.cash)}</b></span><span>Shadow purchases: <b>${n0(sh.shadow_bought)}</b></span><span>Entries lost before fill: <b>${n0(sh.entries_lost_before_fill)}</b></span>
+        <span>Closed: <b>${n0(sh.closed)}</b> (modeled fills <b>${n0(sh.modeled_fills)}</b>, verified <b>${n0(sh.verified_fills)}</b>)</span><span>Unfilled resting exits: <b>${n0(unfilled)}</b></span><span>Failed exits: <b>${n0(sh.failed_exits)}</b></span>
+        <span>Net P&amp;L: <b>${usd(sh.net_pnl)}</b></span><span>Max drawdown: <b>${usd(sh.max_drawdown)}</b></span><span>Median hold: <b>${sh.median_hold_s == null ? '–' : n0(sh.median_hold_s) + ' s'}</b></span>
+        <span>Capital-hours: <b>${f2(sh.capital_hours)}</b></span><span>Net per capital-$-hour: <b>${sh.net_per_capital_dollar_hour == null ? '–' : f2(sh.net_per_capital_dollar_hour)}</b></span></div>
+      ${unfilled ? `<div class="table-wrap" style="margin-top:8px"><table><thead><tr><th>OPEN SHADOW LOT</th><th>ENTRY TIME</th><th>PRICE × QTY</th><th>CAPITAL</th><th>EXIT ORDER</th><th>DEADLINE</th></tr></thead><tbody>${(sh.open || []).map(orow).join('')}</tbody></table></div>` : ''}
+      <h3 style="margin:10px 0 4px">Recent candidate bargains ${tag('HYPOTHETICAL', 'warn')}</h3>
+      ${cands.length ? `<div class="table-wrap"><table><thead><tr><th>OBSERVED</th><th>CONTRACT</th><th>EXEC ASK</th><th>QTY top / within 2¢</th><th>PRIOR REF MID</th><th>DISCOUNT</th><th>SPREAD</th><th>OUTCOME</th></tr></thead><tbody>${cands.map(crow).join('')}</tbody></table></div>` : '<div class="muted" style="font-size:12px">No candidate has met the rule since the scan started.</div>'}
+      <div class="muted" style="font-size:12px;margin-top:6px">Rejections and reasons (cumulative):</div><ul class="muted" style="margin:2px 0 0 18px;font-size:12px">${rej || '<li>none yet</li>'}</ul>
+      ${retroHtml}
+    </div></details>`;
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
@@ -1873,6 +1944,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
   renderHunterShadow(snap);
+  renderBargainHunter(snap);
   renderPaperLab(snap);
   renderCollectors(snap);
   renderComponents(snap);
@@ -2135,6 +2207,22 @@ function buildStatusReportSections(snap, nowSec) {
     const lv = hs.live || {};
     L.push(`- Hunter shadow search | ${hsSt} | ${st.label || 'UNKNOWN'} | last heartbeat ${at(st.heartbeat_ts)} | results generated ${at(hs.generated_ts)} | contracts examined ${n0(lv.contracts_examined)} / meets price rules ${n0(lv.meets_price_requirements)} / meets profitability rules ${n0(lv.meets_profitability_requirements)} | SHADOW SEARCH + HISTORICAL REPLAY (no orders)`);
   }
+  const bh = snap.bargain_hunter;
+  if (!bh) L.push('- Order-Book Bargain Hunter: UNKNOWN (not published; needs the live-money worker restart)');
+  else {
+    const bst = bh.status || {}, bl = bh.live || {}, bs = bl.scanning || {}, bsh = bl.shadow || {};
+    const bhSt = bst.process_running == null ? 'UNKNOWN' : (!bst.process_running ? 'INACTIVE' : (bst.stale ? 'STALE' : 'ACTIVE'));
+    L.push(`- Order-Book Bargain Hunter (shadow) | ${bhSt} | ${bst.label || 'UNKNOWN'} | last pass ${at(bs.last_pass_ts)} | last meaningful activity ${at(bs.last_meaningful_activity_ts)} | markets monitored ${n0(bs.markets_monitored)} | books examined ${n0(bs.books_examined)} | candidates examined ${n0(bs.candidates_examined)}`);
+    L.push(`  - SIMULATED shadow account: cash ${cash(bsh.cash)} of ${cash(bsh.bankroll)} | purchases ${n0(bsh.shadow_bought)} | closed ${n0(bsh.closed)} (modeled fills ${n0(bsh.modeled_fills)}, verified ${n0(bsh.verified_fills)}) | open resting exits ${n0((bsh.open || []).length)} | failed exits ${n0(bsh.failed_exits)} | net ${usd(bsh.net_pnl)} | max drawdown ${cash(bsh.max_drawdown)} | median hold ${bsh.median_hold_s == null ? 'UNAVAILABLE' : bsh.median_hold_s + ' s'} | net per capital-$-hour ${bsh.net_per_capital_dollar_hour == null ? 'UNAVAILABLE' : bsh.net_per_capital_dollar_hour}`);
+    Object.entries(bl.rejections || {}).sort((x, y) => y[1] - x[1]).slice(0, 5).forEach(([k, v]) => L.push(`  - rejected: ${k} x${v}`));
+    (bl.candidates_recent || []).slice(0, 3).forEach(c => L.push(`  - HYPOTHETICAL candidate ${c.ticker} ${c.side.toUpperCase()} ask ${c.ask} qty ${c.qty_top} discount ${c.discount_c}c -> ${c.status}${c.reason ? ' (' + c.reason + ')' : ''}`));
+    const br = bh.retro;
+    if (br) {
+      const ba = br.answers || {};
+      L.push(`  - RETROSPECTIVE (simulated on recorded books, not prospective) generated ${at(br.generated_ts)}: ${ba.q1_frequency || ''}`);
+      L.push(`  - retro buyable next book ${br.buyable_next == null ? 'UNAVAILABLE' : Math.round(100 * br.buyable_next) + '%'} | cells with 95% interval above zero: ${(ba.cells_with_cluster_CI_above_zero || []).length ? ba.cells_with_cluster_CI_above_zero.join('; ') : 'none'}`);
+    }
+  }
   if (!pl) L.push('- Execution sandbox replay / calibration: UNKNOWN (paper_lab not published)');
   else {
     const sb = pl.sandbox_replay;
@@ -2321,7 +2409,7 @@ function opsStrip(snap, cid) {
 }
 // Components that already have their own card/table elsewhere on the page (shown there with a status strip); the monitoring section lists the rest.
 function isCardComponent(c) {
-  return /^(acct:|exp:|zeus:|shadow:hunter$|rest:exits$)/.test(c.id);
+  return /^(acct:|exp:|zeus:|shadow:hunter$|shadow:bargain$|rest:exits$)/.test(c.id);
 }
 
 function renderComponents(snap) {
