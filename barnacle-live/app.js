@@ -442,6 +442,7 @@ function renderScoreboard(snap, force = false) {
         <span>· Mode: <b>${isReal ? 'REAL MONEY' : 'PAPER SIM'}</b></span>
         <span>· Status: <b>${a.runtime_status || 'ACTIVE'}</b></span>
       </div>
+      ${opsStrip(snap, 'acct:' + a.account_id)}
       <div class="eq-row">
         <div>
           <div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.04em">Current Account Equity</div>
@@ -626,6 +627,7 @@ function renderZeusExecutionComparison(snap) {
       <div class="muted" style="font-size:12px;margin:4px 0 8px">
         ${isMaker ? 'Resting limit orders · queue-modeled fills (not confirmed exchange fills) · no fallback' : 'Authentic 60s grid · 30s latency · cp_f10 risk · hold-to-settlement'}
       </div>
+      ${opsStrip(snap, isMaker ? 'zeus:maker' : 'zeus:taker')}
       <div class="acct-metrics" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px">
         <div><span class="muted">Equity:</span> <b class="mono">${fmtUsd(a.current_equity_usd)}</b></div>
         <div><span class="muted">Realized Net:</span> <b class="mono ${a.realized_net_pnl_usd >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(a.realized_net_pnl_usd)}</b></div>
@@ -1825,6 +1827,7 @@ function renderHunterShadow(snap) {
         <h2 style="margin:0">Finding Better Trades — Shadow Experiment</h2>
         <span><span class="tag ${st.process_running ? 'ok' : ''}">${esc(st.label || 'HISTORICAL REPLAY')}</span>${st.stale ? ' <span class="tag bad">STALE RESULTS</span>' : ''}</span>
       </div>
+      ${opsStrip(snap, 'shadow:hunter')}
       <div class="muted mono" style="font-size:12px;margin-top:6px">Paper simulation only — no real money; existing accounts untouched. Replay results generated ${ago(h.generated_ts)} (${esc(ts(h.generated_ts))} ET); recorded-quote data through ${esc(ts(h.data_freshness_ts))} ET (${ago(h.data_freshness_ts)}).</div>
       <div class="muted mono" style="font-size:12px;margin-top:4px">HISTORICAL REPLAY on the HERMES-008B market scope, $100 bankroll, test period ${esc(testFrom)} → ${esc(testTo)} ET. Win probabilities are measured training-period win rates (95% lower bound). Market/price-band cells with fewer than ${h.calibration?.min_cell_n ?? 30} measured outcomes are UNVALIDATED and not bought by the filtering strategies.</div>
       <div class="table-wrap" style="margin-top:10px"><table>
@@ -2302,6 +2305,25 @@ function componentProgress(c) {
 function componentTagClass(st) {
   return ({ TRADING: 'ok', EVALUATING: 'ok', TRAINING: 'ok', COLLECTING: 'ok', IDLE: 'warn', STALE: 'warn', BLOCKED: 'bad', ERROR: 'bad', STOPPED: 'legacy' })[st] || 'warn';
 }
+// Compact live-status strip placed INSIDE the existing account / experiment cards. Data = snap.components (same roll-up as the Status Report).
+function opsStrip(snap, cid) {
+  const c = (snap && snap.components && snap.components.components || []).find(x => x.id === cid);
+  if (!c) return '';
+  const nowSec = snap.published_ts || Math.floor(Date.now() / 1000);
+  const prog = componentProgress(c);
+  const reasonShown = c.status === 'TRADING' || c.status === 'COLLECTING' || c.status === 'EVALUATING' || c.status === 'TRAINING' ? '' : c.reason;
+  return `<div class="ops-strip" style="display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:11px;margin:6px 0;padding:5px 8px;border:1px solid rgba(148,163,184,.25);border-radius:6px">
+      <span class="tag ${componentTagClass(c.status)}">${esc(c.status)}</span>
+      <span class="mono">last activity: ${esc(componentAgo(c.last_activity_ts, nowSec))}${c.last_activity ? ' &middot; ' + esc(c.last_activity) : ''}</span>
+      ${prog ? `<span class="muted mono">${esc(prog)}</span>` : ''}
+      ${reasonShown ? `<span class="muted" style="flex-basis:100%">${esc(reasonShown)}</span>` : ''}
+    </div>`;
+}
+// Components that already have their own card/table elsewhere on the page (shown there with a status strip); the monitoring section lists the rest.
+function isCardComponent(c) {
+  return /^(acct:|exp:|zeus:|shadow:hunter$|rest:exits$)/.test(c.id);
+}
+
 function renderComponents(snap) {
   const panel = $('components-panel'), body = $('components-body');
   if (!panel || !body) return;
@@ -2309,7 +2331,8 @@ function renderComponents(snap) {
   if (!cm || !cm.components) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   const nowSec = snap.published_ts || Math.floor(Date.now() / 1000);
-  const act = cm.components.filter(c => c.view === 'active'), inact = cm.components.filter(c => c.view !== 'active');
+  const mon = cm.components.filter(c => !isCardComponent(c)), cardSum = cm.components.filter(isCardComponent);
+  const act = mon.filter(c => c.view === 'active'), inact = mon.filter(c => c.view !== 'active');
   const order = ['TRADING', 'EVALUATING', 'TRAINING', 'COLLECTING', 'IDLE', 'BLOCKED', 'STALE', 'ERROR', 'STOPPED'];
   const cnt = {}; act.forEach(c => { cnt[c.status] = (cnt[c.status] || 0) + 1; });
   const chips = order.filter(k => cnt[k]).map(k => `<span class="tag ${componentTagClass(k)}" title="${esc(k)}">${esc(k)} ${cnt[k]}</span>`).join(' ');
@@ -2324,10 +2347,11 @@ function renderComponents(snap) {
   const inCats = [...new Set(inact.map(c => c.category))];
   const inactiveHtml = inact.length ? `<details style="margin-top:12px"><summary style="cursor:pointer"><b>Inactive, stopped and retired</b> <span class="muted">(${inact.length}) &mdash; kept separate so the live view stays readable</span></summary>${inCats.map(cat => `<div style="margin:8px 0 2px" class="muted">${esc(cat)}</div>${table(inact.filter(c => c.category === cat))}`).join('')}</details>` : '';
   body.innerHTML = `<div class="acct-card" style="padding:14px 16px">
-      <div class="acct-head"><span class="acct-title">System components &mdash; what is running and whether it is making progress</span><span class="tag">${act.length} LIVE VIEW</span></div>
+      <div class="acct-head"><span class="acct-title">Operational monitoring &mdash; collectors, workers, jobs, feeds and services</span><span class="tag">${act.length} LIVE</span></div>
       <div style="margin:8px 0">${chips}</div>
       <div class="muted" style="font-size:12px;margin-bottom:6px">${esc(cm.note || '')} Updated ${esc(componentAgo(cm.generated_ts, nowSec))}.</div>
-      ${groups}${inactiveHtml}</div>`;
+      ${groups}${inactiveHtml}
+      ${cardSum.length ? `<details style="margin-top:12px"><summary style="cursor:pointer" class="muted">Optional: one-line status summary of accounts and experiments (${cardSum.length}) &mdash; the cards above are the primary view</summary>${table(cardSum)}</details>` : ''}</div>`;
 }
 
 function renderCollectors(snap) {
@@ -2363,7 +2387,7 @@ function renderPaperLab(snap) {
   const svc = p.forward_service || {};
   const stale = svc.last_tick_ts ? (Date.now() / 1000 - svc.last_tick_ts) > 300 : true;
   const T = lp.totals || {};
-  const expRows = (lp.experiments || []).map(e => `<tr><td>${esc(e.name)}<div class="muted mono" style="font-size:11px">${esc(e.id)} · ${esc(e.mode || '')}</div></td>
+  const expRows = (lp.experiments || []).map(e => `<tr><td>${esc(e.name)}<div class="muted mono" style="font-size:11px">${esc(e.id)} · ${esc(e.mode || '')}</div>${opsStrip(snap, 'exp:' + e.id)}</td>
       <td><span class="tag ${e.status === 'active' ? 'ok' : ''}">${esc((e.status || '').toUpperCase())}</span></td>
       <td class="mono">${e.active_accounts}/${e.accounts}</td><td class="mono">${usd(e.bankroll)}</td><td class="mono">${usd(e.equity)}</td>
       <td class="mono ${pnlCls(e.realized_pnl)}">${usd(e.realized_pnl)}</td><td class="mono">${e.open_positions}</td><td class="mono">${n0(e.closed_trades)}</td><td class="mono">${pct(e.win_rate)}</td></tr>`).join('');
@@ -2410,6 +2434,7 @@ function renderPaperLab(snap) {
       <div class="table-wrap"><table><thead><tr><th>CLOSED</th><th>ACCOUNT</th><th>MARKET</th><th>SIDE</th><th>ENTRY → EXIT</th><th>EXIT TYPE</th><th>NET P&amp;L</th></tr></thead><tbody>${closedRows}</tbody></table></div></details>
     <div class="acct-card paper-card" style="padding:14px 16px;margin-top:10px">
       <h3 style="margin:0 0 6px">Are resting sell orders filling? <span class="tag paper">LIVE PAPER</span></h3>
+      ${opsStrip(snap, 'rest:exits')}
       <div class="mono" style="display:flex;gap:18px;flex-wrap:wrap">
         <span>Orders posted: <b>${n0(rx.orders_total)}</b></span><span>Filled: <b>${n0(bs.filled)}</b></span><span>Cancelled: <b>${n0(bs.cancelled)}</b></span><span>Expired: <b>${n0(bs.expired)}</b></span>
         <span>Open now: <b>${n0(rx.open_now)}</b></span><span>Fill events recorded: <b>${n0(rx.fills_total)}</b></span><span>First fill: <b>${ts(rx.first_fill_ts)}</b></span></div>
