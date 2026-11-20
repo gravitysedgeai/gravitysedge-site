@@ -346,30 +346,11 @@ function renderAccountDetailsBody(type, items) {
   }).join('');
 }
 
-function renderScoreboard(snap, force = false) {
-  const grid = $('scoreboard-grid');
-  if (!grid) return;
-  const evId = snap?.event_id ?? null;
-  if (!force && evId != null && evId === lastScoreboardEventId && grid.children.length > 0) {
-    return;
-  }
-  lastScoreboardEventId = evId;
-
-  const accts = snap?.three_accounts?.accounts || [];
-  const holdings = snap?.holdings || [];
-  const completedAll = snap?.completed_trades || [];
-  const prevMap = {};
-  (prevSnap?.three_accounts?.accounts || []).forEach(pa => { prevMap[pa.account_id] = pa; });
-
-  if (!accts.length) {
-    grid.innerHTML = '<div class="acct-card"><div class="muted">Waiting for account data…</div></div>';
-    return;
-  }
-
+// ONE full account-card renderer, shared by the main scoreboard and every other panel that shows paper accounts (e.g. ZEUS capital scaling).
+// ctx = { snap, holdings, completedAll, prevMap, secDataMap }; secDataMap is filled so the expandable sections can render their rows lazily.
+function buildAccountCard(a, ctx) {
+  const { snap, holdings, completedAll, prevMap, secDataMap } = ctx;
   const nowSec = Date.now() / 1000;
-  const secDataMap = {};
-
-  const renderCard = (a) => {
     const grp = accountGroupOf(a);
     const isReal = grp === 'live';
     const isVal = grp === 'original_validation';
@@ -490,7 +471,49 @@ function renderScoreboard(snap, force = false) {
         <div class="sec-body">${cmpOpen ? renderAccountDetailsBody('completed', acctCompleted) : ''}</div>
       </details>
     </article>`;
-  };
+}
+
+function bindAccountDetails(container, secDataMap) {
+    if (!container) return;
+    container.querySelectorAll('details.pos-details').forEach(det => {
+      const key = det.dataset.sec;
+      const lbl = det.querySelector('.sec-lbl');
+      const body = det.querySelector('.sec-body');
+      det.addEventListener('toggle', () => {
+        sectionOpenOverrides[key] = det.open;
+        if (lbl) lbl.textContent = det.open ? '▾ Collapse' : '▸ Expand';
+        if (det.open && body && !body.innerHTML && secDataMap[key]) {
+          body.innerHTML = renderAccountDetailsBody(secDataMap[key].type, secDataMap[key].items);
+        }
+      });
+    });
+}
+
+function renderScoreboard(snap, force = false) {
+  const grid = $('scoreboard-grid');
+  if (!grid) return;
+  const evId = snap?.event_id ?? null;
+  if (!force && evId != null && evId === lastScoreboardEventId && grid.children.length > 0) {
+    return;
+  }
+  lastScoreboardEventId = evId;
+
+  const accts = snap?.three_accounts?.accounts || [];
+  const holdings = snap?.holdings || [];
+  const completedAll = snap?.completed_trades || [];
+  const prevMap = {};
+  (prevSnap?.three_accounts?.accounts || []).forEach(pa => { prevMap[pa.account_id] = pa; });
+
+  if (!accts.length) {
+    grid.innerHTML = '<div class="acct-card"><div class="muted">Waiting for account data…</div></div>';
+    return;
+  }
+
+  const nowSec = Date.now() / 1000;
+  const secDataMap = {};
+
+  const ctx = { snap, holdings, completedAll, prevMap, secDataMap };
+  const renderCard = (a) => buildAccountCard(a, ctx);
 
   const activeAccts = accts.filter(a => !a.archived);
   const archivedAccts = accts.filter(a => Boolean(a.archived));
@@ -554,21 +577,7 @@ function renderScoreboard(snap, force = false) {
       <div class="scoreboard-grid">${g.items.map(renderCard).join('')}</div>
     </div>`).join('');
 
-  const bindDetails = (container) => {
-    if (!container) return;
-    container.querySelectorAll('details.pos-details').forEach(det => {
-      const key = det.dataset.sec;
-      const lbl = det.querySelector('.sec-lbl');
-      const body = det.querySelector('.sec-body');
-      det.addEventListener('toggle', () => {
-        sectionOpenOverrides[key] = det.open;
-        if (lbl) lbl.textContent = det.open ? '▾ Collapse' : '▸ Expand';
-        if (det.open && body && !body.innerHTML && secDataMap[key]) {
-          body.innerHTML = renderAccountDetailsBody(secDataMap[key].type, secDataMap[key].items);
-        }
-      });
-    });
-  };
+  const bindDetails = (container) => bindAccountDetails(container, secDataMap);
 
   grid.innerHTML = renderGroupHtml(activeGroups);
   bindDetails(grid);
@@ -663,50 +672,51 @@ function renderZeusExecutionComparison(snap) {
   }
 }
 
+let zeusSecMap = {};
 function renderZeusCapitalScaling(snap) {
   const cardsEl = $('zeus-scaling-cards'), cmpEl = $('zeus-scaling-compare'), noteEl = $('zeus-scaling-note');
   if (!cardsEl) return;
   const z = snap?.zeus_capital_scaling;
-  if (!z || !(z.accounts || []).length) {
+  if (!z || !(z.standard_accounts || []).length) {
     cardsEl.innerHTML = '';
-    if (cmpEl) cmpEl.innerHTML = '<div class="acct-card"><b>UNKNOWN</b> &mdash; the ZEUS capital-scaling experiment is not in the published snapshot. Its accounts may exist and run locally; the relay publishes them only after it is restarted with this version. Nothing is shown rather than a guess.</div>';
+    if (cmpEl) cmpEl.innerHTML = `<div class="acct-card"><b>UNKNOWN</b> &mdash; the ZEUS capital-scaling experiment is not in the published snapshot${z?.error ? ' (' + esc(z.error) + ')' : ''}. Nothing is shown rather than a guess.</div>`;
     return;
   }
   if (noteEl && z.note) noteEl.textContent = z.note;
   const usd2 = v => `$${Number(v || 0).toFixed(2)}`;
   const pct = v => `${Number(v || 0).toFixed(2)}%`;
-  const eqv = a => /EQUILIBRIUM/.test(a.label);
-  const cardHtml = a => `
-    <div class="acct-card ${eqv(a) ? 'validation-card' : ''}">
-      <div class="acct-head">
-        <span class="acct-title">${esc(a.label)}</span>
-        <span class="tag ${eqv(a) ? 'validation' : (/MAKER/.test(a.label) ? 'warn' : 'validation')}">${eqv(a) ? 'EQUILIBRIUM-MANAGED (PAPER)' : (/MAKER/.test(a.label) ? 'CONSERVATIVE MODELED MAKER' : 'PAPER TAKER (ZEUS)')}</span>
-      </div>
-      <div class="muted" style="font-size:12px;margin:4px 0 8px">${esc(a.controller || '')} &middot; ${esc(a.execution_mode || '')}</div>
-      <div class="acct-metrics" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:12px">
-        <div><span class="muted">Equity:</span> <b class="mono">${usd2(a.current_equity_usd)}</b></div>
-        <div><span class="muted">Realized Net:</span> <b class="mono ${a.realized_net_pnl_usd >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(a.realized_net_pnl_usd)}</b></div>
-        <div><span class="muted">Return:</span> <b class="mono">${pct(a.return_pct)}</b></div>
-        <div><span class="muted">Max Drawdown:</span> <b class="mono">${pct(a.max_drawdown_pct)}</b></div>
-        <div><span class="muted">Available Cash:</span> <b class="mono">${usd2(a.available_cash_usd)}</b></div>
-        <div><span class="muted">Exposure:</span> <b class="mono">${usd2(a.invested_capital_usd)} (${pct(a.exposure_pct)})</b></div>
-        <div><span class="muted">Settled W / L:</span> <b class="mono">${a.wins}W / ${a.losses}L</b></div>
-        <div><span class="muted">Open / Unfilled:</span> <b class="mono">${a.open_orders} / ${a.unfilled_orders}</b></div>
-        <div><span class="muted">Fees:</span> <b class="mono">${usd2(a.fees_usd)}</b></div>
-        <div><span class="muted">Missed Opps:</span> <b class="mono">${a.missed_opportunities}</b></div>
-        <div><span class="muted">Executed Qty:</span> <b class="mono">${a.executed_contracts}</b></div>
-        <div><span class="muted">${eqv(a) ? 'Allocation cuts:' : 'Profit / Contract:'}</span> <b class="mono">${eqv(a) ? `${a.allocation_reductions || 0} of ${a.allocation_decisions || 0}` : fmtSignedUsd(a.profit_per_executed_contract)}</b></div>
-      </div>
-    </div>`;
-  cardsEl.innerHTML = z.accounts.map(cardHtml).join('');
-  const rows = (z.comparison || []).map(c => `<tr><td>$${Number(c.size_usd).toLocaleString()}</td><td>${esc(c.venue.toUpperCase())}</td>
-      <td class="mono">${fmtSignedUsd(c.baseline.realized_net_pnl_usd)} / ${pct(c.baseline.return_pct)}</td><td class="mono">${fmtSignedUsd(c.equilibrium.realized_net_pnl_usd)} / ${pct(c.equilibrium.return_pct)}</td>
-      <td class="mono">${pct(c.baseline.max_drawdown_pct)} &rarr; ${pct(c.equilibrium.max_drawdown_pct)}</td><td class="mono">${pct(c.baseline.exposure_pct)} &rarr; ${pct(c.equilibrium.exposure_pct)}</td>
-      <td class="mono">${c.equilibrium.allocation_reductions} cuts</td><td class="mono">${usd2(c.baseline.fees_usd)} &rarr; ${usd2(c.equilibrium.fees_usd)}</td>
-      <td class="mono">${c.baseline.missed_opportunities} &rarr; ${c.equilibrium.missed_opportunities}</td></tr>`).join('');
+  // SENTINEL status for the ops strip comes from the published SENTINEL rows (never assumed): no owner approval => UNAPPROVED
+  const sent = snap?.components?.components || [];
+  const comps = (z.components || []).map(c => {
+    const sr = sent.find(x => x.id === 'sentinel:' + c.sentinel_component);
+    return { ...c, integrity: !sr ? 'UNRESOLVED' : (/no_approval/.test(sr.reason || '') ? 'UNAPPROVED' : sr.integrity), verification_id: sr?.verification_id, version_label: sr?.version_label };
+  });
+  const ctx = {
+    snap: { published_ts: snap.published_ts, components: { components: comps } },
+    holdings: z.holdings || [], completedAll: z.completed_trades || [],
+    prevMap: Object.fromEntries((prevSnap?.zeus_capital_scaling?.standard_accounts || []).map(x => [x.account_id, x])),
+    secDataMap: zeusSecMap,
+  };
+  // the SAME full account card the main scoreboard uses (buildAccountCard): every standard financial field, operations strip, expandable positions
+  cardsEl.innerHTML = z.standard_accounts.map(a => buildAccountCard(a, ctx)).join('');
+  bindAccountDetails(cardsEl, zeusSecMap);
+  const cell = (b, m, f) => `${f(b)} &rarr; ${f(m)}`;
+  const vrows = (z.validation || []).map(v => {
+    const b = v.baseline || {}, m = v.managed || {}, p = v.parity || {};
+    const st = p.status || 'UNKNOWN';
+    const cls = st === 'PASS' ? 'ok' : st === 'FAIL' ? 'bad' : 'warn';
+    return `<tr><td>$${Number(v.size_usd).toLocaleString()} ${esc(String(v.venue).toUpperCase())}</td>
+      <td><span class="tag ${cls}">${esc(st)}</span><div class="muted" style="font-size:11px">${esc(p.detail || '')}</div></td>
+      <td class="mono">${b.candidates_received ?? '–'} &rarr; ${m.candidates_received ?? '–'}</td><td class="mono">${b.decisions ?? '–'} &rarr; ${m.decisions ?? '–'}</td>
+      <td class="mono">${b.orders_attempted ?? '–'} &rarr; ${m.orders_attempted ?? '–'}</td><td class="mono">${b.fills ?? '–'} &rarr; ${m.fills ?? '–'}</td>
+      <td class="mono">${m.allocation_reductions ?? 0} cuts</td><td class="mono">${cell(b, m, x => pct(x.exposure_pct))}</td><td class="mono">${cell(b, m, x => usd2(x.fees_usd))}</td>
+      <td class="mono">${cell(b, m, x => fmtSignedUsd(x.realized_net_pnl_usd))}</td><td class="mono">${cell(b, m, x => pct(x.max_drawdown_pct))}</td>
+      <td class="mono">${b.missed_opportunities ?? '–'} &rarr; ${m.missed_opportunities ?? m.missed ?? '–'}</td></tr>`;
+  }).join('');
   const dec = (z.recent_allocation_decisions || []).slice(0, 8).map(d => `<div class="mono" style="font-size:11px">${fmtEt(d.ts)} &middot; ${esc(d.account_id)} &middot; ${esc(d.ticker)} &middot; ${esc(d.outcome)} ${d.approved_qty}/${d.baseline_qty} &middot; ${esc(d.reasons || 'no constraint binding')} &middot; ${esc(d.allocation_id)}</div>`).join('');
-  if (cmpEl) cmpEl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>SIZE</th><th>VENUE</th><th>ORIGINAL net / return</th><th>EQUILIBRIUM net / return</th><th>DRAWDOWN</th><th>EXPOSURE</th><th>ALLOCATION</th><th>FEES</th><th>MISSED</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <details style="margin:6px 0"><summary class="muted">Recent EQUILIBRIUM allocation decisions with reasons (policy ${esc(z.policy || '')})</summary>${dec || '<div class="muted">none yet</div>'}</details>`;
+  if (cmpEl) cmpEl.innerHTML = `<div class="muted" style="font-size:12px;margin:4px 0"><b>EXPERIMENTAL</b> &mdash; policy ${esc(z.policy || '')} is an illustrative demo, not calibrated. Each cell reads <b>baseline &rarr; managed</b>. A baseline sees every candidate its rules evaluate; the managed account is a replica that only receives the baseline&rsquo;s <i>executed</i> trades. Zero trades on both sides is shown as UNKNOWN, never PASS.</div>
+    <div class="table-wrap"><table><thead><tr><th>ACCOUNT PAIR</th><th>STREAM PARITY</th><th>CANDIDATES</th><th>DECISIONS</th><th>ORDERS ATTEMPTED</th><th>FILLS</th><th>ALLOCATION</th><th>EXPOSURE</th><th>FEES</th><th>REALIZED NET</th><th>MAX DRAWDOWN</th><th>MISSED</th></tr></thead><tbody>${vrows}</tbody></table></div>
+    <details style="margin:6px 0"><summary class="muted">Recent EQUILIBRIUM allocation decisions with reasons (policy ${esc(z.policy || '')}, EXPERIMENTAL)</summary>${dec || '<div class="muted">none yet &mdash; the baselines have executed no trades, so there was nothing to allocate</div>'}</details>`;
 }
 
 function renderWalkForwardResearch(snap) {
@@ -2539,6 +2549,8 @@ function buildReportDetailSections(snap, nowSec, lite) {
     if (!zs || !(zs.accounts || []).length) L.push('- UNKNOWN (zeus_capital_scaling not published)');
     else {
       zs.accounts.forEach(x => L.push(`- ${x.label} | ${x.controller} | Equity ${usd(x.current_equity_usd)} | Realized ${sg(x.realized_net_pnl_usd)} | Return ${x.return_pct}% | MaxDD ${x.max_drawdown_pct}% | Exposure ${x.exposure_pct}% | Fees ${usd(x.fees_usd)} | Missed ${x.missed_opportunities} | Cuts ${x.allocation_reductions || 0}`));
+      (zs.validation || []).forEach(v => { const b = v.baseline || {}, m = v.managed || {}, p = v.parity || {}; L.push(`- VALIDATION $${v.size_usd} ${String(v.venue).toUpperCase()} | parity ${p.status || 'UNKNOWN'} (${p.detail || ''}) | candidates ${b.candidates_received}->${m.candidates_received} | decisions ${b.decisions}->${m.decisions} | orders ${b.orders_attempted}->${m.orders_attempted} | fills ${b.fills}->${m.fills} | cuts ${m.allocation_reductions || 0} | exposure ${b.exposure_pct}%->${m.exposure_pct}% | fees ${usd(b.fees_usd)}->${usd(m.fees_usd)} | net ${sg(b.realized_net_pnl_usd)}->${sg(m.realized_net_pnl_usd)} | maxDD ${b.max_drawdown_pct}%->${m.max_drawdown_pct}% | missed ${b.missed_opportunities}->${m.missed_opportunities ?? m.missed}`); });
+      L.push('- NOTE: EQUILIBRIUM policy eq-demo-0.1 is EXPERIMENTAL and uncalibrated; zero trades is not proof the accounts work; SENTINEL status of these components: UNAPPROVED (no owner signature).');
       if (lite) L.push(`- (LITE: ${(zs.recent_allocation_decisions || []).length} recent allocation decisions omitted)`);
       else (zs.recent_allocation_decisions || []).forEach(d => L.push(`  - ${fmtEt(d.ts)} | ${d.account_id} | ${d.ticker} | ${d.outcome} ${d.approved_qty}/${d.baseline_qty} | ${d.reasons || 'no constraint binding'} | ${d.allocation_id}`));
     }
@@ -2763,7 +2775,7 @@ function componentAgo(ts, nowSec) {
 // SENTINEL integrity label: text + symbol + shape (never colour alone). Public-safe fields only.
 function integrityLabel(c) {
   if (!c || !c.integrity) return '';
-  const sym = ({ VERIFIED: '✔ VERIFIED', VERIFIED_PARTIAL: '✔* VERIFIED (declared dynamic inputs not hashed)', UNREGISTERED: '⚠ UNREGISTERED', BLOCKED: '✖ BLOCKED', REVOKED: '✖ REVOKED', MISMATCH: '⚠ MISMATCH', UNRESOLVED: '? UNRESOLVED', DISCOVERY_BYPASS: '⚠ DISCOVERY BYPASS' })[c.integrity] || c.integrity;
+  const sym = ({ VERIFIED: '✔ VERIFIED', VERIFIED_PARTIAL: '✔* VERIFIED (declared dynamic inputs not hashed)', UNREGISTERED: '⚠ UNREGISTERED', BLOCKED: '✖ BLOCKED', REVOKED: '✖ REVOKED', MISMATCH: '⚠ MISMATCH', UNRESOLVED: '? UNRESOLVED', DISCOVERY_BYPASS: '⚠ DISCOVERY BYPASS', UNAPPROVED: '✖ UNAPPROVED (no owner signature; shadow period)' })[c.integrity] || c.integrity;
   return sym + (c.verification_id ? ' · id ' + c.verification_id : '') + (c.version_label ? ' · ' + c.version_label : '');
 }
 function componentProgress(c) {
