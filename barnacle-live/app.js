@@ -1142,6 +1142,25 @@ function renderCompleted(snap) {
 let cmosLogPage = 0;
 const CMOS_LOG_PAGE_SIZE = 25;
 
+// Heartbeat and "last seen" ages are measured at SNAPSHOT time (the publisher's clock), never against the viewer's clock. A snapshot is up to ~60 s old,
+// so comparing a heartbeat to the current time made a healthy worker (10 s heartbeat) read STALLED (>35 s) between publishes. Snapshot age is shown separately.
+function snapNow(snap) {
+  const t = snap && (snap.published_ts || snap.generated_ts);
+  return t ? Number(t) : Date.now() / 1000;
+}
+// One status derivation shared by the CMOS Sync page and the Status Report so the two cannot disagree.
+function cmosSyncState(cs, snap) {
+  const ref = snapNow(snap);
+  const hbAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(ref - cs.heartbeat_ts)) : cs.heartbeat_age_s;
+  let status = cs.status || 'PAUSED';
+  let reason = cs.status_reason || '';
+  if ((status === 'ACTIVE' || status === 'WAITING') && hbAge != null && hbAge > 35) {
+    status = 'STALLED';
+    reason = `Heartbeat stale (${hbAge}s at snapshot time > 35s); last op: ${cs.operation}`;
+  }
+  return { status, reason, hbAge };
+}
+
 function initNavTabs() {
   const bPort = $('nav-tab-portfolio');
   const bCmos = $('nav-tab-cmos-sync');
@@ -1190,14 +1209,8 @@ function renderCmosSync(snap) {
     return;
   }
 
-  const nowSec = Date.now() / 1000;
-  const hbAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(nowSec - cs.heartbeat_ts)) : cs.heartbeat_age_s;
-  let status = cs.status || 'PAUSED';
-  let reason = cs.status_reason || '';
-  if ((status === 'ACTIVE' || status === 'WAITING') && hbAge != null && hbAge > 35) {
-    status = 'STALLED';
-    reason = `Heartbeat stale (${hbAge}s > 35s); last op: ${cs.operation}`;
-  }
+  const nowSec = snapNow(snap);
+  const { status, reason, hbAge } = cmosSyncState(cs, snap);
 
   const pillCls = status === 'ACTIVE' || status === 'COMPLETED' ? 'ok' : (status === 'FAILED' || status === 'STALLED' ? 'bad' : 'warn');
   if (pill) { pill.className = `pill ${pillCls}`; pill.textContent = status; }
@@ -1279,8 +1292,8 @@ function renderCmosSync(snap) {
 
   if (fBody) {
     fBody.innerHTML = (cs.families || []).map(f => `<tr>
-      <td class="mono">${f.series}</td><td class="mono">${f.contracts_total}</td><td class="mono">${f.contracts_done}</td>
-      <td class="mono">${f.contracts_verified}</td><td class="mono">${f.contracts_rejected}</td><td class="mono">${f.records_recovered}</td>
+      <td class="mono">${f.series}</td><td class="mono">${f.contracts_total ?? '–'}</td><td class="mono">${f.contracts_done ?? '–'}</td>
+      <td class="mono">${f.contracts_verified ?? '–'}</td><td class="mono">${f.contracts_rejected ?? f.records_rejected ?? '–'}</td><td class="mono">${f.records_recovered ?? '–'}</td>
     </tr>`).join('') || '<tr><td colspan="6" class="muted">No family records yet.</td></tr>';
   }
 
@@ -1399,11 +1412,11 @@ function renderTrainingCmos(snap) {
   }
   const healthEl = $('tcmos-health-bar');
   if (healthEl) {
-    const nowS = Date.now() / 1000;
+    const nowS = snapNow(snap);   // heartbeat ages at snapshot time; snapshot age (below) uses the viewer clock
     const recAge = cs.heartbeat_ts != null ? Math.max(0, Math.round(nowS - cs.heartbeat_ts)) : cs.heartbeat_age_s;
     const trAge = al.heartbeat_ts != null ? Math.max(0, Math.round(nowS - al.heartbeat_ts)) : al.heartbeat_age_s;
     const pubTs = snap?.published_ts ?? snap?.generated_ts;
-    const pubAge = pubTs != null ? Math.max(0, Math.round(nowS - pubTs)) : null;
+    const pubAge = pubTs != null ? Math.max(0, Math.round(Date.now() / 1000 - pubTs)) : null;
     const recAlive = (cs.status === 'ACTIVE' || cs.status === 'COMPLETED') && (recAge == null || recAge <= 60);
     const trStateTxt = (al.status === 'IDLE' && recAlive) ? 'IDLE (Waiting for 250-event batch)' : (al.status || 'IDLE');
     healthEl.innerHTML = `
@@ -1548,7 +1561,7 @@ function renderTrainingCmos(snap) {
       <div class="acct-card">${_svgSparkline(briers, '#38bdf8', 'OOS Brier Score (Lower=Better)', v => v.toFixed(4))}</div>
       <div class="acct-card">${_svgSparkline(pnls, '#22c55e', pnlTitle, v => '$' + v.toFixed(2))}</div>
       <div class="acct-card">${_svgSparkline(dds, '#f59e0b', 'OOS Max Drawdown ($)', v => '$' + v.toFixed(2))}</div>
-      <div class="acct-card">${_svgSparkline(evs, '#a78bfa', 'Verified Independent Events', v => String(Math.round(v)))}
+      <div class="acct-card">${_svgSparkline(evs, '#a78bfa', 'Verified Independent Events (as of each checkpoint)', v => String(Math.round(v)))}
         <div style="margin-top:6px;border-top:1px solid #1f2937;padding-top:6px">${famRows}</div></div>`;
   }
 
@@ -2210,14 +2223,16 @@ function buildStatusReportSections(snap, nowSec) {
     const al = cs.adaptive_learning || {};
     const alive = cs.worker_pid_alive === undefined ? null : !!cs.worker_pid_alive;
     const hb = cs.heartbeat_ts || null;
-    let syncSt = reportLiveStatus(alive, hb, Math.max(60, 6 * Number(cs.heartbeat_interval_s || 10)), 'ACTIVE', nowSec);
+    let syncSt = reportLiveStatus(alive, hb, Math.max(60, 6 * Number(cs.heartbeat_interval_s || 10)), 'ACTIVE', snapNow(snap));   // snapshot-time age, same basis as the CMOS Sync page
     if (syncSt === 'ACTIVE' && /train/i.test(String(al.operation || ''))) syncSt = 'TRAINING';
     L.push(`- CMOS Progressive (historical recovery + monthly training worker) | ${syncSt} | reported status ${cs.status || 'UNKNOWN'}${cs.status_reason ? ' - ' + cs.status_reason : ''} | operation ${cs.operation || 'UNKNOWN'} | month ${cs.current_month || 'UNKNOWN'} (${cs.current_month_pct == null ? 'UNAVAILABLE' : cs.current_month_pct + '%'}) | last heartbeat ${at(hb)} | records verified ${n0(cs.records_verified)} / expected ${n0(cs.records_expected)} | errors ${n0(cs.error_count)} | HISTORICAL DATA RECOVERY (not trading)`);
     const alSt = (syncSt === 'INACTIVE' || syncSt === 'UNKNOWN' || syncSt === 'STALE') ? syncSt : (/train/i.test(String(al.operation || '')) ? 'TRAINING' : 'ACTIVE');
     L.push(`- CMOS Adaptive learning loop | ${alSt} | ${al.status || 'UNKNOWN'} / ${al.operation || 'UNKNOWN'}${al.status_reason ? ' - ' + al.status_reason : ''} | cycles ${n0(al.cycles_completed)} | models tested ${n0(al.models_tested)} | promotions: ${cmosPromotionSummary(cs).text} | ${al.deployed_adaptive_model_version ? 'adaptive model deployed: ' + al.deployed_adaptive_model_version : 'no adaptive model currently deployed'} | independent events ${n0(al.independent_events)} (next trigger in ${n0(al.next_trigger_events)}) | latest challenger ${al.latest_challenger_version || 'none'} | last cycle ${at(al.last_cycle_ts)} | last heartbeat ${at(al.heartbeat_ts || hb)} | HISTORICAL TRAINING (not trading)`);
     L.push(`- CMOS-V1 deployed paper model: ${al.deployed_paper_model_version || 'UNKNOWN'} | adaptive model deployed to paper: ${al.deployed_adaptive_model_version || 'NONE'} | auto-promotion ${al.auto_promotion_enabled ? 'enabled' : 'disabled'} | paper auto-reload ${al.paper_auto_reload_enabled ? 'enabled' : 'disabled'} | last error ${al.last_error || 'none'}`);
     const ev = al.eval && al.eval.train;
-    if (ev) L.push(`- Latest training evaluation (historical, not trading): ${n0(ev.trades)} trades, win rate ${ev.win_rate == null ? 'UNAVAILABLE' : (ev.win_rate * 100).toFixed(1) + '%'}, net ${usd(ev.realized_net_pnl_usd)}, max drawdown ${cash(ev.max_drawdown_usd)}`);
+    const oosE = al.eval && al.eval.historical_oos;
+    if (oosE) L.push(`- Latest OUT-OF-SAMPLE evaluation (historical, not trading; this is the figure the Training page headlines): ${n0(oosE.trades)} trades, win rate ${oosE.win_rate == null ? 'UNAVAILABLE' : (oosE.win_rate * 100).toFixed(1) + '%'}, net ${usd(oosE.realized_net_pnl_usd)}, max drawdown ${cash(oosE.max_drawdown_usd)}`);
+    if (ev) L.push(`- In-sample TRAINING evaluation (same model on its own training data; NOT a performance estimate): ${n0(ev.trades)} trades, win rate ${ev.win_rate == null ? 'UNAVAILABLE' : (ev.win_rate * 100).toFixed(1) + '%'}, net ${usd(ev.realized_net_pnl_usd)}, max drawdown ${cash(ev.max_drawdown_usd)}`);
   }
   const mi = snap.model_isolation;
   if (mi) Object.entries(mi).forEach(([k, v]) => { if (v && v.classification) L.push(`- Model isolation - ${k}: ${v.classification}${v.consumes_cmos === false ? ' (does not consume CMOS)' : ''}`); });
@@ -2352,6 +2367,226 @@ function buildStatusReportSections(snap, nowSec) {
       if (sn.ledger) L.push(`- Audit ledger anchor | chain ${sn.ledger.chain_ok ? 'VERIFIED' : 'FAILED VERIFICATION'} | sequence ${sn.ledger.ledger_seq} | head ${sn.ledger.head_hash} | snapshot ${at(sn.ledger.snapshot_ts)} | ledger id ${sn.ledger.ledger_id} (tamper-evident reference, not proof against an actor who controls both the ledger and the anchors)`);
       L.push('');
     }
+  }
+  // ===== Page detail: everything the three pages show that the sections above only summarise =====
+  try { buildReportDetailSections(snap, nowSec).forEach(x => L.push(x)); } catch (e) { L.push('# CATEGORY: PAGE DETAIL', `- Detail sections could not be built: ${e && e.message}`, ''); }
+  return L;
+}
+
+// Detail written from the same snapshot keys the three pages render (Portfolio, #cmos-sync, #training-cmos). No second data path.
+function buildReportDetailSections(snap, nowSec) {
+  const L = [];
+  const ref = snapNow(snap);
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const at = t => (t ? `${fmtEt(t)} (${ago(t)})` : 'never');
+  const usd = v => (v == null ? '–' : (Number(v) < 0 ? '-$' : '$') + Math.abs(Number(v)).toFixed(2));
+  const sg = v => (v == null ? '–' : (Number(v) >= 0 ? '+' : '-') + '$' + Math.abs(Number(v)).toFixed(2));
+  const n0 = v => (v == null ? '–' : Number(v).toLocaleString());
+  const fx = (v, d) => (v == null ? '–' : Number(v).toFixed(d));
+  const pc = v => (v == null ? '–' : (Number(v) * 100).toFixed(1) + '%');
+  const pw = v => (v == null ? '–' : Number(v).toFixed(1) + '%');
+
+  // ---------------- PORTFOLIO PAGE ----------------
+  L.push('# CATEGORY: PORTFOLIO PAGE DETAIL (every table behind the website cards; kinds are labelled, none is real-money performance unless marked REAL)');
+  const hs = snap.hunter_shadow;
+  if (hs && Array.isArray(hs.comparison)) {
+    const st = hs.status || {}, per = hs.periods || {};
+    L.push(`## Finding Better Trades - shadow experiment (${st.label || 'HISTORICAL REPLAY'}${st.stale ? ', STALE RESULTS' : ''}) | HISTORICAL REPLAY + SHADOW SEARCH, no orders`);
+    L.push(`- replay generated ${at(hs.generated_ts)} | recorded-quote data through ${at(hs.data_freshness_ts)} | test period ${per.test ? fmtEt(per.test[0]) + ' -> ' + fmtEt(per.test[1]) : 'UNKNOWN'} | $100 bankroll, HERMES-008B market scope`);
+    hs.comparison.forEach(c => L.push(`  - strategy ${c.label}: trades ${c.trades}, wins ${c.wins}, losses ${c.losses}, win ${c.win_pct == null ? '–' : fx(c.win_pct, 1) + '%'}, net ${usd(c.net)}, biggest loss ${usd(c.biggest_loss ? -c.biggest_loss : 0)}`));
+    const lv = hs.live, src = lv && st.process_running ? { n: 'PROSPECTIVE SHADOW (live search)', f: lv } : { n: 'HISTORICAL REPLAY (search process not running)', f: hs.funnel || {} };
+    const fn = src.f || {};
+    L.push(`- What Barnacle is finding [${src.n}] | open contracts on Kalshi ${n0(lv && lv.contracts_found && lv.contracts_found.open_contracts)} | examined ${n0(fn.examined ?? fn.contracts_examined)} | meets price rules ${n0(fn.meets_price_requirements)} | meets profitability rules ${n0(fn.meets_profitability_requirements)} | rejected ${n0(fn.rejected)}`);
+    Object.entries(fn.reasons || {}).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => L.push(`  - reason: ${k} x${n0(v)}`));
+    const bq = fn.best_qualifying;
+    L.push(bq ? `  - best qualifying: ${bq.ticker} price ${fx(bq.price, 2)} est. win ${bq.est_win_pct}% (95% lower bound, n=${bq.n}) expected net/contract ${usd(bq.net_edge)}` : '  - NO QUALIFYING TRADE - SKIPPED (requirements were not loosened to create activity)');
+    ['72-87', '88-89', '90-94', '95-98'].forEach(k => { const b = (hs.bands || {})[k] || {}; L.push(`  - price band ${k}c: trades ${b.trades ?? '–'}, win ${b.win_pct == null ? '–' : fx(b.win_pct, 1) + '%'}, net ${usd(b.net)}, biggest loss ${usd(b.biggest_loss ? -b.biggest_loss : 0)}`); });
+    ((hs.slippage || {}).baseline || []).forEach(x => ['same_trades', 'reconsidered'].forEach(m => { const r = x[m]; if (r) L.push(`  - slippage +${x.slippage_c}c [${m === 'same_trades' ? 'same trades, higher price' : 'strategy reconsiders purchases'}]: trades ${r.trades}, W/L ${r.wins}/${r.losses}, win ${r.win_pct == null ? '–' : fx(r.win_pct, 1) + '%'}, net ${usd(r.net)}, max drawdown ${usd(r.max_dd)}`); }));
+    const mk = hs.markets || [];
+    mk.filter(m => m.submarket === 'ALL').sort((a, b) => b.net_per_contract_set - a.net_per_contract_set).forEach(g => {
+      L.push(`  - market ${g.market}: ${g.events} events | ${g.evidence === 'ok' ? 'win ' + fx(g.win_pct, 1) + '%, net/contract-set ' + usd(g.net_per_contract_set) : 'INSUFFICIENT DATA'} | biggest loss ${usd(g.biggest_loss ? -g.biggest_loss : 0)} | repeatable edge after multiple-comparison correction: ${g.repeatable_edge ? 'YES' : 'no'}`);
+      mk.filter(m => m.market === g.market && m.submarket !== 'ALL').forEach(m => L.push(`    - submarket ${m.submarket}: ${m.events} events | ${m.evidence === 'ok' ? 'win ' + fx(m.win_pct, 1) + '%, net ' + usd(m.net_per_contract_set) : 'INSUFFICIENT DATA'}`));
+    });
+    Object.entries(hs.loss_limit || {}).forEach(([bk, rows]) => rows.forEach(r => L.push(`  - single-loss limit bankroll $${bk} cap ${r.limit ? r.limit * 100 + '%' : 'none'}: trades ${r.trades}, net ${usd(r.net)}, max drawdown ${usd(r.max_dd)}, losses avoided ${usd(r.avoided_losses)}, profit forgone ${usd(r.forgone_profit)}`)));
+    L.push('');
+  }
+
+  const bh = snap.bargain_hunter;
+  if (bh) {
+    const lv = bh.live || {}, sh = lv.shadow || {};
+    L.push('## Order-Book Bargain Hunter - detail (SIMULATED / HYPOTHETICAL, no orders)');
+    (sh.open || []).forEach(o => L.push(`- open shadow lot ${o.ticker} ${String(o.side).toUpperCase()} | entry ${at(o.entry_ts)} | ${fx(o.entry_px, 2)} x ${n0(o.qty)} | capital ${usd(o.cost)}`));
+    (lv.candidates_recent || []).forEach(c => L.push(`- HYPOTHETICAL candidate observed ${at(c.ts)} | ${c.ticker} ${String(c.side).toUpperCase()} | exec ask ${fx(c.ask, 2)} | qty top/within 2c ${n0(c.qty_top)}/${n0(c.depth_within_2c)} | prior ref mid ${fx(c.ref, 2)} | discount ${c.discount_c}c | status ${c.status}${c.reason ? ' (' + c.reason + ')' : ''}`));
+    Object.entries(lv.rejections || {}).sort((a, b) => b[1] - a[1]).forEach(([k, v]) => L.push(`- rejection (cumulative): ${k} x${n0(v)}`));
+    const rt = bh.retro;
+    if (rt) {
+      const row = r => { const c = r.conservative, o = r.optimistic; const cell = x => x ? `${usd(x.net_per_trade)} [${(x.ci95_cluster_event || []).map(v => fx(v, 2)).join(', ')}] fill ${pc(x.tp_fill_rate)} n ${x.n}` : '–'; return `- retro bucket ${r.bucket}: episodes ${n0(r.episodes)} | buyable next book ${pc(r.entry_rate_next)} | conservative ${cell(c)} | optimistic bound ${cell(o)}`; };
+      (rt.dose_response || []).forEach(r => L.push(row(r)));
+      (rt.dose_response_liquid || []).forEach(r => L.push(row(r).replace('- retro bucket', '- retro (liquid region) bucket')));
+    }
+    L.push('');
+  }
+
+  const pl = snap.paper_lab, lp = pl && pl.live_paper;
+  if (lp) {
+    const accs = (lp.accounts || []).slice().sort((a, b) => (a.experiment === b.experiment ? (b.closed_trades - a.closed_trades) : String(a.experiment).localeCompare(String(b.experiment))));
+    L.push(`## Every paper account (${accs.length}) - LIVE PAPER`);
+    accs.forEach(a => L.push(`- ${a.strategy} v${a.version} [${a.experiment}] ${a.account} | bankroll ${usd(a.bankroll)} | cash ${usd(a.cash)} | equity ${usd(a.equity)} | realized ${sg(a.realized_pnl)} | open ${a.open_positions} | closed ${a.closed_trades} | win ${a.closed_trades ? pc(a.wins / a.closed_trades) : '–'}`));
+    L.push('');
+    L.push(`## Open paper positions (${n0(lp.open_positions_total)}; ${(lp.open_positions || []).length} listed) - LIVE PAPER`);
+    (lp.open_positions || []).forEach(o => L.push(`- ${o.account} | ${o.ticker} ${String(o.side).toUpperCase()} x${o.qty} | entry ${fx(o.entry_price, 2)} at ${at(o.entry_ts)} | ${o.resting_sell ? `resting sell @ ${fx(o.resting_sell.price, 2)} (${o.resting_sell.status}${o.resting_sell.filled ? ', ' + o.resting_sell.filled + ' filled' : ''}; evidence ${o.resting_sell.evidence})` : 'no resting sell posted'}`));
+    L.push('');
+    L.push(`## Recent completed paper trades (${(lp.recent_closed || []).length}) - LIVE PAPER`);
+    (lp.recent_closed || []).forEach(t => L.push(`- closed ${at(t.exit_ts)} | ${t.account} | ${t.ticker} ${String(t.side).toUpperCase()} x${t.qty} | ${fx(t.entry_price, 2)} -> ${fx(t.exit_price, 2)} | ${t.exit_kind || ''} | net ${sg(t.net_pnl)}`));
+    L.push('');
+    const rx = pl.resting_exits;
+    if (rx) {
+      L.push('## Resting sell orders - detail (LIVE PAPER)');
+      const rd = rx.evidence_reader || {};
+      L.push(`- trade-evidence reader heartbeat ${at(rd.heartbeat_ts)}${rd.order_trades ? ` | last cycle: ${rd.order_trades.open_order_tickers ?? 0} open-order tickers, ${rd.order_trades.read ?? 0} read, ${rd.order_trades.already_covered ?? 0} already covered, ${rd.order_trades.errors ?? 0} errors` : ''}`);
+      (rx.by_day || []).forEach(d => L.push(`- ${d.date} UTC: posted ${n0(d.posted)}, verified window ${n0(d.verified)}, unverified (routing defect, fixed Nov 19) ${n0(d.unverified_no_trade_store)}, unverified (no trade coverage) ${n0(d.unverified_no_coverage)}`));
+      (rx.recent_fills || []).forEach(f => L.push(`- fill ${at(f.ts)} | ${f.account} | ${f.ticker} | ${f.qty} @ ${fx(f.price, 2)} | net proceeds ${usd(f.proceeds_net)} | P&L ${sg(f.pnl)} | evidence ${f.evidence}`));
+      if (!(rx.recent_fills || []).length) L.push('- no resting-sell fills recorded yet');
+      L.push('');
+    }
+    const cal = pl.calibration;
+    if (cal && cal.folds) {
+      L.push('## Probability calibration folds (HISTORICAL ANALYSIS)');
+      Object.entries(cal.folds).forEach(([k, f]) => L.push(`- test period ${k}: test entries ${n0(f.test_entries)} | frozen cells ${f.frozen_cells ?? '–'} | replicated ${f.replicated_cells ?? '–'} | net-positive after fees ${f.net_positive_after_fee_cells ?? '–'} | Brier gain ${f.brier_gain == null ? '–' : Number(f.brier_gain).toFixed(5)}`));
+      if (cal.verdict) L.push(`- verdict: ${cal.verdict}`);
+      L.push('');
+    }
+  }
+
+  const hv = snap.hermes_savings;
+  if (hv && hv.available) {
+    const tx = hv.transactions || [];
+    L.push(`## HERMES savings - transaction history (${tx.length}) | SIMULATED SAVINGS LEDGER`);
+    L.push(`- initial transfer ${usd(hv.starting_savings_transfer_usd)} | new savings since activation ${sg(hv.post_activation_savings_usd)} | trading bankroll remaining ${usd(hv.trading_equity_usd)} (target ${usd(hv.target_principal_usd)}) | today ${sg(hv.today_savings_usd)} | week ${sg(hv.weekly_savings_usd)} | month ${sg(hv.monthly_savings_usd)} | conservation diff ${usd(hv.conservation_diff_usd)}`);
+    tx.forEach(t => L.push(`- ${at(t.ts)} | ${t.entry_type} | ${sg(t.amount_usd)} | savings balance after ${usd(t.balance_after_usd)} | trading equity after ${usd(t.trading_equity_after_usd)} | ${t.detail || ''}`));
+    L.push('');
+  }
+
+  const accts = (snap.three_accounts && snap.three_accounts.accounts) || [];
+  const arch = accts.filter(a => a.archived);
+  L.push(`## Archived experiments (${arch.length} accounts; each is also listed above with its full figures)`);
+  arch.forEach(a => L.push(`- ${a.label || a.codename} | ${reportStatus(a.runtime_status)} | equity ${usd((a.equity_cents ?? 0) / 100)} | realized ${sg((a.realized_net_cents || 0) / 100)} | wins/losses ${a.wins ?? 0}/${a.losses ?? 0}`));
+  L.push('');
+
+  const ct = snap.completed_trades || [];
+  L.push(`## Completed transactions ledger (${ct.length} transactions; newest first as published)`);
+  ct.forEach(t => L.push(`- ${fmtEt(t.closed_ts || t.ts)} | ${t.account_label || t.account_id} | ${t.ticker} ${t.side || '–'} x${t.contracts ?? 0} | invested ${usd(t.invested_usd)} | fee ${usd(t.fee_usd || 0)} | net ${sg(t.realized_net_usd ?? t.net_pnl_usd ?? 0)} | ${t.result || t.status || 'SETTLED'}${t.kind === 'REAL' ? ' | REAL-KIND' : ''}`));
+  L.push('');
+  L.push('## Page notes (static text on the Portfolio page)',
+    '- Real vs. Simulated: ARES-005 (REAL) reflects reconciled Kalshi shard 2 cash, actual fills and exchange settlements. SIMULATED accounts model order-book fills on independent ledgers.',
+    '- Hypothetical sell-now estimates walk live bid-side depth minus estimated Kalshi taker fees. Barnacle holds to settlement; sell-now figures are informational, never completed sales.',
+    '- Read-only and sanitized: no trading controls, API keys, skipped signals or strategy thresholds are exposed.', '');
+
+  // ---------------- CMOS SYNC PAGE ----------------
+  const cs = snap.cmos_sync;
+  L.push('# CATEGORY: CMOS SYNC PAGE (#cmos-sync) - HISTORICAL DATA RECOVERY + ADAPTIVE LEARNING, NOT TRADING');
+  if (!cs || !cs.available) {
+    L.push(`- UNKNOWN or PAUSED: ${(cs && cs.status_reason) || 'cmos_sync not published'}`, '');
+  } else {
+    const { status, reason, hbAge } = cmosSyncState(cs, snap);
+    const d = k => (cs.deltas && cs.deltas[k]) || {};
+    const al = cs.adaptive_learning || {};
+    const fmtDur = s => s == null ? '–' : (s >= 3600 ? `${(s / 3600).toFixed(1)}h` : (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`));
+    const sa = t => (t != null ? `${fmtEt(t)} (${Math.max(0, Math.round(ref - t))}s before snapshot)` : 'NOT AVAILABLE');
+    L.push(`- Page status: ${status} | ${reason} | heartbeat ${hbAge != null ? hbAge + 's' : '–'} at snapshot time (snapshot itself is ${Math.max(0, Math.round(nowSec - ref))}s old now) | month ${cs.current_month || '–'} | op ${String(cs.operation || '–').toUpperCase()} | last OK op ${cs.last_success_op || '–'}`);
+    const curM = (cs.months || []).find(m => m.month === cs.current_month);
+    L.push(`- 1 Historical discovery [${cs.current_series || cs.current_month || '–'}]: discovered ${n0(cs.contracts_total ?? (curM && curM.contracts_total))} | requests ${n0(cs.discovery_requests_done)} | last discovery ${sa(cs.last_discovery_ts)} | delta requests 1m/5m/15m +${d('1m').discovery_reqs || 0}/+${d('5m').discovery_reqs || 0}/+${d('15m').discovery_reqs || 0} | contracts discovered +${d('1m').contracts_discovered || 0}/1m`);
+    L.push(`- 2 Recovery & validation: contracts ${n0(cs.contracts_done)} / ${cs.workload_discovered && cs.contracts_total != null ? n0(cs.contracts_total) : 'discovering'} | month ${cs.workload_discovered ? fx(cs.current_month_pct, 1) + '%' : 'DISCOVERING'} | overall ${cs.overall_pct != null ? fx(cs.overall_pct, 1) + '%' : 'DISCOVERING'} | recovered ${n0(cs.records_recovered)} | validated ${n0(cs.records_verified)} | rejected ${n0(cs.records_rejected)} | last download ${sa(cs.last_download_ts)} | last validation ${sa(cs.last_validation_ts)} | delta contracts 1m/5m/15m +${d('1m').contracts_downloaded || 0}/+${d('5m').contracts_downloaded || 0}/+${d('15m').contracts_downloaded || 0} | records +${d('1m').records_recovered || 0}/1m`);
+    L.push(`- 3 Timing, ETA & training [${al.status || 'IDLE'}]: elapsed ${fmtDur(cs.started_ts ? Math.max(0, ref - cs.started_ts) : 0)} | ETA ${cs.workload_discovered ? (cs.eta_seconds != null ? fmtDur(cs.eta_seconds) + ' (estimate)' : '–') : 'DISCOVERING'} | cycles ${al.cycles_completed || 0} | last training ${sa(al.last_cycle_ts)} | last DB commit ${sa(cs.last_commit_ts)} | HTTP 429s ${cs.rate_limit_429_count || 0} | errors ${cs.error_count || 0}`);
+    const stg = cs.storage || {};
+    L.push(`- Storage safety (D: NVMe) [${stg.critical ? 'CRITICAL' : stg.low ? 'LOW SPACE' : stg.temp_verified_d ? 'D: LOCKED' : 'CHECK'}]: free ${stg.free_gb != null ? fx(stg.free_gb, 2) + ' GB' : '–'} of ${stg.total_gb != null ? fx(stg.total_gb, 0) + ' GB' : '–'} | CMOS data ${stg.cmos_used_mb != null ? fx(stg.cmos_used_mb, 2) + ' MB' : '–'} | temp/DuckDB/cache ${stg.temp_verified_d ? 'verified on D:' : 'pending verification'}${stg.warning ? ' | warning: ' + stg.warning : ''}`);
+    L.push('### Month timeline');
+    (cs.months || []).forEach(m => {
+      const stt = m.training_status === 'COMPLETED' || (m.recovery_pct >= 100 && m.validation_pct >= 100) ? 'COMPLETED' : (m.month === cs.current_month ? status : 'PENDING');
+      L.push(`- ${m.month} | ${stt} | recovery ${m.workload_discovered ? fx(m.recovery_pct, 1) + '%' : (m.month === cs.current_month ? 'DISCOVERING' : 'PENDING')} | validation ${fx(m.validation_pct, 1)}%`);
+    });
+    L.push('### Monthly learning & validation progress (observed counts; ETA is an estimate)');
+    (cs.months || []).forEach(m => L.push(`- ${m.month} | recovery ${m.workload_discovered ? fx(m.recovery_pct, 1) + '%' : 'DISCOVERING'} | validation ${fx(m.validation_pct, 1)}% | train/eval ${m.training_status} / ${m.eval_status} | quality ${m.quality_score != null ? fx(m.quality_score, 2) + '%' : '–'} | independent events ${m.independent_events || 0} | Brier ${m.brier_score != null ? fx(m.brier_score, 4) : '–'} | log loss ${m.log_loss != null ? fx(m.log_loss, 4) : '–'} | net ${m.net_pnl_usd != null ? sg(m.net_pnl_usd) : '–'} | max DD ${m.max_drawdown_usd != null ? usd(m.max_drawdown_usd) : '–'} | delta vs prev ${m.delta_vs_prev_usd != null ? sg(m.delta_vs_prev_usd) : '–'} | ZEUS net ${m.zeus_net_pnl_usd != null ? sg(m.zeus_net_pnl_usd) : '–'}`));
+    L.push('### Per-market-family recovery & validation');
+    (cs.families || []).forEach(f => L.push(`- ${f.series}${f.month ? ' (' + f.month + ')' : ''} | discovered ${n0(f.contracts_total)} | recovered ${n0(f.contracts_done)} | validated ${n0(f.contracts_verified)} | rejected ${n0(f.contracts_rejected ?? f.records_rejected)} | records ${n0(f.records_recovered)}`));
+    if (!(cs.families || []).length) L.push('- no family records yet');
+    L.push('### Track B: adaptive learning & challenger evaluation');
+    const oos = (al.eval && al.eval.historical_oos) || {}, dlt = al.delta_vs_previous || {}, pp = al.prospective_paper || {};
+    const ps = cmosPromotionSummary(cs);
+    L.push(`- ${al.status || 'IDLE'} | active ${al.active_model_version || '–'} | best ${al.best_model_version || '–'} | ${al.status_reason || ''}`);
+    L.push(`- Model lineage & promotion: auto-promotion ${al.auto_promotion_enabled ? 'ON' : 'manual'} | deployed paper ${al.deployed_paper_model_version || 'CMOS-V1 (cmos_model.json)'} | deployed adaptive ${al.deployed_adaptive_model_version || al.active_model_version || '–'} | latest challenger ${al.latest_challenger_version || '–'} | paper auto-reload ${al.paper_auto_reload_enabled ? 'yes' : 'no (isolated)'}`);
+    L.push(`- Training data & trigger: verified observations ${n0(al.verified_observations)} | independent events ${al.independent_events || 0} (current count; checkpoint rows show the count at that checkpoint) | last cycle ${sa(al.last_cycle_ts)} (${al.last_cycle_duration_s ?? '–'}s) | next trigger in ${al.next_trigger_events ?? '–'} new events`);
+    L.push(`- Historical OOS performance (out-of-sample): Brier ${oos.brier_score ?? '–'} | log loss ${oos.log_loss ?? '–'} | net ${usd(oos.realized_net_pnl_usd)} | expected net ${usd(oos.expected_net_pnl_usd)} | W/L ${oos.wins || 0}/${oos.losses || 0} | max DD ${usd(oos.max_drawdown_usd)} | delta PnL vs previous ${dlt.net_pnl_delta_usd != null ? sg(dlt.net_pnl_delta_usd) : '–'}`);
+    L.push(`- Challenger gate & paper: tested ${al.models_tested || 0} | ${ps.text} | prospective paper ${pp.trades || 0} trades, net ${usd(pp.net_pnl_usd || 0)}, open ${pp.open_positions || 0}`);
+    const cps = cs.checkpoints || [];
+    L.push('### Checkpoints & activity / retry log');
+    L.push(cps.length ? `- latest checkpoint ${cps[0].version} (${cps[0].month}, ${n0(cps[0].train_bars)} bars)` : '- no versioned monthly checkpoint committed yet (baseline 2026-01)');
+    const evs = cs.events || [];
+    L.push(`- ${evs.length} events (all published, newest first):`);
+    evs.forEach(e => L.push(`  - ${fmtEt(e.ts)} | ${e.level} | ${e.month || '–'} | ${e.operation || '–'} | ${String(e.message || '').replace(/\s+/g, ' ')}`));
+    L.push('');
+
+    // ---------------- TRAINING -> CMOS PAGE ----------------
+    L.push('# CATEGORY: TRAINING -> CMOS PAGE (#training-cmos) - HISTORICAL TRAINING, NOT TRADING');
+    const tr = (al.eval && al.eval.train) || {}, va = (al.eval && al.eval.validation) || {};
+    const recAge = hbAge, trAge = al.heartbeat_ts != null ? Math.max(0, Math.round(ref - al.heartbeat_ts)) : al.heartbeat_age_s;
+    const pubAge = Math.max(0, Math.round(nowSec - ref));
+    const recAlive = (cs.status === 'ACTIVE' || cs.status === 'COMPLETED') && (recAge == null || recAge <= 60);
+    const blocked = !al.active_model_version && (al.cycles_completed || 0) > 0;
+    L.push(`- Headline: ${blocked ? 'PROMOTION BLOCKED' : (al.status || 'IDLE')} | active adaptive: ${al.active_model_version || 'NONE (BLOCKED)'} | best: ${al.best_model_version || 'NONE'} | challenger: ${al.latest_challenger_version || '–'} | ${al.status_reason || 'Idle'} | heartbeat age ${al.heartbeat_age_s ?? '–'}s | op ${al.operation || 'idle'}`);
+    if (!al.active_model_version) L.push('- Banner: No validated adaptive model available - research and recovery continuing.');
+    L.push(`- Health: 1 historical recovery worker ${recAlive ? 'ACTIVE' : (cs.status || 'PAUSED')} (op ${cs.operation || '–'}, heartbeat ${recAge != null ? recAge + 's' : '–'} at snapshot) | 2 adaptive training worker ${al.status === 'IDLE' && recAlive ? 'IDLE (waiting for 250-event batch)' : (al.status || 'IDLE')} (op ${al.operation || 'idle'}, last cycle/heartbeat ${trAge != null ? trAge + 's' : '–'} at snapshot) | 3 publisher/relay ${pubAge <= 90 ? 'LIVE' : 'STALE'} (snapshot age ${pubAge}s, ${cps.length} checkpoints)`);
+    const oosx = oos;
+    L.push(`- Active & best models: deployed paper ${al.deployed_paper_model_version || 'CMOS-V1 (cmos_model.json)'} | deployed adaptive ${al.active_model_version || 'NONE (VALIDATION FAILED)'} | best validated ${al.best_model_version || 'None'} | cycles ${al.cycles_completed || 0}`);
+    L.push(`- Candidate vs selected calibration: observations ${n0(al.verified_observations)} | events ${al.independent_events || 0} | all-candidate predicted/actual ${oosx.pred_win_prob ?? '–'} / ${oosx.actual_win_prob ?? '–'} | selected predicted/actual ${oosx.selected_pred_win_prob ?? '–'} / ${oosx.selected_actual_win_prob ?? '–'}`);
+    L.push(`- OOS economics & risk (after fees): net ${usd(oosx.realized_net_pnl_usd)} | max DD ${usd(oosx.max_drawdown_usd)} | risk-adjusted return ${oosx.risk_adjusted_return ?? '–'} | per trade ${usd(oosx.profit_per_trade_usd)} | turnover ${oosx.capital_turnover ?? '–'}x`);
+    L.push(`- Delta vs previous checkpoint: Brier ${dlt.brier_delta ?? '–'} | PnL ${dlt.net_pnl_delta_usd != null ? sg(dlt.net_pnl_delta_usd) : '–'} | tested ${al.models_tested || 0} | ${ps.text}`);
+    const latest = cps[0] || null;
+    const prevValid = cps.find(c => c.validation_status === 'PROMOTED' && c.version !== (latest && latest.version)) || null;
+    const h100 = accts.find(a => a.account_id === 'hermes-clean-100');
+    const zt = snap.zeus_execution_comparison && snap.zeus_execution_comparison.taker;
+    L.push('### 1. Strategy comparison (comparisons are valid only for the same period, $100 bankroll, universe and execution rules; live paper rows are NOT COMPARABLE)');
+    L.push(`- CMOS latest trained challenger | trades ${oos.trades ?? '–'} | W/L ${oos.wins ?? '–'}/${oos.losses ?? '–'} | win ${oos.win_rate != null ? fx(oos.win_rate * 100, 2) + '%' : '–'} | net ${usd(oos.realized_net_pnl_usd)} | max DD ${usd(oos.max_drawdown_usd)} | ${(latest && latest.validation_status) || '–'} ${(latest && latest.training_period) || cs.current_month || ''} OOS ($100, +1c slip)`);
+    if (prevValid) { const po = (prevValid.eval && prevValid.eval.historical_oos) || {}; L.push(`- CMOS previous valid (${prevValid.version}) | trades ${po.trades ?? '–'} | net ${usd(po.realized_net_pnl_usd)}`); } else L.push('- CMOS previous valid checkpoint: none available (no prior checkpoint passed validation)');
+    const zW = Number(zt && zt.wins || 0), zL = Number(zt && zt.losses || 0);
+    const hW = Number(h100 && h100.wins || 0), hL = Number(h100 && h100.losses || 0);
+    L.push(`- Original ZEUS reference | trades ${zW + zL} | W/L ${zW}/${zL} | win ${zW + zL ? fx(100 * zW / (zW + zL), 2) + '%' : '–'} | net ${sg(zt && zt.realized_net_pnl_usd)} | NOT COMPARABLE (ongoing live paper, $100; this is the taker settled-trade count, the head-to-head section above counts executed contracts)`);
+    L.push(`- HERMES-008B fixed 10% baseline | trades ${hW + hL} | W/L ${hW}/${hL} | win ${hW + hL ? fx(100 * hW / (hW + hL), 2) + '%' : '–'} | net ${h100 ? sg((h100.realized_net_cents || 0) / 100) : '–'} | NOT COMPARABLE (ongoing live paper, $100)`);
+    L.push('### 2. Latest CMOS test');
+    const dr = (latest && latest.eval && latest.eval.date_ranges) || {};
+    const dfmt = t => t ? new Date(t * 1000).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' }) : 'NOT AVAILABLE';
+    const valPassed = latest && latest.validation_status === 'PROMOTED';
+    L.push(`- ${(latest && latest.version) || al.latest_challenger_version || '–'} | ${valPassed ? 'VALIDATION PASSED' : 'VALIDATION FAILED'} | trained ${at(latest && latest.created_ts || al.last_cycle_ts)} | train range ${dr.train_start_ts ? dfmt(dr.train_start_ts) + ' -> ' + dfmt(dr.train_end_ts) : ((latest && latest.training_period) || '–')} | test (OOS) range ${dr.oos_start_ts ? dfmt(dr.oos_start_ts) + ' -> ' + dfmt(dr.oos_end_ts) : ((latest && latest.training_period) || '–')}`);
+    L.push(`- $100 bankroll outcome: ending ${usd(100 + Number(oos.realized_net_pnl_usd || 0))} | net ${sg(oos.realized_net_pnl_usd || 0)} | max drawdown ${usd(oos.max_drawdown_usd || 0)} | vs previous valid ${prevValid ? sg(dlt.net_pnl_delta_usd || 0) : 'no prior valid model'}`);
+    L.push(`- Trade record after fees (OOS): trades ${oos.trades ?? 0} | ${oos.wins ?? 0}W / ${oos.losses ?? 0}L | win ${oos.win_rate != null ? fx(oos.win_rate * 100, 2) + '%' : '–'} | gate: ${al.status_reason || '–'}`);
+    const slipRows = (latest && latest.eval && latest.eval.slippage_table) || [{ slippage_cents: 1, trades: oos.trades, wins: oos.wins, losses: oos.losses, win_rate: oos.win_rate, net_pnl_usd: oos.realized_net_pnl_usd, max_drawdown_usd: oos.max_drawdown_usd }];
+    slipRows.forEach(s => L.push(`  - slippage +${s.slippage_cents}c: trades ${s.trades ?? '–'} | W/L ${s.wins ?? 0}/${s.losses ?? 0} | win ${s.win_rate != null ? fx(s.win_rate * 100, 2) + '%' : '–'} | net ${s.net_pnl_usd != null ? sg(s.net_pnl_usd) : '–'} | max DD ${s.max_drawdown_usd != null ? usd(s.max_drawdown_usd) : '–'}`));
+    L.push('### 3. Monthly learning report (does each completed month improve or hurt out-of-sample performance)');
+    (cs.months || []).filter(m => m.net_pnl_usd != null || m.month === cs.current_month).forEach(m => {
+      const has = m.month === cs.current_month && oos.trades != null;
+      L.push(`- ${m.month} | model ${m.checkpoint_version || (has ? (latest && latest.version) || '–' : 'Pending')} | trades ${has ? oos.trades : '–'} | W/L ${has ? oos.wins + ' / ' + oos.losses : '–'} | win ${has && oos.win_rate != null ? fx(oos.win_rate * 100, 2) + '%' : '–'} | net ${m.net_pnl_usd != null ? sg(m.net_pnl_usd) : (has ? sg(oos.realized_net_pnl_usd || 0) + ' (in progress)' : 'recovering')} | change vs previous ${m.delta_vs_prev_usd != null ? sg(m.delta_vs_prev_usd) : 'baseline / in progress'}`);
+    });
+    L.push('### 4. Model splits (the first three evaluate the SAME challenger; prospective paper is a separate model)');
+    const mdl = (latest && latest.version) || al.latest_challenger_version || 'latest challenger';
+    [[`1 Training (${mdl}) SAME MODEL, IN-SAMPLE`, tr], [`2 Validation (${mdl}) SAME MODEL, SELECTION`, va], [`3 Historical OOS (${mdl}) SAME MODEL, UNSEEN`, oos], [`4 Prospective paper (${al.deployed_paper_model_version || 'CMOS-V1'}) SEPARATE, LIVE RESEARCH`, pp]].forEach(([t, x]) =>
+      L.push(`- ${t} | trades ${x.trades ?? 0} (${x.wins ?? 0}W/${x.losses ?? 0}L) | win ${x.win_rate != null ? fx(x.win_rate * 100, 2) + '%' : '–'} | net ${usd(x.realized_net_pnl_usd ?? x.net_pnl_usd ?? 0)} | max DD ${usd(x.max_drawdown_usd ?? 0)}`));
+    L.push(`### 5. Technical diagnostics, learning charts & checkpoints (${cps.length} checkpoints)`);
+    const asc = [...cps].reverse();
+    const series = (key) => asc.map(c => c[key]).filter(v => v != null).map(Number);
+    const sline = (label, v, f) => v.length ? `- ${label}: latest ${f(v[v.length - 1])} | min ${f(Math.min(...v))} | max ${f(Math.max(...v))} (${v.length} checkpoints)` : `- ${label}: no series yet`;
+    L.push(sline('OOS Brier score (lower is better)', series('oos_brier'), v => v.toFixed(4)));
+    L.push(sline('OOS net P&L' + (asc.some(c => c.validation_status === 'MODEL_INVALIDATED') ? ' (includes invalidated 2c-bug history)' : ''), series('oos_net_pnl_usd'), v => '$' + v.toFixed(2)));
+    L.push(sline('OOS max drawdown', series('max_drawdown_usd'), v => '$' + v.toFixed(2)));
+    L.push(sline('Verified independent events (as of each checkpoint)', series('independent_events'), v => String(Math.round(v))));
+    Object.entries(oos.by_family || {}).forEach(([ser, f]) => L.push(`  - OOS family ${ser}: ${f.trades} trades | net ${usd(f.net_pnl_usd || 0)} | Brier ${f.brier_score ?? '–'}`));
+    if (!Object.keys(oos.by_family || {}).length) L.push('  - no family OOS breakdown yet');
+    L.push('- Checkpoints (all, newest first): version | created | period | mode | events | OOS Brier | OOS net | max DD | validation | deployment | sha256 (first 12)');
+    cps.forEach(c => L.push(`  - ${c.version} | ${at(c.created_ts)} | ${c.training_period || c.month || '–'} | ${c.training_mode || '–'} | ${c.independent_events ?? '–'} | ${c.oos_brier ?? '–'} | ${c.oos_net_pnl_usd != null ? usd(c.oos_net_pnl_usd) + (c.validation_status === 'MODEL_INVALIDATED' ? ' INVALID (2c scaling artifact, not verified profit)' : '') : '–'} | ${c.max_drawdown_usd != null ? usd(c.max_drawdown_usd) : '–'} | ${c.validation_status || '–'} | ${c.deployment_status || '–'} | ${c.checkpoint_sha256 ? String(c.checkpoint_sha256).slice(0, 12) : '–'}`));
+    const rb = al.rollback_audit || [];
+    L.push(`### Checkpoint rollback audit log (${rb.length})`);
+    if (!rb.length) L.push('- no rollbacks recorded');
+    rb.forEach(r => L.push(`- ${at(r.ts || r.created_ts)} | actor ${r.actor || '–'} | replaced ${r.replaced || r.replaced_version || '–'} | restored ${r.restored || r.restored_version || '–'} | sha256 ${r.sha256 ? String(r.sha256).slice(0, 12) : '–'} | ${r.reason || ''}`));
+    L.push('');
   }
   return L;
 }
