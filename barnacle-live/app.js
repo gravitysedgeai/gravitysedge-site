@@ -1934,6 +1934,52 @@ function renderBargainHunter(snap) {
     </div></details>`;
 }
 
+function renderOpportunityFunnel(snap) {
+  const panel = $('funnel-panel'), body = $('funnel-body');
+  if (!panel || !body) return;
+  const fn = snap && snap.opportunity_funnel;
+  if (!fn || !(fn.stages || []).length) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  const nowSec = snap.published_ts || Math.floor(Date.now() / 1000);
+  const ago = t => { if (!t) return 'never'; const s = Math.max(0, nowSec - t); return s < 90 ? Math.round(s) + 's ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : (s / 3600).toFixed(1) + ' h ago'; };
+  const n0 = v => (v == null ? '–' : Number(v).toLocaleString());
+  const tag = (txt, cls) => `<span class="tag ${cls || ''}">${esc(txt)}</span>`;
+  const stages = fn.stages;
+  const maxC = Math.max(...stages.map(s => s.count || 0), 1);
+  const w = c => (c > 0 ? Math.max(1.5, 100 * Math.log10(c + 1) / Math.log10(maxC + 1)) : 0);
+  const stageRow = (s, i) => {
+    const drops = (s.drops || []).filter(d => d.count > 0).slice(0, 4).map(d => `<li>${esc(d.reason)}: <b>${n0(d.count)}</b></li>`).join('');
+    return `<div style="margin:8px 0">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:13px"><span><b>${i + 1}. ${esc(s.label)}</b> <span class="muted">${esc(s.unit || '')}</span></span><span class="mono"><b>${n0(s.count)}</b></span></div>
+      <div style="height:10px;border-radius:5px;background:rgba(148,163,184,.18);overflow:hidden"><div style="width:${w(s.count).toFixed(1)}%;height:100%;background:var(--accent,#38bdf8)"></div></div>
+      <div class="muted" style="font-size:11px;margin-top:2px">${esc(s.definition || '')}${s.approx ? ' — ' + esc(s.approx) : ''}</div>
+      ${drops ? `<div class="muted" style="font-size:12px;margin-top:2px">Where it is lost / why:<ul style="margin:2px 0 0 18px">${drops}</ul></div>` : ''}</div>`;
+  };
+  const sRow = r => `<div class="acct-card" style="padding:10px 12px;min-width:240px;flex:1 1 260px">
+      <div style="display:flex;justify-content:space-between;gap:6px"><b style="font-size:13px">${esc(r.name)}</b>${r.can_request ? tag('can search venue', 'ok') : tag('watchlist only', 'warn')}</div>
+      <div class="muted" style="font-size:11px;margin:2px 0">${esc(r.scope || '')}</div>
+      <div class="mono" style="font-size:12px;display:flex;flex-wrap:wrap;gap:4px 12px">
+        <span>venue in scope <b>${n0(r.venue_in_scope)}</b></span><span>books 24h <b>${n0(r.books_24h)}</b></span><span>decided <b>${n0(r.decided_24h)}</b></span><span>orders <b>${n0(r.orders_24h)}</b></span><span>filled <b>${n0(r.filled_24h)}</b></span>${r.accounts != null ? `<span>accounts <b>${n0(r.active_accounts)}</b>/${n0(r.accounts)} active</span>` : ''}</div>
+      <div class="muted" style="font-size:11px;margin-top:3px">${esc(r.discovery || '')}</div></div>`;
+  const sh = fn.shadow || {}, lp = sh.last_pass || {}, oc = sh.outcomes || {};
+  const ocLine = Object.entries(oc).map(([k, v]) => `${esc(k)}: ${n0(v.signals)} signals, ${n0(v.settled)} settled, ${n0(v.wins)} won${v.priced_settled ? ', net/contract sum ' + (v.net_per_contract_sum == null ? '–' : Number(v.net_per_contract_sum).toFixed(2)) : ''}`).join(' · ');
+  const shRej = Object.entries(sh.reasons || {}).sort((a, c) => c[1] - a[1]).map(([k, v]) => `<li>${esc(k)}: <b>${n0(v)}</b></li>`).join('');
+  const bn = (fn.bottlenecks || []).map(b => `<li><b>${esc(b.text)}</b> <span class="muted">— ${esc(b.evidence)}</span></li>`).join('');
+  body.innerHTML = `<details class="pos-details panel-details" open><summary class="panel-summary"><div><h2 style="margin:0">Opportunity Funnel — where opportunities are lost</h2></div><span class="expand-lbl">▸ Expand / collapse</span></summary>
+    <div class="acct-card" style="padding:14px 16px">
+      <div class="muted" style="font-size:12px">Last 24 h, paper only, one snapshot (generated ${esc(ago(fn.generated_ts))}). Bars are log-scaled. Counts of contracts and orders are labelled per stage; the catalog's coverage state is its latest, not the state at first sight.</div>
+      ${opsStrip(snap, 'shadow:discovery')}
+      ${stages.map(stageRow).join('')}
+      <h3 style="margin:14px 0 6px">Discovery coverage by strategy</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:10px">${(fn.strategies || []).map(sRow).join('')}</div>
+      <h3 style="margin:14px 0 4px">Isolated discovery shadow ${tag('SHADOW — no orders', 'warn')}</h3>
+      <div class="muted" style="font-size:12px">Hunter's favourite-carry requirement, requested from the full catalog excluding the old watchlist. ${lp.universe ? `Last pass ${esc(ago(lp.ts))}: ${n0(lp.universe)} open contracts, ${n0(lp.outside_watchlist)} outside the watchlist, ${n0(lp.matched)} matched the requirement, ${n0(lp.requested)} requested, ${n0(lp.inspected)} order books inspected, ${n0(lp.rule_met)} met the rule at the book, ${n0(lp.qualified)} qualified on validated evidence.` : 'No pass yet.'}</div>
+      <div class="mono" style="font-size:12px;margin:4px 0">Distinct contracts inspected outside the watchlist: <b>${n0(sh.distinct_outside_watchlist_inspected)}</b> over ${n0((sh.passes || {}).n)} passes (${n0((sh.passes || {}).book_reads)} public book reads) · outcomes: ${ocLine || 'none settled yet'}</div>
+      ${shRej ? `<ul class="muted" style="margin:2px 0 0 18px;font-size:12px">${shRej}</ul>` : ''}
+      <h3 style="margin:14px 0 4px">Shared bottlenecks</h3><ul style="margin:2px 0 0 18px;font-size:12px">${bn}</ul>
+    </div></details>`;
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
@@ -1945,6 +1991,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderHermesSavings(snap);
   renderHunterShadow(snap);
   renderBargainHunter(snap);
+  renderOpportunityFunnel(snap);
   renderPaperLab(snap);
   renderCollectors(snap);
   renderComponents(snap);
@@ -2197,6 +2244,25 @@ function buildStatusReportSections(snap, nowSec) {
     L.push('');
   }
 
+  // ---- Opportunity funnel (same snapshot section the funnel card renders)
+  L.push('# CATEGORY: OPPORTUNITY FUNNEL (LAST 24 H, PAPER, WHERE OPPORTUNITIES ARE FILTERED OUT)');
+  const of = snap.opportunity_funnel;
+  if (!of || !(of.stages || []).length) L.push('- Opportunity funnel: UNKNOWN (not published; needs the live-money worker restart)');
+  else {
+    L.push(`- generated ${at(of.generated_ts)} | stage counts are contracts or orders as labelled | catalog coverage state is the latest, not at first sight`);
+    of.stages.forEach((s, i) => {
+      L.push(`- ${i + 1}. ${s.label}: ${n0(s.count)} ${s.unit || ''} | ${s.definition || ''}`);
+      (s.drops || []).filter(d => d.count > 0).slice(0, 4).forEach(d => L.push(`  - lost: ${d.reason} x${n0(d.count)}`));
+    });
+    (of.strategies || []).forEach(r => L.push(`- coverage ${r.name} | ${r.can_request ? 'can search venue' : 'watchlist only'} | venue in scope ${n0(r.venue_in_scope)} | books 24h ${n0(r.books_24h)} | decided ${n0(r.decided_24h)} | orders ${n0(r.orders_24h)} | filled ${n0(r.filled_24h)}${r.accounts != null ? ' | active accounts ' + n0(r.active_accounts) + '/' + n0(r.accounts) : ''}`));
+    const osh = of.shadow || {}, olp = osh.last_pass || {};
+    if (olp.universe) L.push(`- discovery shadow (SHADOW, no orders): ${n0(olp.outside_watchlist)} of ${n0(olp.universe)} open contracts outside the old watchlist | matched ${n0(olp.matched)} | inspected (cumulative) ${n0(osh.distinct_outside_watchlist_inspected)} | last pass ${at(olp.ts)}`);
+    Object.entries(osh.reasons || {}).sort((x, y) => y[1] - x[1]).slice(0, 5).forEach(([k, v]) => L.push(`  - shadow rejected/unqualified: ${k} x${n0(v)}`));
+    Object.entries(osh.outcomes || {}).forEach(([k, v]) => L.push(`  - shadow outcomes ${k}: ${n0(v.signals)} signals, ${n0(v.settled)} settled, ${n0(v.wins)} won`));
+    (of.bottlenecks || []).forEach(b => L.push(`- bottleneck ${b.id}: ${b.text} | ${b.evidence}`));
+  }
+  L.push('');
+
   // ---- Research experiments (not trading)
   L.push('# CATEGORY: RESEARCH EXPERIMENTS (SHADOW / HISTORICAL, NOT TRADING PERFORMANCE)');
   const hs = snap.hunter_shadow;
@@ -2409,7 +2475,7 @@ function opsStrip(snap, cid) {
 }
 // Components that already have their own card/table elsewhere on the page (shown there with a status strip); the monitoring section lists the rest.
 function isCardComponent(c) {
-  return /^(acct:|exp:|zeus:|shadow:hunter$|shadow:bargain$|rest:exits$)/.test(c.id);
+  return /^(acct:|exp:|zeus:|shadow:hunter$|shadow:bargain$|shadow:discovery$|rest:exits$)/.test(c.id);
 }
 
 function renderComponents(snap) {

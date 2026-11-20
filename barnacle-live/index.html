@@ -9,7 +9,7 @@
     content="Live read-only portfolio scoreboard, interactive equity analytics, open holdings, and settled trades for Barnacle Live Run #001.">
   <link rel="stylesheet" href="styles.css?v=20261119e">
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js" defer></script>
-  <script src="app.js?v=20261120b" defer></script>
+  <script src="app.js?v=20261120c" defer></script>
 </head>
 
 <body>
@@ -99,6 +99,11 @@
     <!-- 1B-1a. ORDER-BOOK BARGAIN HUNTER (shadow experiment; read-only snapshot section bargain_hunter) -->
     <section id="bargain-panel" class="panel" aria-label="Order-Book Bargain Hunter - Shadow Experiment" style="display:none">
       <div id="bargain-body"></div>
+    </section>
+
+    <!-- 1B-1a-2. OPPORTUNITY FUNNEL (read-only snapshot section opportunity_funnel: available -> discovered -> inspected -> candidates -> qualified -> orders -> filled -> profitable) -->
+    <section id="funnel-panel" class="panel" aria-label="Opportunity Funnel" style="display:none">
+      <div id="funnel-body"></div>
     </section>
 
     <!-- 1B-1b. PAPER STRATEGIES & EXPERIMENTS (read-only: live paper accounts, resting-sell fills, labelled historical replay / analysis) -->
