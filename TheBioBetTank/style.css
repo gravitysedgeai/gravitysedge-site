@@ -14,8 +14,8 @@ h1{margin:0;font-size:24px}.sub{margin:2px 0 12px;color:var(--mut)}
 #tabs button{background:var(--card);border:1px solid var(--line);color:var(--tx);border-radius:20px;padding:6px 14px;cursor:pointer;font:inherit}
 #tabs button[aria-selected=true]{background:var(--acc);border-color:var(--acc);color:#fff}
 input,select{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;flex:1 1 160px;min-width:0}
-#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;align-items:start}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(330px,100%),1fr));gap:14px;align-items:start}
+.card{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .title{font-weight:650;font-size:16px;overflow-wrap:anywhere}.id{color:var(--mut);font-size:12px}
 .pill{font-size:11px;font-weight:700;text-transform:uppercase;padding:3px 8px;border-radius:10px;border:1px solid var(--line);white-space:nowrap}
@@ -31,7 +31,7 @@ svg.spark{width:100%;height:36px;display:block;margin:2px 0 8px}
 details{border-top:1px solid var(--line);margin-top:8px;padding-top:6px}summary{cursor:pointer;color:var(--acc);padding:4px 0}
 .sec{margin-top:8px}.sec h4{margin:6px 0 4px;font-size:12px;text-transform:uppercase;color:var(--mut)}
 .tbl{width:100%;border-collapse:collapse;font-size:12px}.tbl td,.tbl th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-.tbl th{color:var(--mut);font-weight:600}.wrap{overflow-x:auto}
+.tbl th{color:var(--mut);font-weight:600}.wrap{overflow-x:auto;max-width:100%}
 .ev{font-size:12px;color:var(--mut)}.err{color:var(--dn);font-size:12px;margin-top:6px;overflow-wrap:anywhere}
 footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
 @media (max-width:420px){#grid{grid-template-columns:1fr}.eq b{font-size:24px}}
