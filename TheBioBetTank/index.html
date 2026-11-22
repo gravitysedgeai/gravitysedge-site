@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The BioBetTank</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>The BioBetTank</h1>
+  <p class="sub">Independent paper-trading experiments. Display only &middot; no real money.</p>
+  <div id="banner" hidden></div>
+</header>
+<main>
+  <section id="tiles"></section>
+  <section class="controls">
+    <div id="tabs" role="tablist"></div>
+    <input id="q" type="search" placeholder="Search tickets" aria-label="Search tickets">
+    <select id="sort" aria-label="Sort">
+      <option value="pnl">Sort: P&amp;L $</option>
+      <option value="pnl_pct">Sort: P&amp;L %</option>
+      <option value="equity">Sort: Equity</option>
+      <option value="win">Sort: Win rate</option>
+      <option value="recent">Sort: Latest activity</option>
+      <option value="title">Sort: Title</option>
+    </select>
+  </section>
+  <section id="grid"></section>
+  <p id="empty" hidden>No tickets match.</p>
+</main>
+<footer>Updated <span id="upd">&ndash;</span></footer>
+<script src="app.js"></script>
+</body>
+</html>
