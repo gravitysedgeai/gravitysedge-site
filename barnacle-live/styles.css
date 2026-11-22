@@ -748,3 +748,14 @@ tr.clickable:hover {
   .echarts-box { height: 320px; min-height: 260px; }
   .stat-badges-4 { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* paper experiment accounts (reuses .acct-card / .stat-mini / .acct-rows) */
+.exp-family > summary, .exp-acct > summary { cursor: pointer; }
+.exp-fam-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.exp-acct { border: 1px solid var(--line); border-radius: 10px; margin: 6px 0; padding: 6px 10px; background: rgba(2, 6, 23, .35); }
+.exp-acct > summary { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 12px; }
+.exp-name { font-weight: 700; min-width: 190px; }
+.exp-controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 10px 0 4px; font-size: 12px; }
+.exp-controls select { background: var(--panel); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.exp-card-body { margin-top: 8px; }
+.exp-dup { display: block; margin-top: 4px; font-family: var(--mono); }

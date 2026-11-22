@@ -254,6 +254,20 @@ function renderStatusHeader(snap, connState) {
   }
 }
 
+function detailExtraRows(h, completed) {
+  const val = v => (typeof v === 'number' && v > 1e9 && v < 4e9) ? fmtEt(v) : esc(String(v));
+  const rows = [];
+  if (completed) {
+    rows.push(['Entry time / price', `${fmtEt(h.opened_ts)} @ ${h.entry_price_cents}¢ x${h.contracts}`]);
+    if (h.exit_kind) rows.push(['Exit', `${esc(h.exit_reason || h.exit_kind)}${h.exit_price_cents != null ? ' @ ' + h.exit_price_cents + '¢' : ''}`]);
+  }
+  if (h.exit_policy) rows.push(['Exit policy', esc(h.exit_policy)]);
+  if (h.exit_target_cents != null) rows.push(['Exit target (derived from policy)', `${h.exit_target_cents}¢ bid`]);
+  if (h.exit_due_ts) rows.push(['Exit due', fmtEt(h.exit_due_ts)]);
+  (h.context || []).forEach(([k, v]) => rows.push([esc(k), val(v)]));
+  return rows.map(([k, v]) => `<span class="k">${k}</span><span class="v">${v}</span>`).join('');
+}
+
 function renderAccountDetailsBody(type, items) {
   const renderEntryLvls = (h) => (h.entry_levels || []).map(l => {
     const tsStr = (l.timestamps || []).map(t => fmtEt(t)).join(', ');
@@ -296,6 +310,7 @@ function renderAccountDetailsBody(type, items) {
           <span class="k">Executable P&amp;L (Sell Now)</span><span class="v ${sellPnlCls}">${sellPnlTxt}</span>
           <span class="k">Max Settlement / Rem. Profit</span><span class="v">${fmtUsd(h.max_payout_usd)} / ${fmtSignedUsd(h.remaining_profit_usd)}</span>
           ${sizingRow}
+          ${detailExtraRows(h, false)}
         </div>
         <div><span class="muted">Bid Depth:</span><div class="depth-list">${sellLvls}</div></div>
       </div>`;
@@ -320,6 +335,7 @@ function renderAccountDetailsBody(type, items) {
           <span class="k">Cost Basis (Invested)</span><span class="v">${fmtUsd(h.cost_basis_usd ?? h.invested_usd)}</span>
           <span class="k">Executable Resale</span><span class="v muted">CLOSED (AWAITING SETTLEMENT)</span>
           <span class="k">Status</span><span class="v">PENDING OUTCOME</span>
+          ${detailExtraRows(h, false)}
         </div>
       </div>`;
     }).join('');
@@ -341,6 +357,7 @@ function renderAccountDetailsBody(type, items) {
         <span class="k">${t.result === 'SOLD' ? 'Sale Proceeds' : 'Settlement Payout'}</span><span class="v">${proceeds}</span>
         <span class="k">Realized Net P&amp;L</span><span class="v ${net >= 0 ? 'pos' : 'neg'}">${fmtSignedUsd(net)}</span>
         <span class="k">Completed (ET)</span><span class="v">${fmtEt(t.closed_ts || t.ts)}</span>
+        ${detailExtraRows(t, true)}
       </div>
     </div>`;
   }).join('');
@@ -406,8 +423,19 @@ function buildAccountCard(a, ctx) {
     const cardCls = isReal ? 'real-card' : (isVal || isSucc) ? 'validation-card' : isFin ? 'fin-card' : 'paper-card';
     const badgeHtml = isReal
       ? `<span class="tag real">REAL MONEY · ${a.runtime_status || 'PAUSED'}</span>`
-      : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${a.codename || 'PAPER'} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
+      : `<span class="tag ${isVal || isSucc ? 'validation' : 'paper'}">${esc(a.classification || a.codename || 'PAPER')} · SIMULATED (${a.runtime_status || 'ACTIVE'})</span>`;
 
+    const nDone = Number(a.wins || 0) + Number(a.losses || 0);
+    const winRate = a.win_rate != null ? Number(a.win_rate) : (nDone ? Number(a.wins || 0) / nDone : null);
+    const avgNetC = a.avg_net_per_trade_cents != null ? Number(a.avg_net_per_trade_cents) : (nDone ? realizedC / nDone : null);
+    const lastTradeTxt = a.last_trade_ts ? componentAgo(a.last_trade_ts, nowSec) : (a.last_trade_ts === undefined ? null : 'no trade yet');
+    const perfBlock = `<div class="acct-rows" style="margin-top:2px">
+        <span class="k">Win rate (completed trades)</span><span class="v">${winRate == null ? 'n/a — no completed trades' : (winRate * 100).toFixed(0) + '% of ' + nDone}</span>
+        <span class="k">Avg net per completed trade</span><span class="v ${avgNetC == null ? '' : avgNetC >= 0 ? 'pos' : 'neg'}">${avgNetC == null ? 'n/a' : fmtSignedUsd(avgNetC / 100)}</span>
+        ${lastTradeTxt != null ? `<span class="k">Last trading activity</span><span class="v">${esc(lastTradeTxt)}</span>` : ''}
+        ${a.data_status ? `<span class="k">Data freshness</span><span class="v ${a.data_status === 'LIVE' ? 'pos' : 'neg'}">${esc(a.data_status)} · experiment cycle ${a.data_ts ? componentAgo(a.data_ts, nowSec) : 'unknown'}</span>` : ''}
+        ${a.exit_policy ? `<span class="k">Exit policy</span><span class="v">${esc(a.exit_policy)}</span>` : ''}
+      </div>`;
     const actOpen = Boolean(sectionOpenOverrides[`${a.account_id}:active`]);
     const awtOpen = Boolean(sectionOpenOverrides[`${a.account_id}:awaiting`]);
     const cmpOpen = Boolean(sectionOpenOverrides[`${a.account_id}:completed`]);
@@ -419,7 +447,7 @@ function buildAccountCard(a, ctx) {
         ${badgeHtml}
       </div>
       <div class="muted" style="font-size:11px;display:flex;flex-wrap:wrap;gap:6px">
-        <span>Codename: <b class="mono">${a.codename || '–'}</b></span>
+        <span>${a.family_id ? 'Family' : 'Codename'}: <b class="mono">${esc(a.codename || a.family_id || '–')}</b></span>
         <span>· Mode: <b>${isReal ? 'REAL MONEY' : 'PAPER SIM'}</b></span>
         <span>· Status: <b>${a.runtime_status || 'ACTIVE'}</b></span>
       </div>
@@ -443,6 +471,8 @@ function buildAccountCard(a, ctx) {
         <span>Est. Unrealized (Resale):</span>
         <span class="mono unreal-neutral">${unrealTxt}</span>
       </div>
+      ${a.family_id && Number(a.open_positions || 0) > 0 ? '<div class="muted" style="font-size:10px">Equity counts open positions at cost: this experiment stores no live resale mark, so unrealized resale is UNAVAILABLE rather than zero.</div>' : ''}
+      ${perfBlock}
       <div class="stat-badges-4">
         <div class="stat-mini"><div class="lbl">Open</div><div class="val mono">${actCount}</div></div>
         <div class="stat-mini"><div class="lbl">Settling</div><div class="val mono">${setCount}</div></div>
@@ -459,15 +489,15 @@ function buildAccountCard(a, ctx) {
         <span class="k">Fees Paid</span><span class="v">${fmtUsd((a.fees_cents || 0) / 100)}</span>
       </div>
       <details class="pos-details" data-sec="${a.account_id}:active" ${actOpen ? 'open' : ''}>
-        <summary><span>1. Active Positions (${activeHoldings.length})</span><span class="sec-lbl">${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <summary><span>1. Active Positions (${activeHoldings.length}${activeHoldings.length < actCount ? ' listed of ' + actCount : ''})</span><span class="sec-lbl">${actOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
         <div class="sec-body">${actOpen ? renderAccountDetailsBody('active', activeHoldings) : ''}</div>
       </details>
       <details class="pos-details" data-sec="${a.account_id}:awaiting" ${awtOpen ? 'open' : ''}>
-        <summary><span>2. Awaiting Settlement (${awaitingHoldings.length})</span><span class="sec-lbl">${awtOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <summary><span>2. Awaiting Settlement (${awaitingHoldings.length}${awaitingHoldings.length < setCount ? ' listed of ' + setCount : ''})</span><span class="sec-lbl">${awtOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
         <div class="sec-body">${awtOpen ? renderAccountDetailsBody('awaiting', awaitingHoldings) : ''}</div>
       </details>
       <details class="pos-details" data-sec="${a.account_id}:completed" ${cmpOpen ? 'open' : ''}>
-        <summary><span>3. Completed Positions (${acctCompleted.length})</span><span class="sec-lbl">${cmpOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
+        <summary><span>3. Completed Positions (${acctCompleted.length}${a.closed_trades != null && acctCompleted.length < a.closed_trades ? ' listed of ' + a.closed_trades : ''})</span><span class="sec-lbl">${cmpOpen ? '▾ Collapse' : '▸ Expand'}</span></summary>
         <div class="sec-body">${cmpOpen ? renderAccountDetailsBody('completed', acctCompleted) : ''}</div>
       </details>
     </article>`;
@@ -2049,6 +2079,136 @@ function renderOpportunityFunnel(snap) {
     </div></details>`;
 }
 
+// ===== PAPER EXPERIMENT ACCOUNTS: every registered experiment's virtual-bankroll accounts, grouped by strategy family, rendered with the SAME card as ZEUS (buildAccountCard).
+// Data: snap.experiment_accounts (read-only adapter over each experiment's own ledger; same snapshot publisher, no extra polling). Nothing here is strategy-specific.
+const expState = { sort: {}, showInactive: {}, shown: {}, openFam: {}, openAcct: {}, openGroup: {} };
+const EXP_SORTS = {
+  net: ['Realized net $', a => a.realized_net_cents ?? 0], ret: ['Return %', a => (a.initial_cents ? (a.realized_net_cents ?? 0) / a.initial_cents : 0)], equity: ['Equity', a => a.equity_cents ?? 0],
+  activity: ['Last trade', a => a.last_trade_ts || 0], open: ['Open positions', a => a.open_positions || 0], done: ['Completed trades', a => (a.wins || 0) + (a.losses || 0)],
+  win: ['Win rate', a => { const n = (a.wins || 0) + (a.losses || 0); return n ? a.wins / n : -1; }],
+};
+let expSecMap = {};
+const expAgg = (accts) => {
+  const t = { n: accts.length, start: 0, eq: 0, real: 0, fees: 0, open: 0, wins: 0, losses: 0, prof: 0, lose: 0, idle: 0, parked: 0, withTrades: 0, last: 0 };
+  accts.forEach(a => {
+    t.start += a.initial_cents || 0; t.eq += a.equity_cents || 0; t.real += a.realized_net_cents || 0; t.fees += a.fees_cents || 0; t.open += a.open_positions || 0;
+    t.wins += a.wins || 0; t.losses += a.losses || 0; t.last = Math.max(t.last, a.last_trade_ts || 0);
+    if (a.runtime_status === 'PARKED') t.parked++;
+    if ((a.positions_total || 0) > 0) t.withTrades++; else t.idle++;
+    if ((a.realized_net_cents || 0) > 0) t.prof++; else if ((a.realized_net_cents || 0) < 0) t.lose++;
+  });
+  return t;
+};
+const expPnlCls = c => (c > 0 ? 'pos' : c < 0 ? 'neg' : '');
+const expCardCtx = (snap) => ({ snap, holdings: snap.experiment_accounts.holdings, completedAll: snap.experiment_accounts.completed_trades, prevMap: {}, secDataMap: expSecMap });
+function expAccountRow(a, snap, nowSec) {
+  const n = (a.wins || 0) + (a.losses || 0), real = a.realized_net_cents || 0, key = a.account_id;
+  const open = Boolean(expState.openAcct[key]);
+  const wr = n ? Math.round(a.wins / n * 100) + '% (' + n + ')' : 'n/a (0 done)';
+  return `<details class="exp-acct" data-key="${esc(key)}" ${open ? 'open' : ''}>
+    <summary><span class="exp-name">${esc(a.label.replace(/^[^·]*· /, ''))}</span>
+      <span class="tag ${a.runtime_status === 'ACTIVE' ? 'ok' : 'legacy'}">${esc(a.runtime_status)}</span>
+      <span class="mono">eq ${fmtUsd((a.equity_cents || 0) / 100)}</span>
+      <span class="mono ${expPnlCls(real)}">${fmtSignedUsd(real / 100)} (${fmtSignedPct(a.initial_cents ? real / a.initial_cents * 100 : 0)})</span>
+      <span class="mono">open ${a.open_positions || 0}</span><span class="mono">W/L ${a.wins || 0}/${a.losses || 0}</span><span class="mono">win ${wr}</span>
+      <span class="muted mono">${a.last_trade_ts ? 'last trade ' + componentAgo(a.last_trade_ts, nowSec) : 'no trades yet'}</span></summary>
+    <div class="exp-card-body">${open ? buildAccountCard(a, expCardCtx(snap)) : ''}</div>
+  </details>`;
+}
+function renderExperimentAccounts(snap) {
+  const panel = $('experiment-accounts-panel'), body = $('exp-accts-body');
+  if (!panel || !body) return;
+  const ea = snap && snap.experiment_accounts;
+  if (!ea || !(ea.standard_accounts || []).length) {
+    panel.style.display = ea ? 'block' : 'none';
+    if (ea) body.innerHTML = `<div class="acct-card"><b>UNKNOWN</b> &mdash; no experiment accounts in the published snapshot${(ea.errors || []).length ? ' (' + esc(ea.errors.map(e => e.source + ': ' + e.error).join('; ')) + ')' : ''}. Nothing is shown rather than a guess.</div>`;
+    return;
+  }
+  panel.style.display = 'block';
+  const nowSec = snap.published_ts || Date.now() / 1000;
+  expSecMap = {};
+  const byFam = {};
+  ea.standard_accounts.forEach(a => { (byFam[a.family_id] = byFam[a.family_id] || []).push(a); });
+  const all = expAgg(ea.standard_accounts);
+  const head = `<div class="acct-card paper-card" style="padding:12px 14px">
+      <div class="acct-head"><span class="acct-title">All paper experiments &mdash; ${all.n} virtual accounts in ${ea.families.length} families</span><span class="tag paper">LIVE PAPER &middot; NO REAL MONEY</span></div>
+      <div class="muted mono" style="font-size:12px">Combined realized net <b class="${expPnlCls(all.real)}">${fmtSignedUsd(all.real / 100)}</b> on ${fmtUsd(all.start / 100)} of virtual bankroll &middot; ${all.prof} accounts profitable, ${all.lose} losing, ${all.n - all.prof - all.lose} flat/no result &middot; ${all.open} open positions &middot; ${all.wins + all.losses} completed trades. ${esc(ea.note || '')}</div>
+      ${(ea.errors || []).length ? `<div class="neg" style="font-size:12px">Unavailable sources: ${esc(ea.errors.map(e => e.source + ': ' + e.error).join('; '))}</div>` : ''}</div>`;
+  const fams = ea.families.map(f => {
+    const accts = byFam[f.id] || [];
+    const t = expAgg(accts);
+    const sortKey = expState.sort[f.id] || 'net';
+    const inactiveShown = Boolean(expState.showInactive[f.id]);
+    const list = accts.filter(a => inactiveShown || a.runtime_status !== 'PARKED').sort((x, y) => EXP_SORTS[sortKey][1](y) - EXP_SORTS[sortKey][1](x));
+    const shown = expState.shown[f.id] || 15;
+    const nDone = t.wins + t.losses;
+    const groups = {};
+    accts.forEach(a => { (groups[a.subgroup || 'all'] = groups[a.subgroup || 'all'] || { name: a.subgroup_name || f.name, items: [] }).items.push(a); });
+    const gRows = Object.entries(groups).map(([gid, g]) => ({ gid, name: g.name, t: expAgg(g.items) })).sort((a, b) => b.t.real - a.t.real);
+    const gTable = gRows.length > 1 ? `<details class="exp-group" data-fam="${esc(f.id)}" ${expState.openGroup[f.id] ? 'open' : ''}><summary class="muted">Sub-experiments (${gRows.length}) &mdash; one row per entry rule; its accounts differ only by exit policy or sizing</summary>
+        <div class="table-wrap"><table><thead><tr><th>SUB-EXPERIMENT</th><th>ACCOUNTS (TRADED/ALL)</th><th>OPEN</th><th>COMPLETED</th><th>WIN %</th><th>REALIZED NET</th><th>PROFITABLE / LOSING</th></tr></thead><tbody>
+        ${gRows.map(r => `<tr><td>${esc(r.name)}</td><td class="mono">${r.t.withTrades}/${r.t.n}</td><td class="mono">${r.t.open}</td><td class="mono">${r.t.wins + r.t.losses}</td><td class="mono">${r.t.wins + r.t.losses ? Math.round(r.t.wins / (r.t.wins + r.t.losses) * 100) + '%' : 'n/a'}</td><td class="mono ${expPnlCls(r.t.real)}">${fmtSignedUsd(r.t.real / 100)}</td><td class="mono">${r.t.prof} / ${r.t.lose}</td></tr>`).join('')}</tbody></table></div></details>` : '';
+    const dup = f.unique_markets ? `<span class="exp-dup">${(f.positions_total || 0).toLocaleString()} positions on ${(f.unique_markets || 0).toLocaleString()} unique markets (${(f.positions_total / f.unique_markets).toFixed(1)} positions per market)${f.positions_total / f.unique_markets > 1.5 ? ': accounts in this family repeat the same opportunities, so their results are not independent evidence.' : '.'}</span>` : '';
+    const open = expState.openFam[f.id] !== false;
+    return `<details class="exp-family acct-card paper-card" data-fam="${esc(f.id)}" ${open ? 'open' : ''}>
+      <summary class="exp-fam-head"><span class="acct-title">${esc(f.name)}</span>
+        <span class="tag paper">${esc(f.classification)}</span><span class="tag ${f.data_status === 'LIVE' ? 'ok' : 'warn'}">${esc(f.data_status)}${f.data_ts ? ' · cycle ' + esc(componentAgo(f.data_ts, nowSec)) : ''}</span>
+        <span class="mono ${expPnlCls(t.real)}">${fmtSignedUsd(t.real / 100)} realized</span></summary>
+      <div class="stat-badges-4" style="margin:6px 0">
+        <div class="stat-mini"><div class="lbl">Accounts (traded / all)</div><div class="val mono">${t.withTrades} / ${t.n}</div></div>
+        <div class="stat-mini"><div class="lbl">Open positions</div><div class="val mono">${t.open}</div></div>
+        <div class="stat-mini"><div class="lbl">Completed W / L</div><div class="val mono"><span class="pos">${t.wins}</span> / <span class="neg">${t.losses}</span></div></div>
+        <div class="stat-mini"><div class="lbl">Win rate</div><div class="val mono">${nDone ? Math.round(t.wins / nDone * 100) + '%' : 'n/a'}</div></div>
+      </div>
+      <div class="acct-rows">
+        <span class="k">Virtual bankroll / equity (open at cost)</span><span class="v">${fmtUsd(t.start / 100)} / ${fmtUsd(t.eq / 100)}</span>
+        <span class="k">Realized net (after fees)</span><span class="v ${expPnlCls(t.real)}">${fmtSignedUsd(t.real / 100)} (${fmtSignedPct(t.start ? t.real / t.start * 100 : 0)})</span>
+        <span class="k">Fees paid</span><span class="v">${fmtUsd(t.fees / 100)}</span>
+        <span class="k">Avg net per completed trade</span><span class="v">${nDone ? fmtSignedUsd(t.real / nDone / 100) : 'n/a'}</span>
+        <span class="k">Profitable / losing / no result</span><span class="v">${t.prof} / ${t.lose} / ${t.n - t.prof - t.lose}</span>
+        <span class="k">Parked or never traded</span><span class="v">${t.parked} parked &middot; ${t.idle} never traded</span>
+        <span class="k">Last trading activity</span><span class="v">${t.last ? esc(componentAgo(t.last, nowSec)) : 'none'}</span>
+      </div>
+      <div class="muted" style="font-size:12px">${esc(f.note || '')} ${dup}</div>
+      ${gTable}
+      <div class="exp-controls" data-fam="${esc(f.id)}">
+        <label>Sort <select data-act="sort">${Object.entries(EXP_SORTS).map(([k, v]) => `<option value="${k}" ${k === sortKey ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label>
+        <label><input type="checkbox" data-act="inactive" ${inactiveShown ? 'checked' : ''}> include parked (${t.parked})</label>
+        <span class="muted">${Math.min(shown, list.length)} of ${list.length} shown</span></div>
+      <div class="exp-list">${list.slice(0, shown).map(a => expAccountRow(a, snap, nowSec)).join('')}</div>
+      ${list.length > shown ? `<button class="tab-btn" type="button" data-act="more" data-fam="${esc(f.id)}">Show 20 more</button>` : ''}
+    </details>`;
+  }).join('');
+  body.innerHTML = head + fams;
+  body.querySelectorAll('details.exp-acct[open] .exp-card-body').forEach(el => bindAccountDetails(el, expSecMap));
+}
+function initExperimentAccounts() {
+  const body = $('exp-accts-body');
+  if (!body || body.dataset.bound) return;
+  body.dataset.bound = '1';
+  body.addEventListener('change', ev => {
+    const ctl = ev.target.closest('.exp-controls'); if (!ctl) return;
+    const fam = ctl.dataset.fam;
+    if (ev.target.dataset.act === 'sort') expState.sort[fam] = ev.target.value;
+    if (ev.target.dataset.act === 'inactive') expState.showInactive[fam] = ev.target.checked;
+    expState.shown[fam] = 15; renderExperimentAccounts(currentSnap);
+  });
+  body.addEventListener('click', ev => {
+    const b = ev.target.closest('[data-act="more"]'); if (!b) return;
+    expState.shown[b.dataset.fam] = (expState.shown[b.dataset.fam] || 15) + 20; renderExperimentAccounts(currentSnap);
+  });
+  body.addEventListener('toggle', ev => {
+    const d = ev.target;
+    if (d.classList.contains('exp-family')) { expState.openFam[d.dataset.fam] = d.open; return; }
+    if (d.classList.contains('exp-group')) { expState.openGroup[d.dataset.fam] = d.open; return; }
+    if (d.classList.contains('exp-acct')) {
+      expState.openAcct[d.dataset.key] = d.open;
+      const el = d.querySelector('.exp-card-body'), a = (currentSnap.experiment_accounts.standard_accounts || []).find(x => x.account_id === d.dataset.key);
+      if (d.open && el && a && !el.innerHTML) { el.innerHTML = buildAccountCard(a, expCardCtx(currentSnap)); bindAccountDetails(el, expSecMap); }
+    }
+  }, true);
+}
+
 function renderAll(snap, connState = 'WAITING', force = false) {
   currentSnap = snap;
   renderStatusHeader(snap, connState);
@@ -2057,6 +2217,7 @@ function renderAll(snap, connState = 'WAITING', force = false) {
   renderCmosPortfolioPanel(snap);
   renderZeusExecutionComparison(snap);
   renderZeusCapitalScaling(snap);
+  renderExperimentAccounts(snap);
   renderWalkForwardResearch(snap);
   renderHermesSavings(snap);
   renderHunterShadow(snap);
@@ -2754,6 +2915,7 @@ function wireControls() {
 // Init once
 wireControls();
 initNavTabs();
+initExperimentAccounts();
 prevSnap = loadJson(PREV_KEY, null);
 const initialSnap = loadJson(CACHE_KEY, null) || emptySnapshot();
 renderAll(initialSnap, 'WAITING', true);
@@ -2807,7 +2969,7 @@ function opsStrip(snap, cid) {
 }
 // Components that already have their own card/table elsewhere on the page (shown there with a status strip); the monitoring section lists the rest.
 function isCardComponent(c) {
-  return /^(acct:|exp:|zeus:|shadow:hunter$|shadow:bargain$|shadow:discovery$|rest:exits$)/.test(c.id);
+  return /^(acct:|exp:|zeus:|ee:|gf:|ctx:|shadow:hunter$|shadow:bargain$|shadow:discovery$|rest:exits$)/.test(c.id);
 }
 
 function renderComponents(snap) {
