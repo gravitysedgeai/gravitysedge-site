@@ -35,3 +35,7 @@ details{border-top:1px solid var(--line);margin-top:8px;padding-top:6px}summary{
 .ev{font-size:12px;color:var(--mut)}.err{color:var(--dn);font-size:12px;margin-top:6px;overflow-wrap:anywhere}
 footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
 @media (max-width:420px){#grid{grid-template-columns:minmax(0,1fr)}.eq b{font-size:24px}}
+
+.live-label{margin:8px 0;padding:8px 10px;border:1px solid #c98a00;border-left:4px solid #c98a00;border-radius:6px;background:rgba(201,138,0,.12);font-size:12px;line-height:1.4}
+.live-label b{display:block;letter-spacing:.05em;margin-bottom:2px}
+.live-label .warns{margin:6px 0 0;padding-left:16px}

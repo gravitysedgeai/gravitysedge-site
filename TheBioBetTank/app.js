@@ -48,13 +48,22 @@
   function section(title, node) { var s = el("div", "sec"); s.appendChild(el("h4", "", title)); s.appendChild(node); return s; }
   function hhmmss(s) { return s ? s.slice(5, 19).replace("T", " ") : "–"; }
 
-  function card(t, ref) {
+  function card(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, fr = fresh(t, ref), c = el("div", "card");
     var top = el("div", "top"), l = el("div");
     l.appendChild(el("div", "title", tk.title)); l.appendChild(el("div", "id", tk.id + " · master v" + (tk.master_version || "?")));
     var r = el("div"); r.style.textAlign = "right"; r.appendChild(el("span", "pill s-" + t.state, t.state));
     var fe = el("div", "fresh"); fe.appendChild(el("span", "dot " + fr.cls)); fe.appendChild(document.createTextNode(fr.txt)); r.appendChild(fe);
     top.appendChild(l); top.appendChild(r); c.appendChild(top);
+    var fd = t.feed || {}, nt = (notes || {})[tk.id], lab = nt && nt.label ? nt.label : fd.mode === "market_tape" ? "LIVE-DATA PAPER TEST" : fd.mode === "simulated" ? "SIMULATED DATA" : null;
+    if (lab) {
+      var lb = el("div", "live-label"); lb.appendChild(el("b", "", lab));
+      if (nt && nt.caveat) lb.appendChild(el("div", "", nt.caveat));
+      else if (fd.mode === "market_tape") lb.appendChild(el("div", "", "Paper trades on recorded live market data. Not validated trading performance; fills not realistically executable."));
+      if (fd.mode === "market_tape") lb.appendChild(el("div", "", "Feed: " + (fd.resyncs || 0) + " resync(s) · " + (fd.invalid || 0) + " invalid · " + (fd.producer_dropped || 0) + " dropped · books trusted " + fd.books_trusted + "/" + fd.books_total));
+      if (nt && nt.warnings) { var ul = el("ul", "warns"); nt.warnings.forEach(function (w) { ul.appendChild(el("li", "", w)); }); lb.appendChild(ul); }
+      c.appendChild(lb);
+    }
     var eq = el("div", "eq"); eq.appendChild(el("b", "", money(f.equity)));
     eq.appendChild(el("span", "pnl " + sgn(f.pnl), signed(f.pnl) + "  (" + pct(f.pnl_pct) + ")")); c.appendChild(eq);
     c.appendChild(spark(t.equity_curve, f.starting_bankroll));
@@ -116,7 +125,7 @@
     var q = $("q").value.trim().toLowerCase();
     shown = all.filter(function (t) { return (tab === "all" || groupOf(t) === tab) && (!q || (t.ticket.title + " " + t.ticket.id + " " + (t.ticket.description || "")).toLowerCase().indexOf(q) >= 0); });
     shown.sort(SORT[$("sort").value]);
-    var g = $("grid"); g.textContent = ""; shown.forEach(function (t) { g.appendChild(card(t, ref)); });
+    var g = $("grid"); g.textContent = ""; shown.forEach(function (t) { g.appendChild(card(t, ref, tank.notes)); });
     $("empty").hidden = shown.length > 0;
     $("upd").textContent = new Date(ref).toLocaleString();
     var age = Date.now() - ref, b = $("banner");
