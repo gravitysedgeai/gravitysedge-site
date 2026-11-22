@@ -1,0 +1,11 @@
+{
+  "name": "PULSE//15 Market Cockpit",
+  "short_name": "PULSE//15",
+  "description": "Live Kalshi 15-minute crypto market intelligence cockpit.",
+  "start_url": "/gravitysedge-site/pulse15/",
+  "scope": "/gravitysedge-site/pulse15/",
+  "display": "standalone",
+  "background_color": "#080b10",
+  "theme_color": "#080b10",
+  "icons": [{ "src": "./pulse-mark.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
