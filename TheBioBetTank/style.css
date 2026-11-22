@@ -34,4 +34,4 @@ details{border-top:1px solid var(--line);margin-top:8px;padding-top:6px}summary{
 .tbl th{color:var(--mut);font-weight:600}.wrap{overflow-x:auto;max-width:100%}
 .ev{font-size:12px;color:var(--mut)}.err{color:var(--dn);font-size:12px;margin-top:6px;overflow-wrap:anywhere}
 footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
-@media (max-width:420px){#grid{grid-template-columns:1fr}.eq b{font-size:24px}}
+@media (max-width:420px){#grid{grid-template-columns:minmax(0,1fr)}.eq b{font-size:24px}}
