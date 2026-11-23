@@ -18,7 +18,7 @@
   function fresh(t, ref) {
     if (t.state === "archived" || t.state === "completed") return { cls: "", txt: "final " + ago(ref - ts(t.generated_at)) };
     var gen = ref - ts(t.generated_at), data = t.activity.last_data_at ? ref - ts(t.activity.last_data_at) : null;
-    if (t.state === "running" && gen > 45000) return { cls: "dead", txt: "no update " + ago(gen) };
+    if (t.state === "running" && gen > 90000) return { cls: "dead", txt: "no update " + ago(gen) };
     if (t.state === "paused" || t.state === "failed") return { cls: "", txt: "stopped " + ago(gen) };
     if (data == null) return { cls: "dead", txt: "no market data yet" };
     if (data > 60000) return { cls: "slow", txt: "data " + ago(data) };
@@ -54,7 +54,7 @@
   // never shows a number as "current" unless a genuine live event arrived: stopped / silent / recorded-tape-only tickets are labelled instead
   function latState(t, ref) {
     var L = t.latency; if (!L) return null;
-    if (t.state !== "running" || ref - ts(t.generated_at) > 45000) return { cls: "off", txt: "OFFLINE", why: "ticket is not running; the numbers below are from its last measurement window" };
+    if (t.state !== "running" || ref - ts(t.generated_at) > 90000) return { cls: "off", txt: "OFFLINE", why: "ticket is not running; the numbers below are from its last measurement window" };
     if (L.feed_state === "simulated") return { cls: "sim", txt: "SIMULATED", why: "synthetic data: no real latency exists" };
     if (L.feed_state === "no_live_feed") return { cls: "none", txt: "NO LIVE FEED", why: "no genuine live market event has been received since this window began (recorded tape is never counted as live)" };
     if (L.feed_state === "stale") return { cls: "stale", txt: "STALE", why: "no live market event for " + ms((L.last_event || {}).age_s * 1000) };
@@ -87,11 +87,39 @@
     return d;
   }
 
+  // display status derived from the ticket's own published fields (no ticket changes): RUNNING / WAITING FOR MATCH / PAUSED / OFFLINE / ERROR / COMPLETED / ARCHIVED
+  function label(t, ref) {
+    var s = t.state;
+    if (s === "archived") return { k: "archived", txt: "ARCHIVED" };
+    if (s === "completed") return { k: "completed", txt: "COMPLETED" };
+    if (s === "paused") return { k: "paused", txt: "PAUSED" };
+    if (s === "failed") return { k: "failed", txt: "ERROR" };
+    if (s !== "running") return { k: "paused", txt: String(s).toUpperCase() };
+    var gen = ref - ts(t.generated_at), L = t.latency || {}, h = t.health || {};
+    if (gen > 90000) return { k: "offline", txt: "OFFLINE" };                       // runtime not updating
+    if ((L.feed_state && L.feed_state !== "live") || (t.activity.last_data_at && ref - ts(t.activity.last_data_at) > 60000)) return { k: "offline", txt: "OFFLINE" };   // feed disconnected
+    if (h.last_error_at && ref - ts(h.last_error_at) < 120000) return { k: "failed", txt: "ERROR" };
+    var busy = (t.open_positions || []).length > 0;
+    return busy ? { k: "running", txt: "RUNNING" } : { k: "waiting", txt: "WAITING FOR MATCH" };
+  }
+  // generic counters: markets observed, signals, entries, skipped (with reasons), completed trades
+  function counters(t) {
+    var r = t.market_report || null, st = t.stats || {}, sg = t.signals || [], skipped = {}, nSig = 0, nEnt = 0, mk = {}, tot = 0;
+    if (r) { skipped = r.skips || {}; Object.keys(skipped).forEach(function (k) { tot += skipped[k]; }); return { markets: r.markets_seen, signals: null, entries: r.entries, skips: tot, why: skipped, trades: st.completed_trades }; }
+    sg.forEach(function (x) { mk[x.ticker] = 1; nSig++; var d = String(x.decision || ""); if (d.indexOf("entry") === 0) nEnt++; else if (d) { var k = d + (x.reason ? ": " + String(x.reason).split(/[ (,:]/)[0] : ""); skipped[k] = (skipped[k] || 0) + 1; tot++; } });
+    return { markets: Object.keys(mk).length, signals: nSig, entries: nEnt, skips: tot, why: skipped, trades: st.completed_trades, recent: true };
+  }
+  function evText(e) {
+    if (!e) return "–";
+    if (e.frenzy) { var f = e.frenzy; return f.sample_trades + " trades in " + (f.t_since_open_s != null ? f.t_since_open_s + "s after open" : "window") + " · YES " + f.yes_purchases + " / NO " + f.no_purchases; }
+    if (e.trigger_trades) return e.trigger_trades.length + " trades " + e.trigger_trades.map(function (x) { return "$" + x.dollars; }).join(" + ");
+    var o = []; Object.keys(e).slice(0, 4).forEach(function (k) { if (typeof e[k] !== "object") o.push(k + "=" + e[k]); }); return o.join(" ") || "–";
+  }
   function card(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, fr = fresh(t, ref), c = el("div", "card");
     var top = el("div", "top"), l = el("div");
     l.appendChild(el("div", "title", tk.title)); l.appendChild(el("div", "id", tk.id + " · master v" + (tk.master_version || "?")));
-    var r = el("div"); r.style.textAlign = "right"; r.appendChild(el("span", "pill s-" + t.state, t.state));
+    var r = el("div"); r.style.textAlign = "right"; var lbl = label(t, ref); r.appendChild(el("span", "pill s-" + lbl.k, lbl.txt));
     var fe = el("div", "fresh"); fe.appendChild(el("span", "dot " + fr.cls)); fe.appendChild(document.createTextNode(fr.txt)); r.appendChild(fe);
     var ls = latState(t, ref);
     if (ls) { var lp = el("div", "latpill " + ls.cls); lp.title = ls.why; lp.appendChild(el("span", "dot")); lp.appendChild(document.createTextNode(ls.txt)); r.appendChild(lp); }
@@ -115,6 +143,9 @@
     c.appendChild(kv);
     var s = tk.summary || {};
     c.appendChild(el("div", "cfg", [s.strategy, s.trigger, s.entry_range ? "entry " + s.entry_range.join("–") : null, s.exit, s.feed].filter(Boolean).join(" · ")));
+    var cn = counters(t), why = Object.keys(cn.why).map(function (k) { return k + " ×" + cn.why[k]; }).join(", ");
+    var cr = el("div", "cfg", "Markets " + (cn.markets == null ? "–" : cn.markets) + (cn.recent ? " (recent)" : " observed") + " · signals " + (cn.signals == null ? "–" : cn.signals) + " · entries " + (cn.entries == null ? "–" : cn.entries) + " · skipped " + cn.skips + (why ? " (" + why + ")" : "") + " · completed trades " + cn.trades);
+    c.appendChild(cr);
     if (t.health.errors) c.appendChild(el("div", "err", t.health.errors + " error(s)" + (t.health.last_error ? " · last: " + t.health.last_error : "")));
 
     var d = el("details"); d.open = !!open[tk.id];
@@ -130,7 +161,7 @@
       : el("div", "ev", "None yet")));
     var sg = t.signals.slice().reverse().slice(0, 15);
     d.appendChild(section("Latest signals", sg.length ?
-      table(["Time", "Market", "Trigger→Buy", "Evidence", "Decision"], sg.map(function (x) { var e = x.evidence; return [hhmmss(x.ts), x.ticker, x.trigger_side + "→" + x.target_side, "$" + e.window_value + " / " + e.window_contracts + "c / " + e.window_trades + " trades in " + e.window_s + "s", (x.decision || "") + (x.reason ? ": " + x.reason : "")]; }))
+      table(["Time", "Market", "Trigger→Buy", "Evidence", "Decision"], sg.map(function (x) { var e = x.evidence; return [hhmmss(x.ts), x.ticker, x.trigger_side + "→" + x.target_side, (e.window_value != null ? "$" + e.window_value + " / " + e.window_contracts + "c / " + e.window_trades + " trades in " + e.window_s + "s" : evText(e)), (x.decision || "") + (x.reason ? ": " + x.reason : "")]; }))
       : el("div", "ev", "None yet")));
     var a = t.activity;
     d.appendChild(section("Activity", el("div", "ev", "Last data " + hhmmss(a.last_data_at) + " · last trade " + hhmmss(a.last_trade_at) + " · last signal " + hhmmss(a.last_signal_at) + " · runtime " + Math.round(a.run_seconds / 60) + " min · activated " + hhmmss(tk.activated_at) + (tk.parent ? " · version of " + tk.parent.ticket_id : ""))));
@@ -171,7 +202,7 @@
     $("empty").hidden = shown.length > 0;
     $("upd").textContent = new Date(ref).toLocaleString();
     var age = Date.now() - ref, b = $("banner");
-    b.hidden = age < 180000 || !all.some(function (t) { return t.state === "running"; }); b.textContent = "Publishing looks stale: last update " + ago(age) + ". Ticket data below may be out of date.";
+    b.hidden = age < 900000 || !all.some(function (t) { return t.state === "running"; }); b.textContent = "Publishing looks stale: last update " + ago(age) + ". Ticket data below may be out of date.";
   }
 
   function load() {
