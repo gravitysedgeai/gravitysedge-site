@@ -94,6 +94,7 @@
   // display status derived from the ticket's own published fields (no ticket changes): RUNNING / WAITING FOR MATCH / PAUSED / OFFLINE / ERROR / COMPLETED / ARCHIVED
   function label(t, ref) {
     var s = t.state, sup = tank && tank.notes && tank.notes[t.ticket.id] && tank.notes[t.ticket.id].superseded_by;
+    if (sup && s !== "archived") if (s === "failed") return { k: "failed", txt: "CRASHED — SUPERSEDED BY V2" };
     if (sup && s !== "archived") return s === "running" ? { k: "paused", txt: "RETIRING — SUPERSEDED BY V2" } : { k: "paused", txt: "PAUSED — SUPERSEDED BY V2" };
     if (s === "archived") return { k: "archived", txt: "ARCHIVED" };
     if (s === "completed") return { k: "completed", txt: "COMPLETED" };
