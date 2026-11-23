@@ -99,6 +99,7 @@
     if (gen > 90000) return { k: "offline", txt: "OFFLINE" };                       // runtime not updating
     if ((L.feed_state && L.feed_state !== "live") || (t.activity.last_data_at && ref - ts(t.activity.last_data_at) > 60000)) return { k: "offline", txt: "OFFLINE" };   // feed disconnected
     if (h.last_error_at && ref - ts(h.last_error_at) < 120000) return { k: "failed", txt: "ERROR" };
+    if (t.experiment && t.experiment.stalled) return { k: "paused", txt: "STALLED (below $1 stake)" };
     var busy = (t.open_positions || []).length > 0;
     return busy ? { k: "running", txt: "RUNNING" } : { k: "waiting", txt: "WAITING FOR MATCH" };
   }
