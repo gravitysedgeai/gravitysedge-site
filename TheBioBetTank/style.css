@@ -39,3 +39,8 @@ footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
 .live-label{margin:8px 0;padding:8px 10px;border:1px solid #c98a00;border-left:4px solid #c98a00;border-radius:6px;background:rgba(201,138,0,.12);font-size:12px;line-height:1.4}
 .live-label b{display:block;letter-spacing:.05em;margin-bottom:2px}
 .live-label .warns{margin:6px 0 0;padding-left:16px}
+
+.latpill{font-size:11px;font-weight:700;margin-top:4px;color:var(--mut);white-space:nowrap}.latpill .dot{width:7px;height:7px;margin-right:4px}
+.latpill.live{color:var(--up)}.latpill.live .dot{background:var(--up)}.latpill.stale{color:var(--warn)}.latpill.stale .dot{background:var(--warn)}
+.latpill.none{color:var(--dn)}.latpill.none .dot{background:var(--dn)}.latpill.sim{color:var(--acc)}.latpill.sim .dot{background:var(--acc)}.latpill.off .dot{background:var(--mut)}
+details.lat summary{color:var(--mut)}

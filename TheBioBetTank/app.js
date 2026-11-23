@@ -48,12 +48,53 @@
   function section(title, node) { var s = el("div", "sec"); s.appendChild(el("h4", "", title)); s.appendChild(node); return s; }
   function hhmmss(s) { return s ? s.slice(5, 19).replace("T", " ") : "–"; }
 
+
+  // ---- latency (generic: reads only the optional `latency` block of biobet.ticket.status v1; older tickets simply have none)
+  function ms(v) { return v == null ? "–" : v < 1000 ? Math.round(v) + " ms" : (v / 1000).toFixed(v < 10000 ? 2 : 1) + " s"; }
+  // never shows a number as "current" unless a genuine live event arrived: stopped / silent / recorded-tape-only tickets are labelled instead
+  function latState(t, ref) {
+    var L = t.latency; if (!L) return null;
+    if (t.state !== "running" || ref - ts(t.generated_at) > 45000) return { cls: "off", txt: "OFFLINE", why: "ticket is not running; the numbers below are from its last measurement window" };
+    if (L.feed_state === "simulated") return { cls: "sim", txt: "SIMULATED", why: "synthetic data: no real latency exists" };
+    if (L.feed_state === "no_live_feed") return { cls: "none", txt: "NO LIVE FEED", why: "no genuine live market event has been received since this window began (recorded tape is never counted as live)" };
+    if (L.feed_state === "stale") return { cls: "stale", txt: "STALE", why: "no live market event for " + ms((L.last_event || {}).age_s * 1000) };
+    var fa = L.feed_age_ms && L.feed_age_ms.median;
+    return { cls: "live", txt: "LIVE" + (fa != null ? " · feed " + ms(fa) : ""), why: "genuine live events are arriving" };
+  }
+  function latencyDetails(t, ref) {
+    var L = t.latency, ls = latState(t, ref), tk = t.ticket;
+    var d = el("details", "lat"); d.open = !!open["lat:" + tk.id]; d.addEventListener("toggle", function () { open["lat:" + tk.id] = d.open; });
+    d.appendChild(el("summary", "", "Latency & feed quality · " + ls.txt));
+    d.appendChild(el("div", "ev", ls.why + ". Window started " + hhmmss(L.window_started_at) + " UTC (" + L.window_s + " s)."));
+    var haveAge = L.event_age_ms && L.event_age_ms.n > 0;
+    if (L.feed_state === "no_live_feed" && !L.events.total) return d;
+    if (L.feed_state !== "simulated") {
+      var row = function (name, s2) { return [name, ms(s2.last), ms(s2.median), ms(s2.p95), ms(s2.p99), ms(s2.max), s2.n]; };
+      var rows = [row("Feed age (receipt → ticket, exact)", L.feed_age_ms)];
+      if (haveAge) { rows.push(row("Source latency (venue → receipt, est.)", L.source_latency_ms)); rows.push(row("Event age (venue → ticket, est.)", L.event_age_ms)); }
+      rows.push(row("Signal detection + decision", L.processing.signal_decision_ms)); rows.push(row("Paper entry delay (signal → fill)", L.execution.paper_delay_ms));
+      d.appendChild(section("Timing", table(["Measure", "Last", "Median", "p95", "p99", "Max", "N"], rows)));
+      if (haveAge && L.clock) d.appendChild(el("div", "ev", "Clock uncertainty: " + L.clock.note + (L.clock.offset_floor_ms != null ? " Fastest-1% source latency: " + ms(L.clock.offset_floor_ms) + " (a constant offset cannot be separated from a constant delay)." : "")));
+    }
+    var e = L.events, q = L.quality, le = L.last_event;
+    var kv = el("div", "kv");
+    [["Events/s now", e.per_sec_now], ["Events/s window", e.per_sec_window], ["Peak events/s", e.peak_per_sec], ["Events", e.total],
+     ["Last live event", le ? ago(ref - ts(le.received_at)) : "none"], ["Gaps >" + q.gap_threshold_s + "s", q.gaps + (q.gaps ? " (max " + q.max_gap_s + "s)" : "")],
+     ["Stale episodes", q.stale_episodes + (q.stale_seconds ? " (" + q.stale_seconds + "s)" : "")], ["Resyncs", q.resyncs], ["Invalid", q.invalid_events], ["Dropped (producer)", q.dropped_by_producer],
+     ["Late backlog", q.backlog_events], ["Signals / entries", L.execution.signals + " / " + L.execution.paper_entries]]
+      .forEach(function (p) { var x = el("div"); x.appendChild(el("span", "", p[0])); x.appendChild(document.createTextNode(p[1])); kv.appendChild(x); });
+    d.appendChild(kv);
+    return d;
+  }
+
   function card(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, fr = fresh(t, ref), c = el("div", "card");
     var top = el("div", "top"), l = el("div");
     l.appendChild(el("div", "title", tk.title)); l.appendChild(el("div", "id", tk.id + " · master v" + (tk.master_version || "?")));
     var r = el("div"); r.style.textAlign = "right"; r.appendChild(el("span", "pill s-" + t.state, t.state));
     var fe = el("div", "fresh"); fe.appendChild(el("span", "dot " + fr.cls)); fe.appendChild(document.createTextNode(fr.txt)); r.appendChild(fe);
+    var ls = latState(t, ref);
+    if (ls) { var lp = el("div", "latpill " + ls.cls); lp.title = ls.why; lp.appendChild(el("span", "dot")); lp.appendChild(document.createTextNode(ls.txt)); r.appendChild(lp); }
     top.appendChild(l); top.appendChild(r); c.appendChild(top);
     var fd = t.feed || {}, nt = (notes || {})[tk.id], lab = nt && nt.label ? nt.label : fd.mode === "market_tape" ? "LIVE-DATA PAPER TEST" : fd.mode === "simulated" ? "SIMULATED DATA" : null;
     if (lab) {
@@ -94,6 +135,7 @@
     var a = t.activity;
     d.appendChild(section("Activity", el("div", "ev", "Last data " + hhmmss(a.last_data_at) + " · last trade " + hhmmss(a.last_trade_at) + " · last signal " + hhmmss(a.last_signal_at) + " · runtime " + Math.round(a.run_seconds / 60) + " min · activated " + hhmmss(tk.activated_at) + (tk.parent ? " · version of " + tk.parent.ticket_id : ""))));
     c.appendChild(d);
+    if (t.latency) c.appendChild(latencyDetails(t, ref));
     return c;
   }
 
