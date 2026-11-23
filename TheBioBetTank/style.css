@@ -54,3 +54,5 @@ details.lat summary{color:var(--mut)}
 .mon .mc small{display:block;color:var(--mut);font-size:11px;overflow-wrap:anywhere}
 .mon .mc.live{border-left-color:var(--up)}.mon .mc.slow{border-left-color:#c98a00}.mon .mc.dead{border-left-color:var(--dn)}.mon .mc.dead b{color:var(--dn)}.mon .mc.sim{border-left-color:#6b7fd7}
 .mon .monalert,.mon .monnote{grid-column:1/-1;font-size:12px}.mon .monalert{color:#fff;background:var(--dn);border-radius:6px;padding:6px 8px;font-weight:600}.mon .monnote{color:var(--mut)}
+
+.s-exhausted{color:var(--dn);border-color:var(--dn);text-decoration:line-through;text-decoration-thickness:1px}.s-limited{color:#c98a00;border-color:#c98a00}

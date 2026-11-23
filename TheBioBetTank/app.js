@@ -104,6 +104,8 @@
     if ((L.feed_state && L.feed_state !== "live") || (t.activity.last_data_at && ref - ts(t.activity.last_data_at) > 60000)) return { k: "offline", txt: "OFFLINE" };   // feed disconnected
     if (h.last_error_at && ref - ts(h.last_error_at) < 120000) return { k: "failed", txt: "ERROR" };
     if (t.experiment && t.experiment.stalled) return { k: "paused", txt: "STALLED (below $1 stake)" };
+    var ac = t.monitor && t.monitor.account;
+    if (ac && ac.state === "exhausted") return { k: "exhausted", txt: "ACCOUNT EXHAUSTED" };          // spent: not "waiting for a match"
     var busy = (t.open_positions || []).length > 0;
     return busy ? { k: "running", txt: "RUNNING" } : { k: "waiting", txt: "WAITING FOR MATCH" };
   }
@@ -137,7 +139,7 @@
     if (!run) lv = ["not running", "", "off"];
     else if (!L.available || dp.median == null) lv = ["UNAVAILABLE", "no measurements yet", "dead"];
     else if (L.feed_state !== "live" || gen > 90000) lv = ["STALE · last " + ms(dp.median), "feed " + (L.feed_state || "unknown"), "dead"];
-    else lv = [ms(dp.median) + " median", "p95 " + ms(dp.p95) + " · last " + ms(dp.last), dp.median > 2000 ? "slow" : "live"];
+    else lv = [ms(dp.median) + " median", "p95 " + ms(dp.p95) + " · worst " + ms(dp.max) + " · last " + ms(dp.last), dp.median > 2000 ? "slow" : "live"];
     box.appendChild(cell("Data → ticket latency", lv[0], lv[1], lv[2], L.definition || ""));
     box.appendChild(cell("Simulated order delay (setting)", (sim.configured_entry_s == null ? "-" : sim.configured_entry_s + " s entry") + " · " + (sim.configured_exit_s == null ? "-" : sim.configured_exit_s + " s exit"), sim.measured_paper_delay_ms != null ? "measured paper entry delay " + ms(sim.measured_paper_delay_ms) : "no entry fills measured", "sim", sim.note || ""));
     // last simulated fill: an actual BUY or SELL in the ledger, never a signal or a data event
@@ -245,6 +247,8 @@
     var live = all.filter(function (t) { return groupOf(t) === "active"; }), pnl = live.reduce(function (s, t) { return s + t.financials.pnl; }, 0);
     var tiles = $("tiles"); tiles.textContent = "";
     [["Active tickets", counts.active], ["Completed", counts.completed], ["Archived", counts.archived], ["Active net P&L", signed(pnl), sgn(pnl)],
+     ["Funded & operational", live.filter(function (t) { var l = label(t, ref); return l.k === "running" || l.k === "waiting"; }).length + " / " + live.length],
+     ["Accounts exhausted", live.filter(function (t) { return label(t, ref).k === "exhausted"; }).length],
      ["Profitable (active)", live.filter(function (t) { return t.financials.pnl > 0; }).length + " / " + live.length]]
       .forEach(function (p) { var d = el("div", "tile"); d.appendChild(el("span", "", p[0])); d.appendChild(el("b", p[2] || "", p[1])); tiles.appendChild(d); });
     var tabs = $("tabs"); tabs.textContent = "";
