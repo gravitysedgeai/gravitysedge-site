@@ -56,3 +56,20 @@ details.lat summary{color:var(--mut)}
 .mon .monalert,.mon .monnote{grid-column:1/-1;font-size:12px}.mon .monalert{color:#fff;background:var(--dn);border-radius:6px;padding:6px 8px;font-weight:600}.mon .monnote{color:var(--mut)}
 
 .s-exhausted{color:var(--dn);border-color:var(--dn);text-decoration:line-through;text-decoration-thickness:1px}.s-limited{color:#c98a00;border-color:#c98a00}
+
+/* compact uniform card: fixed summary frame, single-line clamps; verbose content lives in .more */
+.card.compact{padding:10px 12px}
+.compact .ch{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;height:46px;overflow:hidden}
+.compact .ct{min-width:0;flex:1}.compact .ct .title,.compact .ct .id{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact .cr{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}.compact .bds{display:flex;gap:4px}
+.bdg{font-size:10px;letter-spacing:.04em;padding:1px 6px;border-radius:9px;border:1px solid var(--mut);color:var(--mut);white-space:nowrap}
+.compact .ctm{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin:6px 0}
+.compact .cb{background:var(--bg);border-radius:8px;padding:4px 8px;border-left:3px solid transparent;height:50px;overflow:hidden;min-width:0}
+.compact .cb span{display:block;color:var(--mut);font-size:10px;text-transform:uppercase}.compact .cb b{display:block;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact .cb small{display:block;color:var(--mut);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact .cb.live{border-left-color:var(--up)}.compact .cb.slow{border-left-color:#c98a00}.compact .cb.dead{border-left-color:var(--dn)}.compact .cb.dead b{color:var(--dn)}
+.compact .cm{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;align-items:center}
+.compact .ceq b{display:block;font-size:20px;line-height:1.1}.compact .ceq .pnl{font-size:12px;white-space:nowrap}
+.compact .csp{height:34px}.compact .csp .spark{width:100%;height:34px}
+.compact .ckv{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:4px}.compact .ckv div{min-width:0}.compact .ckv span{display:block;color:var(--mut);font-size:10px;text-transform:uppercase}.compact .ckv b{font-size:12px}
+.compact details.more{margin-top:6px;border-top:1px solid var(--bg);padding-top:4px}.compact details.more>summary{cursor:pointer;font-size:12px;color:var(--mut)}

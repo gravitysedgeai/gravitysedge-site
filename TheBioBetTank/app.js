@@ -93,7 +93,8 @@
 
   // display status derived from the ticket's own published fields (no ticket changes): RUNNING / WAITING FOR MATCH / PAUSED / OFFLINE / ERROR / COMPLETED / ARCHIVED
   function label(t, ref) {
-    var s = t.state;
+    var s = t.state, sup = tank && tank.notes && tank.notes[t.ticket.id] && tank.notes[t.ticket.id].superseded_by;
+    if (sup && s !== "archived") return s === "running" ? { k: "paused", txt: "RETIRING — SUPERSEDED BY V2" } : { k: "paused", txt: "PAUSED — SUPERSEDED BY V2" };
     if (s === "archived") return { k: "archived", txt: "ARCHIVED" };
     if (s === "completed") return { k: "completed", txt: "COMPLETED" };
     if (s === "paused") return { k: "paused", txt: "PAUSED" };
@@ -147,7 +148,7 @@
     box.appendChild(cell("Last fill", lf ? et(lf.at) : "No fills yet", lf ? String(lf.action).toUpperCase() + " " + lf.contracts + " " + String(lf.side || "").toUpperCase() + " @ " + (lf.price != null ? lf.price.toFixed(2) : "-") + " · " + lf.ticker : (m.last_signal_at ? "last signal " + et(m.last_signal_at) : "no signal yet"), "", lf ? "UTC " + lf.at : ""));
     return box;
   }
-  function card(t, ref, notes) {
+  function fullCard(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, fr = fresh(t, ref), c = el("div", "card");
     var top = el("div", "top"), l = el("div");
     l.appendChild(el("div", "title", tk.title)); l.appendChild(el("div", "id", tk.id + " · master v" + (tk.master_version || "?")));
@@ -226,6 +227,49 @@
     d.appendChild(section("Activity", el("div", "ev", "Last data " + hhmmss(a.last_data_at) + " · last trade " + hhmmss(a.last_trade_at) + " · last signal " + hhmmss(a.last_signal_at) + " · runtime " + Math.round(a.run_seconds / 60) + " min · activated " + hhmmss(tk.activated_at) + (tk.parent ? " · version of " + tk.parent.ticket_id : ""))));
     c.appendChild(d);
     if (t.latency) c.appendChild(latencyDetails(t, ref));
+    return c;
+  }
+
+  // ---- compact uniform card: a fixed summary frame (always the same blocks, single-line clamped text) + ONE expandable "Details" holding everything verbose
+  function badges(t, notes) {
+    var fd = t.feed || {}, nt = (notes || {})[t.ticket.id], txt = (nt ? (nt.label || "") + " " + (nt.caveat || "") : "").toLowerCase(), b = ["PAPER"];
+    if (t.state === "archived") b.push("ARCHIVED");
+    else if (fd.mode === "simulated") b.push("SIMULATED");
+    else if (/recorded (3-minute )?(live )?(market )?tape/.test(txt) && t.state !== "running") b.push("RECORDED FEED");
+    else if (fd.mode === "market_tape") b.push("LIVE DATA");
+    return b;
+  }
+  function blk(name, val, sub, cls, tip) {
+    var d = el("div", "cb" + (cls ? " " + cls : "")); if (tip) d.title = tip + (sub ? " · " + sub : "");
+    d.appendChild(el("span", "", name)); d.appendChild(el("b", "", val)); d.appendChild(el("small", "", sub || " ")); return d;
+  }
+  function card(t, ref, notes) {
+    var f = t.financials, st = t.stats, tk = t.ticket, m = t.monitor || {}, run = t.state === "running", c = el("div", "card compact"), lbl = label(t, ref);
+    var h = el("div", "ch"), tt = el("div", "ct"); tt.appendChild(el("div", "title", tk.title)); tt.title = tk.title;
+    tt.appendChild(el("div", "id", tk.id + " · v" + (tk.master_version || "?")));
+    var rt = el("div", "cr"); rt.appendChild(el("span", "pill s-" + lbl.k, lbl.txt));
+    var bd = el("div", "bds"); badges(t, notes).forEach(function (x) { bd.appendChild(el("span", "bdg", x)); }); rt.appendChild(bd);
+    h.appendChild(tt); h.appendChild(rt); c.appendChild(h);
+    var ldat = m.last_data_at || (t.activity || {}).last_data_at, dage = ldat ? ref - ts(ldat) : null;
+    var dcls = !run ? "" : dage == null ? "dead" : dage <= 45000 ? "live" : dage <= 120000 ? "slow" : "dead";
+    var L = m.latency || {}, dp = L.data_processing_ms || {}, lv, lcls = "";
+    if (!run) lv = ["Unknown", "not running"]; else if (!L.available || dp.median == null) { lv = ["Unknown", "unavailable"]; lcls = "dead"; }
+    else if (L.feed_state !== "live") { lv = ["STALE", "last " + ms(dp.median)]; lcls = "dead"; } else { lv = [ms(dp.median), "worst " + ms(dp.max)]; lcls = dp.median > 2000 ? "slow" : "live"; }
+    var lf = m.last_fill, tm = el("div", "ctm");
+    tm.appendChild(blk("Started", m.started_at ? et(m.started_at, true) : "Unknown", m.resumes ? "resumed " + m.resumes + "x" : "", "", m.started_at ? "UTC " + m.started_at : ""));
+    tm.appendChild(blk("Last active", ldat ? et(ldat) : "No data yet", ldat && run ? ago(dage) : "", dcls, ldat ? "UTC " + ldat : ""));
+    tm.appendChild(blk("Last fill", lf ? et(lf.at) : "No fills yet", lf ? String(lf.action).toUpperCase() + " " + lf.contracts + " " + String(lf.side || "").toUpperCase() + " @ " + (lf.price != null ? lf.price.toFixed(2) : "-") : "", "", lf ? "UTC " + lf.at : ""));
+    tm.appendChild(blk("Latency", lv[0], lv[1], lcls, L.definition || ""));
+    c.appendChild(tm);
+    var mt = el("div", "cm"), eq = el("div", "ceq"); eq.appendChild(el("b", "", money(f.equity))); eq.appendChild(el("span", "pnl " + sgn(f.pnl), signed(f.pnl) + " (" + pct(f.pnl_pct) + ")")); mt.appendChild(eq);
+    var sp = el("div", "csp"); sp.appendChild(spark(t.equity_curve, f.starting_bankroll)); mt.appendChild(sp);
+    var kv = el("div", "ckv");
+    [["Start bal.", money(f.starting_bankroll)], ["W / L", st.wins + " / " + st.losses], ["Open", st.open_positions], ["Trades", st.completed_trades]].forEach(function (p) { var d = el("div"); d.appendChild(el("span", "", p[0])); d.appendChild(el("b", "", String(p[1]))); kv.appendChild(d); });
+    mt.appendChild(kv); c.appendChild(mt);
+    var full = fullCard(t, ref, notes), kids = Array.prototype.slice.call(full.children).filter(function (x) { return !(x.classList.contains("top") || x.classList.contains("eq") || x.classList.contains("spark")); });
+    var dd = el("details", "more"); dd.open = !!open["m:" + tk.id]; dd.addEventListener("toggle", function () { open["m:" + tk.id] = dd.open; });
+    dd.appendChild(el("summary", "", "Details · notes, positions, trades, signals, latency"));
+    var inner = el("div", "mbody"); kids.forEach(function (x) { inner.appendChild(x); }); dd.appendChild(inner); c.appendChild(dd);
     return c;
   }
 
