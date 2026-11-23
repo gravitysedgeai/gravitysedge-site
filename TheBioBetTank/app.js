@@ -271,6 +271,77 @@
     var d = el("div", "cb" + (cls ? " " + cls : "")); if (tip) d.title = tip + (sub ? " · " + sub : "");
     d.appendChild(el("span", "", name)); d.appendChild(el("b", "", val)); d.appendChild(el("small", "", sub || " ")); return d;
   }
+  // ---- position countdown (generic, display-only): derived from each ticket's published open_positions[] and the market close time carried by the contract ticker (US Eastern wall time in the ticker,
+  // converted with the browser's own tz database, so EST/EDT is handled). Ticks once per second in the browser; no extra requests. Uses the Worker's server_time to cancel viewer clock skew.
+  var MONS = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+  var ETH = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
+  var ETABS = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZoneName: "short" });
+  var skew = 0;
+  function nowMs() { return Date.now() + skew; }
+  function etWall(y, mo, d, h, mi) {
+    for (var off = 5; off >= 4; off--) { var c = Date.UTC(y, mo, d, h, mi) + off * 3600000, p = ETH.formatToParts(new Date(c)), hh = +p.filter(function (x) { return x.type === "hour"; })[0].value, mm = +p.filter(function (x) { return x.type === "minute"; })[0].value; if (hh === h && mm === mi) return c; }
+    return null;
+  }
+  function expiryOf(p) {
+    if (p.close_ts != null) { var v = typeof p.close_ts === "number" ? (p.close_ts > 1e12 ? p.close_ts : p.close_ts * 1000) : Date.parse(p.close_ts); if (!isNaN(v)) return { ms: v, src: "market close_ts" }; }
+    var m = /-(\d{2})([A-Z]{3})(\d{2})(\d{2})(\d{2})(?:-|$)/.exec(String(p.ticker || ""));
+    if (!m || !(m[2] in MONS)) return null;
+    var c = etWall(2000 + (+m[1]), MONS[m[2]], +m[3], +m[4], +m[5]);
+    return c == null ? null : { ms: c, src: "market close time in the contract ticker (US Eastern)" };
+  }
+  function hms(ms) { var s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s % 60 < 10 ? "0" : "") + (s % 60); }
+  function posList(t) {
+    return (t.open_positions || []).map(function (p) {
+      var e = expiryOf(p), inv = p.entry_price * p.contracts + (p.entry_fee || 0);
+      return { p: p, exp: e, inv: inv, pay: p.contracts, fee: p.entry_fee || 0 };
+    }).sort(function (a, b) { return (a.exp ? a.exp.ms : Infinity) - (b.exp ? b.exp.ms : Infinity); });
+  }
+  // primary = the nearest position that has not closed yet; if every position has closed it is awaiting settlement (it stays until the ticket records the confirmed result)
+  function posPrimary(list, now) {
+    var live = list.filter(function (x) { return x.exp && x.exp.ms > now; });
+    return live.length ? { x: live[0], await: false } : list.length ? { x: list[0], await: true } : null;
+  }
+  function posStrip(t) {
+    var wrap = el("div", "cposw"), list = posList(t), strip = el("div", "cpos"), nm = ["Countdown", "Position", "Invested", "Max payout"], bl = [];
+    nm.forEach(function (n) { var d = el("div", "cb"); d.appendChild(el("span", "", n)); d.appendChild(el("b", "", "–")); d.appendChild(el("small", "", " ")); strip.appendChild(d); bl.push(d); });
+    var flat = el("div", "cb flat"); flat.appendChild(el("span", "", "Positions")); flat.appendChild(el("b", "", "NO OPEN POSITIONS")); flat.appendChild(el("small", "", " "));
+    strip._bl = bl; strip._flat = flat; strip._list = list; strip.appendChild(flat); wrap.appendChild(strip);
+    var d = el("details", "cpx"), id = t.ticket.id; d.open = !!open["p:" + id]; d.addEventListener("toggle", function () { open["p:" + id] = d.open; });
+    d.appendChild(el("summary", "", "Open positions (" + list.length + ") · expiry details"));
+    if (!list.length) d.appendChild(el("div", "ev", "No open positions."));
+    else {
+      var w = el("div", "wrap"), tb = el("table", "tbl"), h = el("tr");
+      ["Expires (Eastern)", "Time left", "Market", "Position", "Invested", "Max payout"].forEach(function (c) { h.appendChild(el("th", "", c)); }); tb.appendChild(h);
+      list.forEach(function (x) {
+        var tr = el("tr"), cd = el("span", "cdc"); cd._exp = x.exp ? x.exp.ms : null; cd.textContent = "–";
+        [x.exp ? ETABS.format(new Date(x.exp.ms)) : "unknown", cd, x.p.ticker, x.p.side.toUpperCase() + " × " + x.p.contracts, money(x.inv), money(x.pay)].forEach(function (c) { var td = el("td"); if (typeof c === "string") td.textContent = c; else td.appendChild(c); tr.appendChild(td); });
+        tb.appendChild(tr);
+      });
+      w.appendChild(tb); d.appendChild(w);
+      d.appendChild(el("div", "ev", "Invested = purchase cost incl. fees. Max payout = contracts × $1.00 if the position wins. Expiry source: " + (list[0].exp ? list[0].exp.src : "unavailable") + ". Positions stay listed (AWAITING SETTLEMENT) until the ticket records the confirmed result."));
+    }
+    wrap.appendChild(d); tickStrip(strip); return wrap;
+  }
+  function tickStrip(strip) {
+    var list = strip._list, now = nowMs(), bl = strip._bl, pr = posPrimary(list, now);
+    if (!pr) { bl.forEach(function (b) { b.style.display = "none"; }); strip._flat.style.display = ""; return; }
+    strip._flat.style.display = "none"; bl.forEach(function (b) { b.style.display = ""; });
+    var x = pr.x, aw = list.filter(function (y) { return y.exp && y.exp.ms <= now; }).length, others = list.length - 1;
+    var c = bl[0], b = c.children[1], s = c.children[2];
+    c.className = "cb" + (pr.await ? " await" : x.exp && x.exp.ms - now < 60000 ? " warn" : "");
+    if (!x.exp) { b.textContent = "EXPIRY UNKNOWN"; s.textContent = " "; }
+    else if (pr.await) { b.textContent = "AWAITING SETTLEMENT"; s.textContent = "closed " + hms(now - x.exp.ms) + " ago"; }
+    else { b.textContent = hms(x.exp.ms - now); s.textContent = aw ? aw + " awaiting settlement" : " "; }
+    bl[1].children[1].textContent = x.p.side.toUpperCase() + " × " + x.p.contracts; bl[1].children[2].textContent = others > 0 ? "+" + others + " more" : " ";
+    bl[2].children[1].textContent = money(x.inv); bl[2].children[2].textContent = "incl. " + money(x.fee) + " fees";
+    bl[3].children[1].textContent = money(x.pay); bl[3].children[2].textContent = signed(x.pay - x.inv) + " if wins";
+  }
+  function tickAll() {
+    var n = nowMs();
+    Array.prototype.forEach.call(document.querySelectorAll(".cpos"), tickStrip);
+    Array.prototype.forEach.call(document.querySelectorAll(".cdc"), function (c) { c.textContent = c._exp == null ? "–" : c._exp > n ? hms(c._exp - n) : "AWAITING SETTLEMENT"; });
+  }
+
   function card(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, m = t.monitor || {}, run = t.state === "running", c = el("div", "card compact"), lbl = label(t, ref);
     var h = el("div", "ch"), tt = el("div", "ct"); tt.appendChild(el("div", "title", tk.title)); tt.title = tk.title;
@@ -289,6 +360,7 @@
     tm.appendChild(blk("Last fill", lf ? et(lf.at) : "No fills yet", lf ? String(lf.action).toUpperCase() + " " + lf.contracts + " " + String(lf.side || "").toUpperCase() + " @ " + (lf.price != null ? lf.price.toFixed(2) : "-") : "", "", lf ? "UTC " + lf.at : ""));
     tm.appendChild(blk("Latency", lv[0], lv[1], lcls, L.definition || ""));
     c.appendChild(tm);
+    c.appendChild(posStrip(t));
     if (m.coverage) c.appendChild(covLine(t, ref));
     var mt = el("div", "cm"), eq = el("div", "ceq"); eq.appendChild(el("b", "", money(f.equity))); eq.appendChild(el("span", "pnl " + sgn(f.pnl), signed(f.pnl) + " (" + pct(f.pnl_pct) + ")")); mt.appendChild(eq);
     var sp = el("div", "csp"); sp.appendChild(spark(t.equity_curve, f.starting_bankroll)); mt.appendChild(sp);
@@ -344,9 +416,9 @@
   var fetchedAt = Date.now();
   function load() {
     fetch(DATA, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (j) { tank = j; fetchedAt = Date.now(); render(); })
+      .then(function (j) { tank = j; fetchedAt = Date.now(); if (typeof j.server_time === "number") skew = j.server_time - fetchedAt; render(); })
       .catch(function () { var b = $("banner"); b.hidden = false; b.textContent = tank ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "Could not load ticket data."; });
   }
   $("q").addEventListener("input", render); $("sort").addEventListener("change", render);
-  load(); setInterval(load, POLL_MS);
+  load(); setInterval(load, POLL_MS); setInterval(tickAll, 1000);
 })();
