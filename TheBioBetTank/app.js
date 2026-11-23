@@ -106,7 +106,7 @@
   function counters(t) {
     var r = t.market_report || null, st = t.stats || {}, sg = t.signals || [], skipped = {}, nSig = 0, nEnt = 0, mk = {}, tot = 0;
     if (r) { skipped = r.skips || {}; Object.keys(skipped).forEach(function (k) { tot += skipped[k]; }); return { markets: r.markets_seen, signals: null, entries: r.entries, skips: tot, why: skipped, trades: st.completed_trades }; }
-    sg.forEach(function (x) { mk[x.ticker] = 1; nSig++; var d = String(x.decision || ""); if (d.indexOf("entry") === 0) nEnt++; else if (d) { var k = d + (x.reason ? ": " + String(x.reason).split(/[ (,:]/)[0] : ""); skipped[k] = (skipped[k] || 0) + 1; tot++; } });
+    sg.forEach(function (x) { mk[x.ticker] = 1; nSig++; var d = String(x.decision || ""); if (d.indexOf("entr") === 0) nEnt++; else if (d) { var k = d + (x.reason ? ": " + String(x.reason).split(/[ (,:]/)[0] : ""); skipped[k] = (skipped[k] || 0) + 1; tot++; } });
     return { markets: Object.keys(mk).length, signals: nSig, entries: nEnt, skips: tot, why: skipped, trades: st.completed_trades, recent: true };
   }
   function evText(e) {
