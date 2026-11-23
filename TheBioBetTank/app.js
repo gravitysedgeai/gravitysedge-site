@@ -232,6 +232,33 @@
   }
 
   // ---- compact uniform card: a fixed summary frame (always the same blocks, single-line clamped text) + ONE expandable "Details" holding everything verbose
+  // ---- market coverage (what this ticket asked Discovery for, what it is really reading, last evaluation, results kept apart by family)
+  function fam(s) { return String(s).replace(/^KX/, "").replace(/15M$/, ""); }
+  function covLine(t, ref) {
+    var cv = t.monitor.coverage, row = el("div", "cov"), rd = cv.reading || {}, names = Object.keys(rd);
+    row.appendChild(el("span", "covh", "Markets"));
+    if (!names.length) { row.appendChild(el("span", "chip off", "none")); return row; }
+    names.forEach(function (k) {
+      var v = rd[k], ok = v.state === "open" || v.state === "single-family", stale = v.age_s != null && v.age_s > 10;
+      var c = el("span", "chip " + (!ok ? "dead" : stale ? "slow" : "live"), fam(k) + (v.markets_seen != null ? " · " + v.markets_seen : ""));
+      c.title = fam(k) + ": " + (v.state || "-") + (v.age_s != null ? " · last event " + v.age_s + " s ago" : "") + (v.markets_active != null ? " · " + v.markets_active + " active market(s)" : "") + (v.error ? " · " + v.error : "");
+      row.appendChild(c);
+    });
+    (cv.not_read || []).forEach(function (k) { var c = el("span", "chip dead", fam(k) + " NOT READ"); c.title = "Declared in this ticket's Discovery spec but this ticket's feed does not read it"; row.appendChild(c); });
+    return row;
+  }
+  function covFull(t, ref) {
+    var cv = t.monitor.coverage, b = el("div", "covfull"), sp = cv.spec || {}, dc = cv.discovery || {}, rs = cv.results_by_family || {}, dd = cv.recent_decisions_by_family || {};
+    function line(k, v) { var r = el("div"); r.appendChild(el("b", "", k + ": ")); r.appendChild(document.createTextNode(v)); b.appendChild(r); }
+    line("Declared (Discovery spec" + (sp.declared_by ? ", by " + sp.declared_by : "") + ")", (sp.families || []).map(fam).join(", ") || "none declared");
+    line("Discovery returned", dc.returned_by_series ? Object.keys(dc.returned_by_series).map(function (k) { return fam(k) + " " + dc.returned_by_series[k]; }).join(" · ") + (dc.updated_at ? " (" + et(dc.updated_at) + ")" : "") : "nothing recorded yet");
+    line("Last evaluation", cv.last_evaluation_at ? et(cv.last_evaluation_at, true) : "no evaluation yet");
+    var fk = Object.keys(rs);
+    line("Results by family", fk.length ? fk.map(function (k) { var r = rs[k]; return fam(k) + ": " + r.trades + " closed" + (r.open ? " + " + r.open + " open" : "") + ", " + (r.win_rate == null ? "–" : r.win_rate + "% won") + ", " + signed(r.pnl); }).join(" | ") : "no trades yet");
+    var dk = Object.keys(dd);
+    if (dk.length) line("Recent decisions", dk.map(function (k) { return fam(k) + " " + Object.keys(dd[k]).map(function (x) { return x + " ×" + dd[k][x]; }).join(", "); }).join(" | "));
+    return b;
+  }
   function badges(t, notes) {
     var fd = t.feed || {}, nt = (notes || {})[t.ticket.id], txt = (nt ? (nt.label || "") + " " + (nt.caveat || "") : "").toLowerCase(), b = ["PAPER"];
     if (t.state === "archived") b.push("ARCHIVED");
@@ -262,6 +289,7 @@
     tm.appendChild(blk("Last fill", lf ? et(lf.at) : "No fills yet", lf ? String(lf.action).toUpperCase() + " " + lf.contracts + " " + String(lf.side || "").toUpperCase() + " @ " + (lf.price != null ? lf.price.toFixed(2) : "-") : "", "", lf ? "UTC " + lf.at : ""));
     tm.appendChild(blk("Latency", lv[0], lv[1], lcls, L.definition || ""));
     c.appendChild(tm);
+    if (m.coverage) c.appendChild(covLine(t, ref));
     var mt = el("div", "cm"), eq = el("div", "ceq"); eq.appendChild(el("b", "", money(f.equity))); eq.appendChild(el("span", "pnl " + sgn(f.pnl), signed(f.pnl) + " (" + pct(f.pnl_pct) + ")")); mt.appendChild(eq);
     var sp = el("div", "csp"); sp.appendChild(spark(t.equity_curve, f.starting_bankroll)); mt.appendChild(sp);
     var kv = el("div", "ckv");
@@ -270,7 +298,7 @@
     var full = fullCard(t, ref, notes), kids = Array.prototype.slice.call(full.children).filter(function (x) { return !(x.classList.contains("top") || x.classList.contains("eq") || x.classList.contains("spark")); });
     var dd = el("details", "more"); dd.open = !!open["m:" + tk.id]; dd.addEventListener("toggle", function () { open["m:" + tk.id] = dd.open; });
     dd.appendChild(el("summary", "", "Details · notes, positions, trades, signals, latency"));
-    var inner = el("div", "mbody"); kids.forEach(function (x) { inner.appendChild(x); }); dd.appendChild(inner); c.appendChild(dd);
+    var inner = el("div", "mbody"); if (m.coverage) inner.appendChild(covFull(t, ref)); kids.forEach(function (x) { inner.appendChild(x); }); dd.appendChild(inner); c.appendChild(dd);
     return c;
   }
 
