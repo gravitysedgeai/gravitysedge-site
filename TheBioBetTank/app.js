@@ -140,6 +140,11 @@
     [["Start", money(f.starting_bankroll)], ["Cash", money(f.cash)], ["Fees", money(f.fees_paid)],
      ["W / L", st.wins + " / " + st.losses + (st.win_rate != null ? " (" + st.win_rate + "%)" : "")], [st.unresolved_positions || t.state === "archived" || t.state === "completed" ? "Unresolved" : "Open", st.open_positions], ["Trades", st.completed_trades]]
       .forEach(function (p) { var d = el("div"); d.appendChild(el("span", "", p[0])); d.appendChild(document.createTextNode(p[1])); kv.appendChild(d); });
+    if (f.max_drawdown != null) {                        // tickets that publish the extended account block (e.g. compounding variants) show it in full
+      [["Available cash", money(f.available_cash)], ["Invested", money(f.invested)], ["Realized P&L", signed(f.realized_pnl)], ["Unrealized P&L", signed(f.unrealized_pnl)],
+       ["Max drawdown", money(f.max_drawdown) + " (" + f.max_drawdown_pct + "%)"], ["Equity", money(f.equity)]]
+        .forEach(function (p) { var d = el("div"); d.appendChild(el("span", "", p[0])); d.appendChild(document.createTextNode(p[1])); kv.appendChild(d); });
+    }
     c.appendChild(kv);
     var s = tk.summary || {};
     c.appendChild(el("div", "cfg", [s.strategy, s.trigger, s.entry_range ? "entry " + s.entry_range.join("–") : null, s.exit, s.feed].filter(Boolean).join(" · ")));
