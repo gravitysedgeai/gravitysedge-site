@@ -109,7 +109,7 @@
     var ac = t.monitor && t.monitor.account;
     if (ac && ac.state === "exhausted") return { k: "exhausted", txt: "ACCOUNT EXHAUSTED" };          // spent: not "waiting for a match"
     var busy = (t.open_positions || []).length > 0;
-    return busy ? { k: "running", txt: "RUNNING" } : { k: "waiting", txt: "WAITING FOR MATCH" };
+    return busy ? { k: "running", txt: "ACTIVE" } : { k: "waiting", txt: "WAITING" };
   }
   // generic counters: markets observed, signals, entries, skipped (with reasons), completed trades
   function counters(t) {
@@ -374,7 +374,12 @@
     return c;
   }
 
-  function groupOf(t) { return t.state === "archived" ? "archived" : t.state === "completed" ? "completed" : "active"; }
+  function groupOf(t) {
+    if (t.state === "archived") return "archived"; if (t.state === "completed") return "completed";
+    var lb = label(t, tank.server_time), k = /^RETIRING/.test(lb.txt) ? "running" : lb.k;   // a superseded ticket that is still running and trading stays in Active (the user decides retirement)
+         // genuinely-tested strategies stay in Active; spent / crashed / paused / disconnected ones are listed under Attention (never hidden, never archived by the page)
+    return k === "exhausted" || k === "failed" || k === "paused" || k === "offline" ? "attention" : "active";
+  }
   var SORT = {
     pnl: function (a, b) { return b.financials.pnl - a.financials.pnl; },
     pnl_pct: function (a, b) { return b.financials.pnl_pct - a.financials.pnl_pct; },
@@ -386,18 +391,18 @@
 
   function render() {
     if (!tank) return;
-    var ref = tank.server_time, all = tank.tickets, counts = { active: 0, completed: 0, archived: 0 };
+    var ref = tank.server_time, all = tank.tickets, counts = { active: 0, attention: 0, completed: 0, archived: 0 };
     all.forEach(function (t) { counts[groupOf(t)]++; });
     var shown = all.filter(function (t) { return t.state !== "archived" || true; });
-    var live = all.filter(function (t) { return groupOf(t) === "active"; }), pnl = live.reduce(function (s, t) { return s + t.financials.pnl; }, 0);
+    var live = all.filter(function (t) { var g = groupOf(t); return g === "active" || g === "attention"; }), pnl = live.reduce(function (s, t) { return s + t.financials.pnl; }, 0);
     var tiles = $("tiles"); tiles.textContent = "";
-    [["Active tickets", counts.active], ["Completed", counts.completed], ["Archived", counts.archived], ["Active net P&L", signed(pnl), sgn(pnl)],
+    [["Active tickets", counts.active], ["Needs attention", counts.attention], ["Completed", counts.completed], ["Archived", counts.archived], ["Active net P&L", signed(pnl), sgn(pnl)],
      ["Funded & operational", live.filter(function (t) { var l = label(t, ref); return l.k === "running" || l.k === "waiting"; }).length + " / " + live.length],
      ["Accounts exhausted", live.filter(function (t) { return label(t, ref).k === "exhausted"; }).length],
      ["Profitable (active)", live.filter(function (t) { return t.financials.pnl > 0; }).length + " / " + live.length]]
       .forEach(function (p) { var d = el("div", "tile"); d.appendChild(el("span", "", p[0])); d.appendChild(el("b", p[2] || "", p[1])); tiles.appendChild(d); });
     var tabs = $("tabs"); tabs.textContent = "";
-    [["active", "Active"], ["completed", "Completed"], ["archived", "Archived"], ["all", "All"]].forEach(function (p) {
+    [["active", "Active"], ["attention", "Attention"], ["completed", "Completed"], ["archived", "Archived"], ["all", "All"]].forEach(function (p) {
       var b = el("button", "", p[0] === "all" ? "All (" + all.length + ")" : p[1] + " (" + counts[p[0]] + ")"); b.setAttribute("role", "tab"); b.setAttribute("aria-selected", tab === p[0]);
       b.onclick = function () { tab = p[0]; render(); }; tabs.appendChild(b);
     });
