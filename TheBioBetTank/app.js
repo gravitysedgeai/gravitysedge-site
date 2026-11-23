@@ -2,7 +2,7 @@
 // No strategy-specific code lives here.
 (function () {
   "use strict";
-  var DATA = "data/tank.json", POLL_MS = 10000;
+  var DATA = "https://biobet-tank.gravitysedge.workers.dev/data", POLL_MS = 10000;   // live endpoint (Cloudflare Worker, never cached); no site redeploy is needed for data or new tickets
   var tank = null, tab = "active", open = {};   // open: ticket id -> true (keeps <details> state across refreshes)
 
   function $(id) { return document.getElementById(id); }
@@ -146,6 +146,27 @@
     var cn = counters(t), why = Object.keys(cn.why).map(function (k) { return k + " ×" + cn.why[k]; }).join(", ");
     var cr = el("div", "cfg", "Markets " + (cn.markets == null ? "–" : cn.markets) + (cn.recent ? " (recent)" : " observed") + " · signals " + (cn.signals == null ? "–" : cn.signals) + " · entries " + (cn.entries == null ? "–" : cn.entries) + " · skipped " + cn.skips + (why ? " (" + why + ")" : "") + " · completed trades " + cn.trades);
     c.appendChild(cr);
+    if (t.experiment) {                                  // generic: any ticket may publish an `experiment` block (plain-English explanation + results); rendered the same for every ticket
+      var xp = t.experiment, ex = xp.explain || {}, bx = el("div", "xplain");
+      [["Triggers when", ex.what_triggers_a_trade], ["Why it entered", ex.why_it_entered], ["What happened", ex.what_happened_afterward], ["Result", ex.money]].forEach(function (p) {
+        if (p[1]) { var r = el("div"); r.appendChild(el("b", "", p[0] + ": ")); r.appendChild(document.createTextNode(p[1])); bx.appendChild(r); }
+      });
+      var ms = [["Opportunities (markets)", xp.opportunities_markets], ["Signals", xp.signals], ["Attempted entries", xp.attempted_entries], ["Fills", xp.executable_fills], ["Net P&L", xp.net_pnl_realized == null ? "–" : signed(xp.net_pnl_realized)],
+                ["Avg / trade", xp.avg_net_per_trade == null ? "–" : signed(xp.avg_net_per_trade)], ["Max drawdown", xp.max_drawdown == null ? "–" : money(xp.max_drawdown)], ["Avg hold", xp.avg_hold_s == null ? "–" : xp.avg_hold_s + "s"]];
+      var xk = el("div", "kv");
+      ms.forEach(function (p) { var d2 = el("div"); d2.appendChild(el("span", "", p[0])); d2.appendChild(document.createTextNode(p[1])); xk.appendChild(d2); });
+      bx.appendChild(xk);
+      var miss = Object.keys(xp.missed_due_to_latency_or_price || {}).map(function (k) { return k + " ×" + xp.missed_due_to_latency_or_price[k]; }).join(", ");
+      var rj = Object.keys(xp.rejected_candidates || {}).map(function (k) { return k + " ×" + xp.rejected_candidates[k]; }).join(", ");
+      if (miss) bx.appendChild(el("div", "ev", "Missed (latency / price): " + miss));
+      if (rj) bx.appendChild(el("div", "ev", "Candidates rejected: " + rj));
+      var sb = xp.shadow_vs_baseline || {};
+      Object.keys(sb).forEach(function (k) {
+        bx.appendChild(el("div", "ev", "Same-signal comparison · " + k.replace(/_/g, " ") + ": " + Object.keys(sb[k]).map(function (h) { var v = sb[k][h]; return h + "s → " + (v.mean_net_per_contract == null ? "–" : signed(v.mean_net_per_contract) + "/contract") + " (n=" + v.n + ", win " + (v.win_pct == null ? "–" : v.win_pct + "%") + ")"; }).join(" · ")));
+      });
+      if (xp.verdict) bx.appendChild(el("div", "ev", xp.verdict));
+      c.appendChild(bx);
+    }
     if (t.health.errors) c.appendChild(el("div", "err", t.health.errors + " error(s)" + (t.health.last_error ? " · last: " + t.health.last_error : "")));
 
     var d = el("details"); d.open = !!open[tk.id];
@@ -182,7 +203,7 @@
 
   function render() {
     if (!tank) return;
-    var ref = ts(tank.published_at), all = tank.tickets, counts = { active: 0, completed: 0, archived: 0 };
+    var ref = tank.server_time, all = tank.tickets, counts = { active: 0, completed: 0, archived: 0 };
     all.forEach(function (t) { counts[groupOf(t)]++; });
     var shown = all.filter(function (t) { return t.state !== "archived" || true; });
     var live = all.filter(function (t) { return groupOf(t) === "active"; }), pnl = live.reduce(function (s, t) { return s + t.financials.pnl; }, 0);
@@ -200,15 +221,18 @@
     shown.sort(SORT[$("sort").value]);
     var g = $("grid"); g.textContent = ""; shown.forEach(function (t) { g.appendChild(card(t, ref, tank.notes)); });
     $("empty").hidden = shown.length > 0;
-    $("upd").textContent = new Date(ref).toLocaleString();
-    var age = Date.now() - ref, b = $("banner");
-    b.hidden = age < 900000 || !all.some(function (t) { return t.state === "running"; }); b.textContent = "Publishing looks stale: last update " + ago(age) + ". Ticket data below may be out of date.";
+    var since = tank.last_ingest ? ref - tank.last_ingest : null, b = $("banner");
+    $("upd").textContent = tank.last_ingest ? new Date(tank.last_ingest).toLocaleString() + " (" + ago(since) + " at last check)" : "never";
+    var fetchFail = Date.now() - fetchedAt > 3 * POLL_MS;
+    b.hidden = !(fetchFail || since == null || since > 60000);
+    b.textContent = fetchFail ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "Live data is stale: the publisher last sent an update " + ago(since) + ". Ticket cards below may be out of date.";
   }
 
+  var fetchedAt = Date.now();
   function load() {
-    fetch(DATA + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (j) { tank = j; render(); })
-      .catch(function () { var b = $("banner"); b.hidden = false; b.textContent = "Could not load ticket data."; });
+    fetch(DATA, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) { tank = j; fetchedAt = Date.now(); render(); })
+      .catch(function () { var b = $("banner"); b.hidden = false; b.textContent = tank ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "Could not load ticket data."; });
   }
   $("q").addEventListener("input", render); $("sort").addEventListener("change", render);
   load(); setInterval(load, POLL_MS);

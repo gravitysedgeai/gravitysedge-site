@@ -45,3 +45,4 @@ footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
 .latpill.none{color:var(--dn)}.latpill.none .dot{background:var(--dn)}.latpill.sim{color:var(--acc)}.latpill.sim .dot{background:var(--acc)}.latpill.off .dot{background:var(--mut)}
 details.lat summary{color:var(--mut)}
 .s-waiting{color:var(--acc);border-color:var(--acc)}.s-offline{color:var(--dn);border-color:var(--dn);opacity:.85}
+.xplain{margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.45}.xplain b{font-weight:600}
