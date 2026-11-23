@@ -46,3 +46,11 @@ footer{color:var(--mut);padding:18px 16px 30px;font-size:12px}
 details.lat summary{color:var(--mut)}
 .s-waiting{color:var(--acc);border-color:var(--acc)}.s-offline{color:var(--dn);border-color:var(--dn);opacity:.85}
 .xplain{margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;line-height:1.45}.xplain b{font-weight:600}
+
+.mon{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin:8px 0}
+.mon .mc{background:var(--bg);border-radius:8px;padding:6px 8px;border-left:3px solid transparent;min-width:0}
+.mon .mc span{display:block;color:var(--mut);font-size:11px;text-transform:uppercase}
+.mon .mc b{display:block;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.mon .mc small{display:block;color:var(--mut);font-size:11px;overflow-wrap:anywhere}
+.mon .mc.live{border-left-color:var(--up)}.mon .mc.slow{border-left-color:#c98a00}.mon .mc.dead{border-left-color:var(--dn)}.mon .mc.dead b{color:var(--dn)}.mon .mc.sim{border-left-color:#6b7fd7}
+.mon .monalert,.mon .monnote{grid-column:1/-1;font-size:12px}.mon .monalert{color:#fff;background:var(--dn);border-radius:6px;padding:6px 8px;font-weight:600}.mon .monnote{color:var(--mut)}

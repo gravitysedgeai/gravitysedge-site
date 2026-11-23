@@ -46,7 +46,11 @@
     w.appendChild(t); return w;
   }
   function section(title, node) { var s = el("div", "sec"); s.appendChild(el("h4", "", title)); s.appendChild(node); return s; }
-  function hhmmss(s) { return s ? s.slice(5, 19).replace("T", " ") : "–"; }
+  // all times on this page are shown in US Eastern (EST/EDT) with seconds; the published data keeps the original UTC timestamps
+  var ETF = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZoneName: "short" });
+  var ETY = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZoneName: "short" });
+  function et(s, year) { var m = s ? Date.parse(s) : NaN; return isNaN(m) ? "–" : (year ? ETY : ETF).format(new Date(m)); }
+  function hhmmss(s) { return et(s); }
 
 
   // ---- latency (generic: reads only the optional `latency` block of biobet.ticket.status v1; older tickets simply have none)
@@ -65,7 +69,7 @@
     var L = t.latency, ls = latState(t, ref), tk = t.ticket;
     var d = el("details", "lat"); d.open = !!open["lat:" + tk.id]; d.addEventListener("toggle", function () { open["lat:" + tk.id] = d.open; });
     d.appendChild(el("summary", "", "Latency & feed quality · " + ls.txt));
-    d.appendChild(el("div", "ev", ls.why + ". Window started " + hhmmss(L.window_started_at) + " UTC (" + L.window_s + " s)."));
+    d.appendChild(el("div", "ev", ls.why + ". Window started " + et(L.window_started_at) + " (" + L.window_s + " s)."));
     var haveAge = L.event_age_ms && L.event_age_ms.n > 0;
     if (L.feed_state === "no_live_feed" && !L.events.total) return d;
     if (L.feed_state !== "simulated") {
@@ -116,6 +120,31 @@
     if (e.trigger_trades) return e.trigger_trades.length + " trades " + e.trigger_trades.map(function (x) { return "$" + x.dollars; }).join(" + ");
     var o = []; Object.keys(e).slice(0, 4).forEach(function (k) { if (typeof e[k] !== "object") o.push(k + "=" + e[k]); }); return o.join(" ") || "–";
   }
+  // ---- per-strategy monitor: start, data->ticket latency (kept apart from the configured simulated execution delay), last market data, last simulated fill
+  function monitorBox(t, ref) {
+    var m = t.monitor, run = t.state === "running", box = el("div", "mon");
+    if (!m || m.error) { box.appendChild(el("div", "monnote", "Monitoring data unavailable for this ticket.")); return box; }
+    var gen = ref - ts(t.generated_at), ldat = m.last_data_at || (t.activity || {}).last_data_at, dage = ldat ? ref - ts(ldat) : null;
+    function cell(name, val, sub, cls, tip) { var d = el("div", "mc" + (cls ? " " + cls : "")); if (tip) d.title = tip; d.appendChild(el("span", "", name)); d.appendChild(el("b", "", val)); if (sub) d.appendChild(el("small", "", sub)); return d; }
+    if (run && m.process_alive === false) box.appendChild(el("div", "monalert", "PROCESS NOT RUNNING: this ticket reports running but its process has exited. It needs a restart."));
+    // start: the original start from the ticket's own ledger, so it survives feed and process restarts
+    box.appendChild(cell("Started", et(m.started_at, true), m.resumes ? "resumed " + m.resumes + "x · this run since " + et(m.current_run_started_at) : (m.current_run_started_at && m.current_run_started_at !== m.started_at ? "this run since " + et(m.current_run_started_at) : "original start"), "", "UTC " + (m.started_at || "-")));
+    // last usable market data
+    var dcls = !run ? "" : dage == null ? "dead" : dage <= 45000 ? "live" : dage <= 120000 ? "slow" : "dead";
+    box.appendChild(cell("Last market data", ldat ? et(ldat) : "none yet", !run ? "ticket not running" : dage == null ? "no market data received" : ago(dage) + (dcls === "dead" ? " · STALE" : ""), dcls, "UTC " + (ldat || "-") + ". The page refreshes about every 20 s, so ages under ~30 s are normal."));
+    // latency: data -> ticket processing (exact, same PC clock). The configured order delay is a simulation setting, shown separately.
+    var L = m.latency || {}, dp = L.data_processing_ms || {}, sim = L.simulated_execution_delay || {}, lv;
+    if (!run) lv = ["not running", "", "off"];
+    else if (!L.available || dp.median == null) lv = ["UNAVAILABLE", "no measurements yet", "dead"];
+    else if (L.feed_state !== "live" || gen > 90000) lv = ["STALE · last " + ms(dp.median), "feed " + (L.feed_state || "unknown"), "dead"];
+    else lv = [ms(dp.median) + " median", "p95 " + ms(dp.p95) + " · last " + ms(dp.last), dp.median > 2000 ? "slow" : "live"];
+    box.appendChild(cell("Data → ticket latency", lv[0], lv[1], lv[2], L.definition || ""));
+    box.appendChild(cell("Simulated order delay (setting)", (sim.configured_entry_s == null ? "-" : sim.configured_entry_s + " s entry") + " · " + (sim.configured_exit_s == null ? "-" : sim.configured_exit_s + " s exit"), sim.measured_paper_delay_ms != null ? "measured paper entry delay " + ms(sim.measured_paper_delay_ms) : "no entry fills measured", "sim", sim.note || ""));
+    // last simulated fill: an actual BUY or SELL in the ledger, never a signal or a data event
+    var lf = m.last_fill;
+    box.appendChild(cell("Last fill", lf ? et(lf.at) : "No fills yet", lf ? String(lf.action).toUpperCase() + " " + lf.contracts + " " + String(lf.side || "").toUpperCase() + " @ " + (lf.price != null ? lf.price.toFixed(2) : "-") + " · " + lf.ticker : (m.last_signal_at ? "last signal " + et(m.last_signal_at) : "no signal yet"), "", lf ? "UTC " + lf.at : ""));
+    return box;
+  }
   function card(t, ref, notes) {
     var f = t.financials, st = t.stats, tk = t.ticket, fr = fresh(t, ref), c = el("div", "card");
     var top = el("div", "top"), l = el("div");
@@ -125,6 +154,7 @@
     var ls = latState(t, ref);
     if (ls) { var lp = el("div", "latpill " + ls.cls); lp.title = ls.why; lp.appendChild(el("span", "dot")); lp.appendChild(document.createTextNode(ls.txt)); r.appendChild(lp); }
     top.appendChild(l); top.appendChild(r); c.appendChild(top);
+    c.appendChild(monitorBox(t, ref));
     var fd = t.feed || {}, nt = (notes || {})[tk.id], lab = nt && nt.label ? nt.label : fd.mode === "market_tape" ? "LIVE-DATA PAPER TEST" : fd.mode === "simulated" ? "SIMULATED DATA" : null;
     if (lab) {
       var lb = el("div", "live-label"); lb.appendChild(el("b", "", lab));
@@ -228,7 +258,7 @@
     var g = $("grid"); g.textContent = ""; shown.forEach(function (t) { g.appendChild(card(t, ref, tank.notes)); });
     $("empty").hidden = shown.length > 0;
     var since = tank.last_ingest ? ref - tank.last_ingest : null, b = $("banner");
-    $("upd").textContent = tank.last_ingest ? new Date(tank.last_ingest).toLocaleString() + " (" + ago(since) + " at last check)" : "never";
+    $("upd").textContent = tank.last_ingest ? et(new Date(tank.last_ingest).toISOString()) + " (" + ago(since) + " at last check)" : "never";
     var fetchFail = Date.now() - fetchedAt > 3 * POLL_MS;
     b.hidden = !(fetchFail || since == null || since > 60000);
     b.textContent = fetchFail ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "Live data is stale: the publisher last sent an update " + ago(since) + ". Ticket cards below may be out of date.";
