@@ -92,7 +92,11 @@
   }
 
   // display status derived from the ticket's own published fields (no ticket changes): RUNNING / WAITING FOR MATCH / PAUSED / OFFLINE / ERROR / COMPLETED / ARCHIVED
+  // Publisher health is separate from ticket health: when the PUBLISHER is late (no ingest for > 60 s, the same threshold as the banner) a ticket's age is measured at the publisher's last heartbeat, so a
+  // stalled upload is never shown as the tickets going OFFLINE. With a healthy publisher this returns `ref` unchanged (identical behaviour and thresholds to before).
+  function tickRef(ref) { var p = tank && tank.publisher; return p && p.ts && ref - p.ts > 60000 ? p.ts : ref; }
   function label(t, ref) {
+    ref = tickRef(ref);
     var s = t.state, sup = tank && tank.notes && tank.notes[t.ticket.id] && tank.notes[t.ticket.id].superseded_by;
     if (sup && s !== "archived") if (s === "failed") return { k: "failed", txt: "CRASHED — SUPERSEDED BY V2" };
     if (sup && s !== "archived") return s === "running" ? { k: "paused", txt: "RETIRING — SUPERSEDED BY V2" } : { k: "paused", txt: "PAUSED — SUPERSEDED BY V2" };
@@ -415,7 +419,8 @@
     $("upd").textContent = tank.last_ingest ? et(new Date(tank.last_ingest).toISOString()) + " (" + ago(since) + " at last check)" : "never";
     var fetchFail = Date.now() - fetchedAt > 3 * POLL_MS;
     b.hidden = !(fetchFail || since == null || since > 60000);
-    b.textContent = fetchFail ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "Live data is stale: the publisher last sent an update " + ago(since) + ". Ticket cards below may be out of date.";
+    var pb = tank.publisher, why = pb && pb.last_error ? " Last publisher error: " + String(pb.last_error).slice(0, 80) + "." : "";
+    b.textContent = fetchFail ? "Cannot reach the live data endpoint. Showing the last data received, which is now out of date." : "PUBLISHER DELAYED: the publisher last delivered an update " + ago(since) + "." + why + " Ticket cards show their last delivered state; tickets are not marked OFFLINE because of this delay.";
   }
 
   var fetchedAt = Date.now();
